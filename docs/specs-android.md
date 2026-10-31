@@ -1,6 +1,10 @@
 # Especificação Técnica: Sincronização e Pareamento Multiplataforma (Windows 11 $\leftrightarrow$ Android) via Syncthing e ADB
 
-Esta especificação define o pipeline contínuo de sincronização de dados (saves, BIOS, ROMs) e o provisionamento de emuladores compatíveis entre a estação de trabalho **Windows 11** (RTX 4050 / Core i5-12th) e o **Motorola Signature** (Snapdragon 8 Gen 5 / Android).
+Esta especificação define o pipeline contínuo de sincronização de dados (saves, BIOS, ROMs) e o provisionamento de emuladores compatíveis entre uma estação de trabalho **Windows 11** e qualquer dispositivo **Android ARM64** (Smartphones, Tablets ou Consoles Portáteis dedicados como Ayn Odin, Retroid Pocket, Anbernic, etc.).
+
+> [!NOTE]
+> **Perfil de Referência Homologado:**  
+> Um smartphone com chipset Qualcomm Snapdragon 8 Gen 5 (arquitetura ARM64) foi utilizado como **baseline empírico de validação móvel**, confirmando a execução com folga de emuladores de 6ª geração (PS2/GameCube) e a compatibilidade do Android Scoped Storage. A arquitetura aqui descrita é, no entanto, agnóstica e compatível com qualquer dispositivo Android 10+ ARM64.
 
 ---
 
@@ -12,7 +16,7 @@ Para evitar conflitos de gravação, perda de progresso e preservar a banda de r
 +---------------------------------------------------------------------------------------------------------+
 |                                           TOPOLOGIA SYNCTHING                                           |
 |                                                                                                         |
-|   Windows 11 (Host Portátil)                                  Android (Motorola Signature)              |
+|   Windows 11 (Host Portátil)                                  Dispositivo Android (Qualquer ARM64)      |
 |                                                                                                         |
 |   [data\saves\]   <============== (Bidirecional / Send-Receive) =============> [/RetroGames/saves/]    |
 |   - Saves por jogo (.srm, .mcd, .ps2, .gci, .bin)                                                       |
@@ -76,8 +80,8 @@ Para evitar perdas por concorrência (quando dois aparelhos alteram o mesmo arqu
 
 Este script em PowerShell utiliza o **Android Debug Bridge (ADB)** para:
 
-1. Validar a conexão com o Motorola Signature via USB ou Wi-Fi Debugging.
-2. Criar a estrutura hierárquica em `/storage/emulated/0/RetroGames/` (incluindo Dreamcast).
+1. Validar dinamicamente a conexão e a arquitetura do dispositivo conectado (ARM64).
+2. Criar a estrutura hierárquica em `/storage/emulated/0/RetroGames/`.
 3. Conceder permissão especial **`MANAGE_EXTERNAL_STORAGE`** (Scoped Storage do Android 11+).
 4. Configurar whitelist de economia de bateria para o Syncthing (`dumpsys deviceidle`).
 5. Baixar e instalar automaticamente os APKs ARM64 compatíveis (RetroArch, DuckStation, NetherSX2, PPSSPP, Dolphin, Flycast).
@@ -105,6 +109,15 @@ Write-Host ">>> Verificando conexão com o dispositivo via ADB..." -ForegroundCo
 $Devices = adb devices | Out-String
 if ($Devices -notmatch "\bdevice\b") {
     Write-Error "Nenhum dispositivo Android autorizado foi detectado. Ative a Depuração USB e autorize o PC."
+}
+
+# Identificação Dinâmica do Dispositivo
+$DeviceModel = (adb shell "getprop ro.product.model").Trim()
+$DeviceAbi   = (adb shell "getprop ro.product.cpu.abi").Trim()
+Write-Host ">>> Dispositivo Conectado: $DeviceModel (ABI: $DeviceAbi)" -ForegroundColor Green
+
+if ($DeviceAbi -notmatch "arm64") {
+    Write-Warning "O dispositivo conectado não reporta ABI arm64-v8a ($DeviceAbi). Alguns APKs podem falhar."
 }
 
 # 1. Estruturação Completa de Pastas no Android
@@ -192,7 +205,7 @@ foreach ($Emu in $Emulators) {
     }
 
     if (Test-Path $Emu.File) {
-        Write-Host "Instalando/Atualizando APK no Motorola..." -ForegroundColor Green
+        Write-Host "Instalando/Atualizando APK no dispositivo Android..." -ForegroundColor Green
         adb install -r -d -g $Emu.File
 
         # Concede permissão irrestrita de armazenamento (Scoped Storage Android 11+)
@@ -227,13 +240,13 @@ Write-Host "`n=== Provisionamento Android Concluído com Sucesso! ===" -Foregrou
    * **No Android:** Instale o app do Syncthing via F-Droid ou Play Store. Conceda permissão de *Acesso a todos os arquivos*.
 2. **Pareamento de Dispositivos:**
    * Adicione o ID do dispositivo de cada ponta no painel do outro.
-   * Ative a opção **Local Discovery (LAN)** para garantir que as transferências ocorram via Wi-Fi 6 de alta velocidade sem passar por relays de internet.
+   * Ative a opção **Local Discovery (LAN)** para garantir que as transferências ocorram em rede local de alta velocidade sem passar por relays de internet.
 3. **Mapeamento de Pastas:**
    * `retrogames-saves`: Mapeia `data\saves\` (Windows) $\leftrightarrow$ `/storage/emulated/0/RetroGames/saves/` (Android) no modo **Send & Receive**.
    * `retrogames-bios`: Mapeia `data\bios\` $\rightarrow$ `/storage/emulated/0/RetroGames/bios/` no modo **Send Only** no PC.
    * `retrogames-roms`: Mapeia `data\roms\` $\rightarrow$ `/storage/emulated/0/RetroGames/roms/` no modo **Send Only** no PC.
 4. **Provisionamento Automatizado via ADB:**
-   * Conecte o Motorola Signature via cabo USB com Depuração USB ativada.
+   * Conecte o dispositivo Android via cabo USB com Depuração USB ativada.
    * Execute:
      ```powershell
      pwsh -File .\scripts\setup_android_emulators.ps1

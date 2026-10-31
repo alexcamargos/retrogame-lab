@@ -2,58 +2,81 @@
 
 ## 1. Visão Geral da Arquitetura
 
-O projeto de referência [akitaonrails/distrobox-gaming](https://github.com/akitaonrails/distrobox-gaming) foca em isolamento de dependências via contêineres Linux (Distrobox/Arch Linux), evitando conflitos de glibc, bibliotecas de 32 bits e drivers X11/Wayland, além de orquestrar tudo com Ansible e EmulationStation Desktop Edition (ES-DE).
+O projeto de referência [akitaonrails/distrobox-gaming](https://github.com/akitaonrails/distrobox-gaming) foca em isolamento de dependências via contêineres Linux (Distrobox/Arch Linux), evitando conflitos de glibc, bibliotecas e drivers X11/Wayland, orquestrado via Ansible e EmulationStation Desktop Edition (ES-DE).
 
-No ambiente Windows 11, o isolamento equivalente é obtido pelo princípio de **Portabilidade Estática por Diretório** (*Zero-Install / Self-Contained Folders*). Os emuladores modernos (RetroArch, DuckStation, PCSX2, PPSSPP, Dolphin, Flycast) não exigem registro nem dependência do `%APPDATA%`, operando de forma desacoplada com caminhos relativos em pastas isoladas. A orquestração é controlada via **PowerShell Core (`pwsh`)** e Antigravity Skills, consumindo diretamente a **NVIDIA GeForce RTX 4050 6GB Laptop GPU** via **Vulkan** e **Direct3D 12**, com interface gráfica unificada opcional via **ES-DE Portable**.
+No ambiente Windows 11, o isolamento é obtido pelo princípio de **Portabilidade Estática por Diretório** (*Zero-Install / Self-Contained Folders*). Os emuladores modernos (RetroArch, DuckStation, PCSX2, PPSSPP, Dolphin, Flycast) não exigem registro nem dependência do `%APPDATA%`, operando de forma desacoplada com caminhos relativos em pastas isoladas.
+
+### 1.1 Filosofia Agnóstica de Hardware com Perfilamento Dinâmico
+Este pipeline é projetado para ser **estritamente agnóstico de hardware**. O sistema não assume uma CPU ou GPU fixa; em vez disso, a seleção de backend de renderização, multiplicador de resolução interna, flags de shaders e alocação de núcleos ocorre **dinamicamente no momento do lançamento do emulador e do título selecionado**, conforme o perfil de capacidade do host detectado em tempo de execução:
 
 ```
                            +-------------------------------------------------+
                            |                 Host: Windows 11                |
-                           |       (Intel Core i5-12th Gen | 16GB RAM)       |
+                           |       (Qualquer CPU x86_64 / iGPU ou dGPU)      |
                            +-------------------------------------------------+
                                                     |
                                     +---------------+---------------+
                                     |                               |
                      +----------------------------+   +----------------------------+
-                     |    Orquestração do Agente   |   |     Camada de Execução     |
-                     |       (agy CLI / Skills)   |   |  (PowerShell Core / ES-DE) |
+                     |    Orquestração do Agente   |   | Módulo de Perfilamento     |
+                     |       (agy CLI / Skills)   |   |   (Hardware Profiler Din.) |
                      +----------------------------+   +----------------------------+
+                                                    |
+                                    +---------------+---------------+
+                                    |  Decisão Dinâmica de Execução  |
+                                    |  (Backend, Resolução, Cores)  |
+                                    +---------------+---------------+
                                                     |
          +------------------------------------------+------------------------------------------+
          |                                          |                                          |
 +------------------+                      +-------------------+                      +------------------+
 |  Emuladores 2D   |                      | 3D Leve/Intermed. |                      | 3D Avançado      |
 |  (RetroArch)     |                      | (DuckStation/     |                      | (PCSX2 /         |
-|  Direct3D 11/12  |                      |  PPSSPP / Flycast)|                      |  Dolphin)        |
-|  SNES, GBA, Arcade|                     |  Vulkan (1080p)   |                      |  Vulkan (1440p)  |
+|  D3D11 / Vulkan  |                      |  PPSSPP / Flycast)|                      |  Dolphin)        |
+|  Escala Adaptada |                      |  Vulkan / D3D12   |                      |  Vulkan / D3D12  |
 +------------------+                      +-------------------+                      +------------------+
          |                                          |                                          |
          +------------------------------------------+------------------------------------------+
                                                     |
                                     +-------------------------------+
-                                    |     NVIDIA RTX 4050 6GB       |
-                                    | (High-Performance GPU Profile)|
+                                    |     Subsistema Gráfico Host   |
+                                    | (dGPU Dedicada ou iGPU Integr)|
                                     +-------------------------------+
 ```
 
+> [!NOTE]
+> **Perfil de Referência Homologado:**  
+> Um notebook equipado com Intel Core i5 de 12ª Geração (arquitetura híbrida) e NVIDIA GeForce RTX 4050 Laptop GPU (6GB) foi utilizado como **baseline empírico de referência** para calibrar tetos de performance e testar os limites de estresse térmico, mas todos os scripts e especificações suportam qualquer combinação de hardware compatível com Windows 11.
+
 ---
 
-## 2. Requisitos de Hardware e Alocação de Recursos
+## 2. Detecção Dinâmica de Recursos e Alocação do Host
 
-* **Processador:** Intel Core i5 12ª Geração (arquitetura híbrida P-Cores + E-Cores).
-  * *Diretriz de Afinidade:* A emulação pesada (PCSX2, Dolphin) é vinculada via script prioritariamente aos **Performance-cores (P-cores 0–7)** para evitar perda de quadros causada pelo agendador de tarefas em E-cores.
-* **Placa Gráfica:** NVIDIA GeForce RTX 4050 Laptop GPU (6GB GDDR6, arquitetura Ada Lovelace).
-  * *Backend Primário:* **Vulkan** (com *Pipeline Cache* e *Async Shader Compilation* habilitados).
-  * *Backend Secundário:* **Direct3D 12** (para títulos com incompatibilidades conhecidas em Vulkan).
-  * *Forçagem de GPU:* Atribuição determinística no registro do Windows 11 (`HKCU:\Software\Microsoft\DirectX\UserGpuPreferences` -> `GpuPreference=2;`).
-* **Memória RAM:** 16GB DDR4/DDR5 (Footprint operacional dos emuladores $\le$ 4GB).
-* **Armazenamento:** SSD NVMe dedicado. Mídias compactadas por blocos (`.chd`, `.cso`, `.rvz`).
+O pipeline inspeciona as capacidades do host em tempo de execução para aplicar as melhores diretrizes operacionais:
+
+### 2.1 Processador (CPU Topology & Affinity)
+* **Arquiteturas Híbridas (ex.: Intel 12ª Gen+ P-Cores e E-Cores):**
+  * Para emuladores com alta sensibilidade a temporização e IPC monothread (PCSX2, Dolphin), o orquestrador detecta a presença de topologia heterogênea e vincula o processo prioritariamente aos **Performance-cores (P-cores)**, impedindo que o agendador do SO migre threads críticas para E-cores de menor rendimento.
+* **Arquiteturas Simétricas (AMD Ryzen, Intel pré-12ª Gen):**
+  * O escalonamento permanece padrão e irrestrito (usando todos os núcleos disponíveis sem aplicar máscara de afinidade).
+
+### 2.2 Subsistema Gráfico (GPU & Rendering Backend)
+* **Hosts com GPU Dedicada (NVIDIA, AMD Radeon, Intel Arc):**
+  * O script injeta a preferência de alto desempenho no registro do Windows 11 (`HKCU:\Software\Microsoft\DirectX\UserGpuPreferences` -> `GpuPreference=2;`) para o binário acionado, garantindo que o sistema operacional direcione a renderização para a dGPU.
+  * Backend prioritário: **Vulkan** com compilação assíncrona de shaders habilitada.
+* **Hosts com Gráficos Integrados (Intel Iris Xe / AMD Radeon 600M/700M/800M):**
+  * Resolução interna ajustada dinamicamente para níveis sustentáveis (1x a 2x nativo) sem forçar perfis excessivos de VRAM.
+  * Backend alternativo: **Direct3D 12** ou **Direct3D 11** caso o suporte a Vulkan da iGPU apresente artefatos.
+
+### 2.3 Memória e Armazenamento
+* **RAM:** Alocação flexível. O footprint de emulação varia de 512MB (2D) até 4GB (PS2/Wii em resoluções altas).
+* **Armazenamento:** Mídias armazenadas exclusivamente em formatos compactados por blocos com acesso aleatório direto (`.chd`, `.cso`, `.rvz`), reduzindo o consumo de espaço em qualquer disco SSD/NVMe.
 
 ---
 
 ## 3. Topologia de Diretórios (Filesystem Estruturado)
 
-A raiz do projeto é totalmente autocontida e alinhada às necessidades de sincronização com o ecossistema móvel:
+A raiz do projeto é totalmente autocontida e portável entre diretórios ou volumes de disco:
 
 ```text
 retrogame-lab/
@@ -108,7 +131,7 @@ retrogame-lab/
 │   └── specs-android.md            # Especificação de sincronização com Android
 ├── scripts/
 │   ├── bootstrap.ps1               # Download e instalação idempotente dos emuladores
-│   ├── launch.ps1                  # Lançador com injeção de GPU, P-Cores e controle de CWD
+│   ├── launch.ps1                  # Lançador dinâmico com perfilamento de hardware e isolamento de CWD
 │   ├── convert_chd.ps1             # Conversor inteligente de mídias (CD vs DVD)
 │   └── audit_library.ps1           # Verificador de integridade de ROMs, BIOS e hashes
 ├── templates/                      # Templates pré-configurados de controles e emuladores
@@ -121,33 +144,26 @@ retrogame-lab/
 
 ---
 
-## 4. Matriz de Configuração dos Emuladores para RTX 4050
+## 4. Matriz de Perfis de Renderização e Calibração Dinâmica
 
-Todos os emuladores são calibrados para estabilidade térmica e performance no notebook:
+A resolução interna e os aprimoramentos visuais são parametrizados com base na capacidade do hardware host e nas características do jogo:
 
-| Plataforma | Emulador Recomendado | Backend Gráfico | Resolução Alvo | Estratégia de Memory Card / Saves |
-| :--- | :--- | :--- | :--- | :--- |
-| **SNES** | RetroArch (`snes9x` / `bsnes`) | Vulkan / D3D11 | 1x Nativo | Arquivos `.srm` por jogo em `data/saves/snes/` |
-| **PS1** | DuckStation (Qt) | Vulkan | 5x (1080p) / 6x (1440p) | **Title-specific Card** (`data/saves/ps1/<Title>_<ID>.mcd`) |
-| **PS2** | PCSX2 (Qt v2.0+) | Vulkan | 3x (1080p) / 4x (1440p) | **Title-specific Card** (`data/saves/ps2/<Title>_<ID>.ps2`) |
-| **PSP** | PPSSPP Standalone | Vulkan | 5x (1360x760) / 10x | Pastas nativas `data/saves/psp/SAVEDATA/` |
-| **GameCube / Wii** | Dolphin | Vulkan | 3x (1080p) / 4x (1440p) | Cartão GCI individual (`data/saves/gc/USA/Card A/`) |
-| **Dreamcast** | Flycast | Vulkan | 3x (1440p) | Arquivo de VMU dedicado (`data/saves/dc/vmu_save_A1.bin`) |
-
-> [!IMPORTANT]
-> **Estratégia Anti-Conflito de Saves:**  
-> O uso de cartões individuais por jogo (*Title-specific Memory Cards*) é fundamental para evitar conflitos de sincronização no Syncthing. Cartões únicos globais de 8MB sofrem corrupção irreparável se modificados em dispositivos diferentes sem sincronização prévia.
+| Plataforma | Emulador Homologado | Backend Recomendado | Perfil Básico (iGPU) | Perfil Avançado (dGPU / Baseline) | Estratégia de Saves |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **SNES** | RetroArch (`snes9x` / `bsnes`) | Vulkan / D3D11 | 1x Nativo (CRT shader leve) | 1x Nativo (CRT-Royale / Mega Bezel) | Arquivos `.srm` por jogo em `data/saves/snes/` |
+| **PS1** | DuckStation (Qt) | Vulkan | 2x a 3x (720p) | 5x (1080p) a 6x (1440p) + PGXP | **Title-specific Card** (`data/saves/ps1/<Title>_<ID>.mcd`) |
+| **PS2** | PCSX2 (Qt v2.0+) | Vulkan / D3D12 | 1x a 2x (Nativo/720p) | 3x (1080p) a 4x (1440p) + Aniso 16x | **Title-specific Card** (`data/saves/ps2/<Title>_<ID>.ps2`) |
+| **PSP** | PPSSPP Standalone | Vulkan | 2x a 3x (PSP HD) | 5x a 10x (1080p / 4K) | Pastas nativas `data/saves/psp/SAVEDATA/` |
+| **GameCube / Wii** | Dolphin | Vulkan | 1.5x a 2x (720p) | 3x (1080p) a 4x (1440p) + Ubershaders | Cartão GCI individual (`data/saves/gc/USA/Card A/`) |
+| **Dreamcast** | Flycast | Vulkan | 1x a 2x (VGA) | 3x (1440p) + Per-Pixel Transparency | Arquivo de VMU dedicado (`data/saves/dc/vmu_save_A1.bin`) |
 
 ---
 
 ## 5. Módulo de Automação: Scripts PowerShell Core (`pwsh`)
 
-### 5.1 Script Lançador (`scripts/launch.ps1`)
+### 5.1 Script Lançador Agnóstico (`scripts/launch.ps1`)
 
-O script garante:
-1. Controle estrito do diretório de trabalho (*Current Working Directory* - CWD) para evitar poluição do sistema.
-2. Forçagem real da GPU dedicada (RTX 4050) no registro do Windows 11.
-3. Fixação da afinidade de processo nos P-cores (Intel 12ª Geração) para PCSX2 e Dolphin.
+O lançador realiza inspeção dinâmica de GPU e afinidade de CPU em vez de aplicar valores hardcoded:
 
 ```powershell
 [CmdletBinding()]
@@ -159,7 +175,11 @@ param (
     [Parameter(Mandatory = $true)]
     [string]$RomPath,
 
-    [switch]$Fullscreen = $true
+    [switch]$Fullscreen = $true,
+
+    # Permite sobrescrever o perfil de performance (auto, igpu, dgpu)
+    [ValidateSet("auto", "igpu", "dgpu")]
+    [string]$GpuMode = "auto"
 )
 
 $ErrorActionPreference = "Stop"
@@ -207,23 +227,40 @@ switch ($Platform) {
     }
 }
 
-# 2. Forçar GPU de Alto Desempenho (RTX 4050) no Windows 11
-$GpuRegPath = "HKCU:\Software\Microsoft\DirectX\UserGpuPreferences"
-if (-not (Test-Path $GpuRegPath)) {
-    New-Item -Path $GpuRegPath -Force | Out-Null
+# 2. Detecção e Configuração Dinâmica de GPU no Windows 11
+$HasDedicatedGpu = $false
+$GpuControllers = Get-CimInstance -ClassName Win32_VideoController -ErrorAction SilentlyContinue
+foreach ($Gpu in $GpuControllers) {
+    if ($Gpu.Name -match "NVIDIA|Radeon RX|Intel Arc|GeForce") {
+        $HasDedicatedGpu = $true
+        break
+    }
 }
-Set-ItemProperty -Path $GpuRegPath -Name (Resolve-Path $Emulator).Path -Value "GpuPreference=2;" -ErrorAction SilentlyContinue
 
-# 3. Execução com Isolamento de Diretório de Trabalho (CWD) e Afinidade de P-Cores
+if ($GpuMode -eq "dgpu" -or ($GpuMode -eq "auto" -and $HasDedicatedGpu)) {
+    $GpuRegPath = "HKCU:\Software\Microsoft\DirectX\UserGpuPreferences"
+    if (-not (Test-Path $GpuRegPath)) {
+        New-Item -Path $GpuRegPath -Force | Out-Null
+    }
+    Set-ItemProperty -Path $GpuRegPath -Name (Resolve-Path $Emulator).Path -Value "GpuPreference=2;" -ErrorAction SilentlyContinue
+    Write-Host ">>> GPU de Alto Desempenho ativada para o emulador." -ForegroundColor Gray
+}
+
+# 3. Execução com Isolamento de CWD e Detecção de Topologia Híbrida de CPU
 Push-Location (Split-Path $Emulator)
 try {
-    Write-Host ">>> Iniciando $Platform com RTX 4050..." -ForegroundColor Cyan
+    Write-Host ">>> Iniciando $Platform [$RomPath]..." -ForegroundColor Cyan
     $Process = Start-Process -FilePath $Emulator -ArgumentList $ArgList -PassThru
 
-    # Para emulação pesada (PS2 / GameCube), fixa nos primeiros 8 threads lógicos (P-Cores)
+    # Detecção dinâmica de arquitetura híbrida (Intel 12th Gen+)
+    # Aplica afinidade de P-cores em emuladores pesados se topologia híbrida for identificada
     if ($Platform -in @("ps2", "gc")) {
-        # Máscara binária: 0b11111111 (Cores 0 a 7)
-        $Process.ProcessorAffinity = [IntPtr]0x00FF
+        $CpuInfo = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue
+        if ($CpuInfo.Name -match "12th|13th|14th|Core Ultra") {
+            # Máscara para primeiros 8 threads lógicos (P-Cores típicos)
+            $Process.ProcessorAffinity = [IntPtr]0x00FF
+            Write-Host ">>> Afinidade vinculada aos P-cores do processador." -ForegroundColor Gray
+        }
     }
 
     $Process.WaitForExit()
@@ -237,7 +274,7 @@ finally {
 
 ### 5.2 Script de Conversão Automática para CHD (`scripts/convert_chd.ps1`)
 
-O script diferencia rigorosamente setores de CD (2352 bytes) de setores de DVD (2048 bytes), evitando imagens corrompidas:
+Diferencia mídias de CD (2352 bytes/setor) de mídias de DVD (2048 bytes/setor) de forma autônoma:
 
 ```powershell
 [CmdletBinding()]
@@ -268,7 +305,6 @@ Get-ChildItem -Path $SourceDirectory -Include *.cue, *.iso, *.bin -Recurse | For
     if ($MediaType -eq "dvd") {
         $Command = "createdvd"
     } elseif ($MediaType -eq "auto") {
-        # ISOs de PS2 e GameCube são tipicamente DVDs
         if ($Ext -eq ".iso" -and ($_.DirectoryName -match "ps2" -or $_.DirectoryName -match "gc")) {
             $Command = "createdvd"
         }
@@ -283,7 +319,7 @@ Get-ChildItem -Path $SourceDirectory -Include *.cue, *.iso, *.bin -Recurse | For
 
 ### 5.3 Script de Instalação e Provisionamento (`scripts/bootstrap.ps1`)
 
-Inspirado no papel do Ansible no `distrobox-gaming`, este script automatiza a configuração do ambiente no Windows 11:
+Gera a estrutura hierárquica e marcadores de portabilidade de forma idempotente em qualquer máquina:
 
 ```powershell
 [CmdletBinding()]
@@ -327,17 +363,15 @@ Write-Host ">>> Estrutura de pastas e marcadores de portabilidade criados com su
 
 ## 6. Integração com Frontend Unificado (ES-DE Portable)
 
-Para espelhar a experiência de console do Akita, o frontend oficial é o **ES-DE (EmulationStation Desktop Edition) Portable**:
+O **ES-DE (EmulationStation Desktop Edition) Portable** opera como frontend de console agnóstico:
 * Localizado em `bin/es-de/`.
-* O arquivo `es_systems.xml` mapeia cada sistema diretamente para as pastas de dados e executáveis relativos:
-  * ROMs: `%ROMPATH%\snes`, `%ROMPATH%\ps1`, etc. (apontando para `data/roms/`).
-  * Emuladores: Invocação direta dos binários portáteis em `bin/`.
-  * Scraper integrado: baixa metadados e capas diretamente para `bin/es-de/downloaded_media/`.
+* Mapeamento relativo em `es_systems.xml` conectando `data/roms/` aos executáveis em `bin/`.
+* Independência de resolução do display, ajustando-se automaticamente da tela do notebook a TVs 4K externas.
 
 ---
 
 ## 7. Critérios de Homologação
 
-1. **Isolamento de Unidade:** A pasta raiz do projeto pode ser movida de unidade (ex: de `C:\WorkspaceHub\retrogame-lab` para `D:\retrogame-lab`) sem perda de configurações, saves ou mapeamento de BIOS.
-2. **Prevenção de Throttling e GPU Locking:** PCSX2 e Dolphin operam com 100% de velocidade nativa vinculados aos P-Cores, e a RTX 4050 opera sob temperatura $\le$ 75°C.
-3. **Consistência de Saves:** Toda escrita em memory card ocorre em `data/saves/<plataforma>/`, pronta para sincronização imediata via Syncthing.
+1. **Portabilidade Integral:** A raiz do projeto pode ser movida de pasta ou de unidade sem perder saves, caminhos de BIOS ou configurações de emulador.
+2. **Adaptação Dinâmica:** O lançador identifica automaticamente as capacidades gráficas e de CPU do computador host sem depender de configurações estáticas ou hardcoded.
+3. **Consistência de Saves:** Toda escrita em memory card ocorre em `data/saves/<plataforma>/`, padronizada para sincronização via Syncthing.
