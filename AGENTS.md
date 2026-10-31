@@ -21,7 +21,7 @@ O **RetroGame Lab** adapta a filosofia do projeto [akitaonrails/distrobox-gaming
 | :--- | :--- | :--- |
 | **Gerenciador de Pacotes (Host)** | **`winget` (Windows Package Manager)** | Exclusivo para instalar runtimes, ferramentas de linha de comando e aplicações do host. |
 | **Shell & Scripting** | **PowerShell Core (`pwsh` v7+)** | Proibido o uso do `powershell.exe` (Windows PowerShell 5.1 legacy). Scripts com `[CmdletBinding()]` e `$ErrorActionPreference = "Stop"`. |
-| **Linguagem de Programação** | **Python 3.10+** | Utilizar exclusivamente **Astral `uv`** para resolução de dependências e ambientes virtuais. Seguir estritamente PEP 8, type hints, Google Style Docstrings e testes em `pytest`. |
+| **Linguagem & Ambientes Python** | **Python 3.10+ (Astral `uv` / `uvx`)** | `uv` para dependências do projeto (`uv run`, `uv add`). Uso obrigatório de `uvx` para executar ferramentas CLI externas isoladas. PEP 8, Google Docstrings e `pytest`. |
 | **Mobile Bridge** | **ADB (Android Debug Bridge)** | Comunicação via USB/Wi-Fi Debugging para provisionamento de pastas e APKs no Android. |
 | **Camada de Sincronização** | **Syncthing** | Sincronização local em LAN/Wi-Fi, portas `8384` (GUI) e `22000` (Sync). |
 | **Mídia e Compressão** | **MAME `chdman`** e **7-Zip (`7z`)** | Compactação estruturada por blocos para imagens de disco. |
@@ -164,11 +164,14 @@ Ao desenvolver scripts de pareamento via ADB ou automações para o dispositivo 
 
 ## 7. Padrões de Código, Testes e Governança do Repositório
 
-1. **Python (se aplicável):**
-   * Versão: Python 3.10+.
-   * Gerenciador: Astral `uv` exclusivamente (`uv run`, `uv add`, `uv test`). Proibido sugerir `pip install` solto.
-   * Framework de Testes: Exclusivamente `pytest` e `pytest-mock` (fixture `mocker`). Proibido o uso de `unittest` ou `unittest.TestCase`.
-   * Padrão de Estilo: PEP 8 estrito e Google Style Docstrings em todos os módulos, classes e funções.
+1. **Python e Ecossistema Astral (`uv` / `uvx`):**
+   * **Versão:** Python 3.10+.
+   * **Gerenciador:** Astral `uv` exclusivamente (`uv run`, `uv add`, `uv test`). Proibido sugerir `pip install` solto.
+   * **Execução de Ferramentas CLI Externas via `uvx`:**
+     * Sempre que o projeto necessitar de uma ferramenta executável em Python (que não seja uma biblioteca interna de suporte importada no código-fonte, mas sim uma ferramenta autônoma CLI para auditoria, scraping, conversão, linting ou geração de artefatos), **é obrigatório utilizar o `uvx`** (ex.: `uvx <ferramenta>==<versao>`).
+     * O `uvx` garante que uma versão específica e isolada da ferramenta seja criada e executada sob demanda para o projeto, sem poluir o ambiente de dependências da aplicação nem o sistema host.
+   * **Framework de Testes:** Exclusivamente `pytest` e `pytest-mock` (fixture `mocker`). Proibido o uso de `unittest` ou `unittest.TestCase`.
+   * **Padrão de Estilo:** PEP 8 estrito e Google Style Docstrings em todos os módulos, classes e funções.
 2. **Git e Versionamento:**
    * Commits atômicos e granulares (1 a 2 arquivos por commit).
    * Padrão semântico: *Conventional Commits* (`feat`, `fix`, `docs`, `chore`, `refactor`, `perf`).
