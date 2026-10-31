@@ -70,7 +70,7 @@ O pipeline inspeciona as capacidades do host em tempo de execução para aplicar
 
 ### 2.3 Memória e Armazenamento
 * **RAM:** Alocação flexível. O footprint de emulação varia de 512MB (2D) até 4GB (PS2/Wii em resoluções altas).
-* **Armazenamento:** Mídias armazenadas exclusivamente em formatos compactados por blocos com acesso aleatório direto (`.chd`, `.cso`, `.rvz`), reduzindo o consumo de espaço em qualquer disco SSD/NVMe.
+* **Armazenamento:** Mídias armazenadas exclusivamente em formatos compactados por blocos com acesso aleatório direto (`.chd` para CD/DVD de PS1/PS2/DC e `.rvz` para GameCube/Wii), reduzindo o consumo de espaço em qualquer disco SSD/NVMe.
 
 ---
 
@@ -95,7 +95,7 @@ retrogame-lab/
 │   │   ├── duckstation-qt.exe
 │   │   └── portable.txt            # Gatilho de portabilidade oficial
 │   ├── pcsx2/                      # PS2 (v2.x Qt)
-│   │   ├── pcsx2-qtx64.exe
+│   │   ├── pcsx2-qt.exe
 │   │   └── portable.txt            # Gatilho de portabilidade oficial (v2.0+)
 │   ├── ppsspp/                     # PSP
 │   │   ├── PPSSPPWindows64.exe
@@ -113,28 +113,29 @@ retrogame-lab/
 │   │   └── dc/
 │   ├── roms/                       # Imagens de jogos (Sincronizado via Syncthing Send-Only)
 │   │   ├── snes/
-│   │   ├── ps1/                    # Formato .chd
+│   │   ├── ps1/                    # Formato .chd (CD)
 │   │   ├── ps2/                    # Formato .chd (DVD) / .iso
 │   │   ├── psp/                    # Formato .cso / .iso
-│   │   ├── gc/                     # Formato .rvz
+│   │   ├── gc/                     # Formato .rvz (Dolphin)
 │   │   └── dc/                     # Formato .chd (CD)
 │   ├── saves/                      # Saves de Memory Card / Bateria (Sincronizado Bidirecional)
 │   │   ├── snes/                   # Arquivos .srm por jogo
 │   │   ├── ps1/                    # Cartão por jogo (.mcd)
 │   │   ├── ps2/                    # Cartão por jogo (.ps2)
 │   │   ├── psp/                    # Pastas SAVEDATA nativas
-│   │   ├── gc/                     # Arquivos GCI individuais
+│   │   ├── gc/                     # Cartões GCI / Pastas por Região (USA, EUR, JAP)
 │   │   └── dc/                     # Arquivos VMU (.bin)
 │   └── states/                     # Savestates locais (NÃO sincronizados, isolados via .stignore)
 ├── docs/                           # Documentação técnica e de engenharia
 │   ├── specs-windows.md            # Esta especificação
 │   └── specs-android.md            # Especificação de sincronização com Android
 ├── scripts/
-│   ├── bootstrap.ps1               # Download e instalação idempotente dos emuladores
+│   ├── bootstrap.ps1               # Download idempotente via winget e setup de templates
 │   ├── launch.ps1                  # Lançador dinâmico com perfilamento de hardware e isolamento de CWD
 │   ├── convert_chd.ps1             # Conversor inteligente de mídias (CD vs DVD)
 │   └── audit_library.ps1           # Verificador de integridade de ROMs, BIOS e hashes
-├── templates/                      # Templates pré-configurados de controles e emuladores
+├── templates/                      # Configurações pré-definidas injetadas no bootstrap
+│   ├── config/                     # Templates de retroarch.cfg, DuckStation settings.ini, PCSX2.ini
 │   ├── controllers/                # Mapeamentos XInput (Xbox), DualSense e 8BitDo
 │   └── es-de/                      # Configurações de rotas do ES-DE
 └── tools/                          # Utilitários de linha de comando
@@ -154,8 +155,8 @@ A resolução interna e os aprimoramentos visuais são parametrizados com base n
 | **PS1** | DuckStation (Qt) | Vulkan | 2x a 3x (720p) | 5x (1080p) a 6x (1440p) + PGXP | **Title-specific Card** (`data/saves/ps1/<Title>_<ID>.mcd`) |
 | **PS2** | PCSX2 (Qt v2.0+) | Vulkan / D3D12 | 1x a 2x (Nativo/720p) | 3x (1080p) a 4x (1440p) + Aniso 16x | **Title-specific Card** (`data/saves/ps2/<Title>_<ID>.ps2`) |
 | **PSP** | PPSSPP Standalone | Vulkan | 2x a 3x (PSP HD) | 5x a 10x (1080p / 4K) | Pastas nativas `data/saves/psp/SAVEDATA/` |
-| **GameCube / Wii** | Dolphin | Vulkan | 1.5x a 2x (720p) | 3x (1080p) a 4x (1440p) + Ubershaders | Cartão GCI individual (`data/saves/gc/USA/Card A/`) |
-| **Dreamcast** | Flycast | Vulkan | 1x a 2x (VGA) | 3x (1440p) + Per-Pixel Transparency | Arquivo de VMU dedicado (`data/saves/dc/vmu_save_A1.bin`) |
+| **GameCube / Wii** | Dolphin | Vulkan | 1.5x a 2x (720p) | 3x (1080p) a 4x (1440p) + Ubershaders | Cartões GCI / Pastas de Região em `data/saves/gc/` |
+| **Dreamcast** | Flycast | Vulkan | 1x a 2x (VGA) | 3x (1440p) + Per-Pixel Transparency | Arquivo de VMU padrão em `data/saves/dc/vms0.bin` |
 
 ---
 
@@ -177,7 +178,6 @@ param (
 
     [switch]$Fullscreen = $true,
 
-    # Permite sobrescrever o perfil de performance (auto, igpu, dgpu)
     [ValidateSet("auto", "igpu", "dgpu")]
     [string]$GpuMode = "auto"
 )
@@ -191,7 +191,7 @@ if (-not (Test-Path $ResolvedRom)) {
     Write-Error "Arquivo de ROM não encontrado: $RomPath"
 }
 
-# 1. Mapeamento de Binários e Argumentos
+# 1. Resolução Dinâmica de Executáveis e Montagem de Argumentos
 $ArgList = @()
 switch ($Platform) {
     "snes" {
@@ -206,7 +206,10 @@ switch ($Platform) {
         if ($Fullscreen) { $ArgList += "-fullscreen" }
     }
     "ps2" {
-        $Emulator = Join-Path $BinDir "pcsx2\pcsx2-qtx64.exe"
+        # Localiza executável Qt moderno (pcsx2-qt.exe ou pcsx2-qtx64.exe)
+        $Pcsx2Bin = Get-ChildItem -Path (Join-Path $BinDir "pcsx2") -Filter "pcsx2*.exe" | Select-Object -First 1
+        if (-not $Pcsx2Bin) { Write-Error "Executável do PCSX2 não encontrado em bin\pcsx2\" }
+        $Emulator = $Pcsx2Bin.FullName
         $ArgList += @("-batch")
         if ($Fullscreen) { $ArgList += "-fullscreen" }
         $ArgList += @("--", $ResolvedRom)
@@ -218,6 +221,7 @@ switch ($Platform) {
     }
     "gc" {
         $Emulator = Join-Path $BinDir "dolphin\Dolphin.exe"
+        # Dolphin inicia fullscreen via configuração em Dolphin.ini; flag CLI -b encerra ao sair
         $ArgList += @("-b", "-e", $ResolvedRom)
     }
     "dc" {
@@ -227,39 +231,45 @@ switch ($Platform) {
     }
 }
 
-# 2. Detecção e Configuração Dinâmica de GPU no Windows 11
-$HasDedicatedGpu = $false
-$GpuControllers = Get-CimInstance -ClassName Win32_VideoController -ErrorAction SilentlyContinue
-foreach ($Gpu in $GpuControllers) {
-    if ($Gpu.Name -match "NVIDIA|Radeon RX|Intel Arc|GeForce") {
-        $HasDedicatedGpu = $true
-        break
+# 2. Detecção Dinâmica de GPU (dGPU vs iGPU)
+if (-not (Test-Path "HKCU:\Software\Microsoft\DirectX\UserGpuPreferences")) {
+    New-Item -Path "HKCU:\Software\Microsoft\DirectX\UserGpuPreferences" -Force | Out-Null
+}
+
+$ApplyDgpu = $false
+if ($GpuMode -eq "dgpu") {
+    $ApplyDgpu = $true
+} elseif ($GpuMode -eq "auto") {
+    $Gpus = Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue
+    if ($Gpus | Where-Object { $_.Name -match "NVIDIA|Radeon RX|Intel Arc|GeForce" }) {
+        $ApplyDgpu = $true
     }
 }
 
-if ($GpuMode -eq "dgpu" -or ($GpuMode -eq "auto" -and $HasDedicatedGpu)) {
-    $GpuRegPath = "HKCU:\Software\Microsoft\DirectX\UserGpuPreferences"
-    if (-not (Test-Path $GpuRegPath)) {
-        New-Item -Path $GpuRegPath -Force | Out-Null
-    }
-    Set-ItemProperty -Path $GpuRegPath -Name (Resolve-Path $Emulator).Path -Value "GpuPreference=2;" -ErrorAction SilentlyContinue
-    Write-Host ">>> GPU de Alto Desempenho ativada para o emulador." -ForegroundColor Gray
+if ($ApplyDgpu) {
+    Set-ItemProperty -Path "HKCU:\Software\Microsoft\DirectX\UserGpuPreferences" -Name (Resolve-Path $Emulator).Path -Value "GpuPreference=2;" -ErrorAction SilentlyContinue
+    Write-Host ">>> GPU de Alto Desempenho (dGPU) ativada para o processo." -ForegroundColor Gray
 }
 
-# 3. Execução com Isolamento de CWD e Detecção de Topologia Híbrida de CPU
+# 3. Execução com Isolamento de CWD e Afinidade Protegida de CPU
 Push-Location (Split-Path $Emulator)
 try {
-    Write-Host ">>> Iniciando $Platform [$RomPath]..." -ForegroundColor Cyan
+    Write-Host ">>> Executando $Platform [$RomPath]..." -ForegroundColor Cyan
     $Process = Start-Process -FilePath $Emulator -ArgumentList $ArgList -PassThru
 
-    # Detecção dinâmica de arquitetura híbrida (Intel 12th Gen+)
-    # Aplica afinidade de P-cores em emuladores pesados se topologia híbrida for identificada
+    # Aplicação segura de afinidade de P-cores se CPU híbrida for identificada
     if ($Platform -in @("ps2", "gc")) {
-        $CpuInfo = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue
-        if ($CpuInfo.Name -match "12th|13th|14th|Core Ultra") {
-            # Máscara para primeiros 8 threads lógicos (P-Cores típicos)
-            $Process.ProcessorAffinity = [IntPtr]0x00FF
-            Write-Host ">>> Afinidade vinculada aos P-cores do processador." -ForegroundColor Gray
+        try {
+            Start-Sleep -Milliseconds 150
+            if (-not $Process.HasExited) {
+                $Cpu = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue
+                if ($Cpu.Name -match "12th|13th|14th|Core Ultra") {
+                    $Process.ProcessorAffinity = [IntPtr]0x00FF
+                    Write-Host ">>> Afinidade vinculada aos P-cores." -ForegroundColor Gray
+                }
+            }
+        } catch {
+            # Não interrompe a execução caso o processo recuse ajuste de afinidade
         }
     }
 
@@ -274,7 +284,7 @@ finally {
 
 ### 5.2 Script de Conversão Automática para CHD (`scripts/convert_chd.ps1`)
 
-Diferencia mídias de CD (2352 bytes/setor) de mídias de DVD (2048 bytes/setor) de forma autônoma:
+Diferencia mídias de CD (2352 bytes/setor) de mídias de DVD (2048 bytes/setor) e ignora GameCube/Wii (que utilizam `.rvz` nativo):
 
 ```powershell
 [CmdletBinding()]
@@ -300,14 +310,16 @@ Get-ChildItem -Path $SourceDirectory -Include *.cue, *.iso, *.bin -Recurse | For
     }
 
     $Ext = $_.Extension.ToLower()
-    $Command = "createcd"
 
-    if ($MediaType -eq "dvd") {
+    # Mídias de GameCube e Wii devem utilizar RVZ via Dolphin, não CHD
+    if ($_.DirectoryName -match "\\gc" -or $_.DirectoryName -match "\\wii") {
+        Write-Warning "Ignorando $($_.Name): Mídias de GameCube/Wii devem ser convertidas para .rvz via Dolphin, não .chd."
+        return
+    }
+
+    $Command = "createcd"
+    if ($MediaType -eq "dvd" -or ($MediaType -eq "auto" -and $Ext -eq ".iso" -and $_.DirectoryName -match "\\ps2")) {
         $Command = "createdvd"
-    } elseif ($MediaType -eq "auto") {
-        if ($Ext -eq ".iso" -and ($_.DirectoryName -match "ps2" -or $_.DirectoryName -match "gc")) {
-            $Command = "createdvd"
-        }
     }
 
     Write-Host ">>> Comprimindo ($Command): $($_.Name) -> $(Split-Path $OutFile -Leaf)" -ForegroundColor Cyan
@@ -319,12 +331,12 @@ Get-ChildItem -Path $SourceDirectory -Include *.cue, *.iso, *.bin -Recurse | For
 
 ### 5.3 Script de Instalação e Provisionamento (`scripts/bootstrap.ps1`)
 
-Gera a estrutura hierárquica e marcadores de portabilidade de forma idempotente em qualquer máquina:
+Automatiza a instalação de runtimes essenciais e ferramentas de suporte via **`winget`**, cria a estrutura de diretórios, ativa marcadores de portabilidade e injeta templates de configuração para garantir que todos os emuladores salvem em `data/saves/`:
 
 ```powershell
 [CmdletBinding()]
 param (
-    [switch]$Force = $false
+    [switch]$SkipWinget = $false
 )
 
 $ErrorActionPreference = "Stop"
@@ -332,10 +344,39 @@ $BaseDir = Split-Path -Parent $PSScriptRoot
 $BinDir   = Join-Path $BaseDir "bin"
 $ToolsDir = Join-Path $BaseDir "tools"
 $DataDir  = Join-Path $BaseDir "data"
+$TplDir   = Join-Path $BaseDir "templates\config"
 
 Write-Host "=== Provisionamento do Pipeline Retrogaming no Windows 11 ===" -ForegroundColor Green
 
-# 1. Criação da Estrutura de Diretórios
+# 1. Instalação de Runtimes e Ferramentas via Winget
+if (-not $SkipWinget) {
+    Write-Host "`n>>> Verificando Runtimes e Ferramentas via winget..." -ForegroundColor Cyan
+    
+    # Runtimes que exigem elevação (avisa se não for Administrador)
+    $IsAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    if (-not $IsAdmin) {
+        Write-Warning "Aviso: Para instalar os runtimes de sistema (VCRedist e DirectX), execute este script como Administrador caso ainda não estejam presentes."
+    }
+
+    $Packages = @(
+        "Microsoft.VCRedist.2015+.x64",
+        "Microsoft.DirectX",
+        "Microsoft.PowerShell",
+        "Git.Git",
+        "7zip.7zip",
+        "Google.PlatformTools",
+        "Syncthing.Syncthing",
+        "Astral-sh.uv"
+    )
+
+    foreach ($Pkg in $Packages) {
+        Write-Host "Verificando/Instalando: $Pkg..." -ForegroundColor Gray
+        winget install --id $Pkg -e --source winget --silent --accept-package-agreements --accept-source-agreements 2>$null
+    }
+}
+
+# 2. Criação da Estrutura de Diretórios
+Write-Host "`n>>> Criando estrutura hierárquica..." -ForegroundColor Cyan
 $Folders = @(
     "$DataDir\bios\ps1", "$DataDir\bios\ps2", "$DataDir\bios\dc",
     "$DataDir\roms\snes", "$DataDir\roms\ps1", "$DataDir\roms\ps2", "$DataDir\roms\psp", "$DataDir\roms\gc", "$DataDir\roms\dc",
@@ -350,13 +391,25 @@ foreach ($Folder in $Folders) {
     }
 }
 
-# 2. Criação dos Marcadores de Portabilidade Oficiais
+# 3. Criação dos Marcadores de Portabilidade Oficiais
 New-Item -ItemType File -Path (Join-Path $BinDir "duckstation\portable.txt") -Force | Out-Null
 New-Item -ItemType File -Path (Join-Path $BinDir "pcsx2\portable.txt") -Force | Out-Null
 New-Item -ItemType File -Path (Join-Path $BinDir "dolphin\portable.txt") -Force | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $BinDir "ppsspp\memstick") -Force | Out-Null
 
-Write-Host ">>> Estrutura de pastas e marcadores de portabilidade criados com sucesso!" -ForegroundColor Green
+# 4. Injeção de Templates de Configuração Inicial (Cold Start Protection)
+if (Test-Path $TplDir) {
+    Write-Host "`n>>> Injetando templates de configuração de saves e BIOS..." -ForegroundColor Cyan
+    if (Test-Path "$TplDir\retroarch.cfg") { Copy-Item "$TplDir\retroarch.cfg" "$BinDir\retroarch\" -Force }
+    if (Test-Path "$TplDir\duckstation_settings.ini") { Copy-Item "$TplDir\duckstation_settings.ini" "$BinDir\duckstation\settings.ini" -Force }
+    if (Test-Path "$TplDir\PCSX2.ini") { 
+        $Pcsx2Inis = Join-Path $BinDir "pcsx2\inis"
+        if (-not (Test-Path $Pcsx2Inis)) { New-Item -ItemType Directory -Path $Pcsx2Inis -Force | Out-Null }
+        Copy-Item "$TplDir\PCSX2.ini" "$Pcsx2Inis\PCSX2.ini" -Force 
+    }
+}
+
+Write-Host "`n=== Provisionamento Concluído com Sucesso! ===" -ForegroundColor Green
 ```
 
 ---

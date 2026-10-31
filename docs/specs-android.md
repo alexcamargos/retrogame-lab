@@ -49,13 +49,23 @@ O arquivo de ignore deve ser posicionado em `data\saves\.stignore` no Windows e 
 
 ```text
 // .stignore para retrogames-saves
+
+// 1. Proibir Savestates (Incompatibilidade binária x86_64 vs ARM64)
+*.state*
+*.s[0-9][0-9]
+*.nvram.bak
+
+// 2. Proibir Arquivos de Lock e Temporários Ativos
+*.tmp*
+*.lock*
+*.lck
+*.wal
+*.shm
+
+// 3. Metadados do Sistema Operacional e do Syncthing
 (?d).DS_Store
 (?d)thumbs.db
 (?d)desktop.ini
-*.state*
-*.nvram.bak
-*.tmp
-// Ignorar arquivos temporários do Syncthing
 (?d).syncthing.*
 ```
 
@@ -71,8 +81,8 @@ Para evitar perdas por concorrência (quando dois aparelhos alteram o mesmo arqu
 | **PS1** | DuckStation (Qt) | DuckStation Android | **Title-specific Card** (`<Title>_<ID>.mcd`) | `ps1/` |
 | **PS2** | PCSX2 (Qt v2.0+) | NetherSX2 (ARM64) | **Title-specific Card** (`<Title>_<ID>.ps2`) | `ps2/` |
 | **PSP** | PPSSPP Windows | PPSSPP Android | Pastas `SAVEDATA` nativas | `psp/SAVEDATA/` |
-| **GameCube** | Dolphin | Dolphin Android | Cartões GCI individuais por jogo | `gc/USA/Card A/` |
-| **Dreamcast** | Flycast | Flycast Android | Arquivo VMU (`vmu_save_A1.bin`) | `dc/` |
+| **GameCube** | Dolphin | Dolphin Android | Pastas de Região (USA, EUR, JAP) e GCI individuais | `gc/` |
+| **Dreamcast** | Flycast | Flycast Android | Arquivo VMU padrão (`vms0.bin`) | `dc/` |
 
 ---
 
@@ -80,11 +90,11 @@ Para evitar perdas por concorrência (quando dois aparelhos alteram o mesmo arqu
 
 Este script em PowerShell utiliza o **Android Debug Bridge (ADB)** para:
 
-1. Validar dinamicamente a conexão e a arquitetura do dispositivo conectado (ARM64).
-2. Criar a estrutura hierárquica em `/storage/emulated/0/RetroGames/`.
+1. Validar a conexão ADB, selecionando automaticamente o dispositivo alvo mesmo com múltiplos aparelhos conectados.
+2. Criar a estrutura hierárquica completa em `/storage/emulated/0/RetroGames/`.
 3. Conceder permissão especial **`MANAGE_EXTERNAL_STORAGE`** (Scoped Storage do Android 11+).
 4. Configurar whitelist de economia de bateria para o Syncthing (`dumpsys deviceidle`).
-5. Baixar e instalar automaticamente os APKs ARM64 compatíveis (RetroArch, DuckStation, NetherSX2, PPSSPP, Dolphin, Flycast).
+5. Baixar e instalar automaticamente os APKs ARM64 compatíveis (com fallback para cache offline).
 6. Injetar o arquivo `.stignore` no diretório de saves do Android.
 
 Salvo em `scripts/setup_android_emulators.ps1`:
@@ -92,6 +102,7 @@ Salvo em `scripts/setup_android_emulators.ps1`:
 ```powershell
 [CmdletBinding()]
 param (
+    [string]$DeviceId = "",
     [string]$TargetDevicePath = "/storage/emulated/0/RetroGames",
     [switch]$SkipDownload = $false
 )
@@ -105,22 +116,31 @@ if (-not (Test-Path $ApkCacheDir)) {
     New-Item -ItemType Directory -Path $ApkCacheDir -Force | Out-Null
 }
 
-Write-Host ">>> Verificando conexão com o dispositivo via ADB..." -ForegroundColor Cyan
-$Devices = adb devices | Out-String
-if ($Devices -notmatch "\bdevice\b") {
-    Write-Error "Nenhum dispositivo Android autorizado foi detectado. Ative a Depuração USB e autorize o PC."
+Write-Host ">>> Identificando conexões via ADB..." -ForegroundColor Cyan
+
+# 1. Resolução Segura de Dispositivo (Suporte a Multi-Device)
+$DeviceLines = (adb devices | Out-String) -split "`r?`n" | Where-Object { $_ -match "\bdevice\b" -and $_ -notmatch "List of devices" }
+if (-not $DeviceLines) {
+    Write-Error "Nenhum dispositivo Android autorizado foi detectado. Ative a Depuração USB e autorize o computador."
 }
 
-# Identificação Dinâmica do Dispositivo
-$DeviceModel = (adb shell "getprop ro.product.model").Trim()
-$DeviceAbi   = (adb shell "getprop ro.product.cpu.abi").Trim()
-Write-Host ">>> Dispositivo Conectado: $DeviceModel (ABI: $DeviceAbi)" -ForegroundColor Green
+if (-not $DeviceId) {
+    $DeviceId = ($DeviceLines[0] -split "\s+")[0]
+    Write-Host ">>> Dispositivo selecionado automaticamente: $DeviceId" -ForegroundColor Yellow
+}
+
+$AdbArgs = @("-s", $DeviceId)
+
+# Identificação Dinâmica da Arquitetura
+$DeviceModel = (& adb @AdbArgs shell "getprop ro.product.model").Trim()
+$DeviceAbi   = (& adb @AdbArgs shell "getprop ro.product.cpu.abi").Trim()
+Write-Host ">>> Dispositivo Alvo: $DeviceModel (ABI: $DeviceAbi)" -ForegroundColor Green
 
 if ($DeviceAbi -notmatch "arm64") {
     Write-Warning "O dispositivo conectado não reporta ABI arm64-v8a ($DeviceAbi). Alguns APKs podem falhar."
 }
 
-# 1. Estruturação Completa de Pastas no Android
+# 2. Estruturação Completa de Pastas no Android
 Write-Host ">>> Criando estrutura hierárquica no armazenamento interno..." -ForegroundColor Cyan
 $Directories = @(
     "$TargetDevicePath/bios/ps1",
@@ -141,25 +161,31 @@ $Directories = @(
 )
 
 foreach ($Dir in $Directories) {
-    adb shell "mkdir -p `"$Dir`""
+    & adb @AdbArgs shell "mkdir -p `"$Dir`""
 }
 
-# 2. Injeta regra .stignore diretamente no Android
+# 3. Injeção de Regras .stignore no Android
 $StIgnoreContent = @"
+// .stignore para retrogames-saves
+*.state*
+*.s[0-9][0-9]
+*.nvram.bak
+*.tmp*
+*.lock*
+*.lck
+*.wal
+*.shm
 (?d).DS_Store
 (?d)thumbs.db
 (?d)desktop.ini
-*.state*
-*.nvram.bak
-*.tmp
 (?d).syncthing.*
 "@
 $TempStIgnore = [System.IO.Path]::GetTempFileName()
 Set-Content -Path $TempStIgnore -Value $StIgnoreContent -Encoding UTF8
-adb push $TempStIgnore "$TargetDevicePath/saves/.stignore" | Out-Null
+& adb @AdbArgs push $TempStIgnore "$TargetDevicePath/saves/.stignore" | Out-Null
 Remove-Item -Path $TempStIgnore -Force
 
-# 3. Definição do Catálogo de Emuladores ARM64 Homologados
+# 4. Definição do Catálogo de Emuladores ARM64
 $Emulators = @(
     @{
         Name    = "RetroArch (Universal)"
@@ -170,7 +196,7 @@ $Emulators = @(
     @{
         Name    = "DuckStation (PS1)"
         Package = "com.github.stenzek.duckstation"
-        Url     = "https://github.com/stenzek/duckstation/releases/download/latest/duckstation-android.apk"
+        Url     = "" # DuckStation Android é mantido preferencialmente em cache local
         File    = Join-Path $ApkCacheDir "duckstation-android.apk"
     },
     @{
@@ -193,40 +219,46 @@ $Emulators = @(
     }
 )
 
-# 4. Download e Instalação dos APKs
+# 5. Download e Instalação dos APKs
 foreach ($Emu in $Emulators) {
     Write-Host "`n--- Processando: $($Emu.Name) ---" -ForegroundColor Yellow
 
-    if (-not $SkipDownload) {
+    if (-not $SkipDownload -and $Emu.Url) {
         if (-not (Test-Path $Emu.File)) {
             Write-Host "Baixando pacote atualizado ($($Emu.Url))..." -ForegroundColor Gray
-            Invoke-WebRequest -Uri $Emu.Url -OutFile $Emu.File -MaximumRedirection 10 -UserAgent "Mozilla/5.0"
+            try {
+                Invoke-WebRequest -Uri $Emu.Url -OutFile $Emu.File -MaximumRedirection 10 -UserAgent "Mozilla/5.0"
+            } catch {
+                Write-Warning "Falha no download online de $($Emu.Name). Verifique a URL ou forneça o APK em tools\android_apks\"
+            }
         }
     }
 
     if (Test-Path $Emu.File) {
         Write-Host "Instalando/Atualizando APK no dispositivo Android..." -ForegroundColor Green
-        adb install -r -d -g $Emu.File
+        & adb @AdbArgs install -r -d -g $Emu.File
 
-        # Concede permissão irrestrita de armazenamento (Scoped Storage Android 11+)
+        # Concessão mandatória de MANAGE_EXTERNAL_STORAGE (Android 11+)
         Write-Host "Concedendo permissão MANAGE_EXTERNAL_STORAGE..." -ForegroundColor Gray
-        adb shell "appops set $($Emu.Package) MANAGE_EXTERNAL_STORAGE allow" 2>$null
+        & adb @AdbArgs shell "appops set $($Emu.Package) MANAGE_EXTERNAL_STORAGE allow" 2>$null
+    } else {
+        Write-Warning "APK para $($Emu.Name) não encontrado em $($Emu.File). Etapa ignorada."
     }
 }
 
-# 5. Tratamento Especial para o NetherSX2 (PS2)
+# 6. Tratamento Especial para o NetherSX2 (PS2)
 $NetherApk = Join-Path $ApkCacheDir "NetherSX2.apk"
 if (Test-Path $NetherApk) {
     Write-Host "`n--- Instalando NetherSX2 (PS2) do cache local ---" -ForegroundColor Yellow
-    adb install -r -d -g $NetherApk
-    adb shell "appops set xyz.aethersx2.android MANAGE_EXTERNAL_STORAGE allow" 2>$null
+    & adb @AdbArgs install -r -d -g $NetherApk
+    & adb @AdbArgs shell "appops set xyz.aethersx2.android MANAGE_EXTERNAL_STORAGE allow" 2>$null
 } else {
-    Write-Host "`n[AVISO] NetherSX2.apk não encontrado em tools\android_apks\. Copie o APK patcheado para concluir a instalação do emulador de PS2." -ForegroundColor Magenta
+    Write-Host "`n[AVISO] NetherSX2.apk não encontrado em tools\android_apks\. Copie o APK patcheado para concluir a instalação do PS2." -ForegroundColor Magenta
 }
 
-# 6. Otimização do Syncthing contra Doze Mode (Economia de Bateria)
+# 7. Otimização do Syncthing contra Doze Mode (Economia de Bateria)
 Write-Host "`n>>> Inserindo Syncthing na whitelist de economia de bateria..." -ForegroundColor Cyan
-adb shell "dumpsys deviceidle whitelist +com.nutomic.syncthingcb" 2>$null
+& adb @AdbArgs shell "dumpsys deviceidle whitelist +com.nutomic.syncthingcb" 2>$null
 
 Write-Host "`n=== Provisionamento Android Concluído com Sucesso! ===" -ForegroundColor Green
 ```
