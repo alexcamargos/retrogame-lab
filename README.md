@@ -10,6 +10,9 @@ Inspirado na arquitetura e filosofia de isolamento do projeto [akitaonrails/dist
 
 A documentação de arquitetura e decisões de engenharia está estruturada no diretório `docs/`:
 
+* 🤖 **[Guia Operacional para Agentes (AGENTS.md)](file:///c:/WorkspaceHub/retrogame-lab/AGENTS.md)**
+  * Protocolos de automação, convenções de ferramentas e pacotes via `winget`.
+  * Boas práticas de retrogaming, anti-conflito de saves e regras estritas de desenvolvimento.
 * 🖥️ **[Especificação Técnica: Pipeline Windows 11](file:///c:/WorkspaceHub/retrogame-lab/docs/specs-windows.md)**
   * Arquitetura de portabilidade estática por diretório (*Zero-Install*).
   * Matriz de calibração para NVIDIA GeForce RTX 4050 Laptop e Intel 12th Gen P-Cores.
@@ -46,5 +49,6 @@ retrogame-lab/
 │   ├── setup_android_emulators.ps1 # Provisionamento de APKs e pastas via ADB
 │   └── audit_library.ps1           # Auditoria de integridade e hashes
 ├── templates/                      # Mapeamentos pré-calibrados de controle e ES-DE
-└── tools/                          # Utilitários portáteis (chdman, 7z, adb)
+├── tools/                          # Utilitários portáteis (chdman, 7z, adb)
+└── AGENTS.md                       # Diretrizes e governança para agentes de IA
 ```
