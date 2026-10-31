@@ -14,7 +14,8 @@ data/interim/
 data/processed/
 data/roms/
 data/bios/
-data/saves/
+data/saves/*
+!data/saves/.stignore
 data/states/
 data/external/
 
