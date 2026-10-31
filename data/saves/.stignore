@@ -1,0 +1,19 @@
+// .stignore para retrogames-saves
+
+// 1. Proibir Savestates (Incompatibilidade binaria x86_64 vs ARM64)
+*.state*
+*.s[0-9][0-9]
+*.nvram.bak
+
+// 2. Proibir Arquivos de Lock e Temporarios Ativos
+*.tmp*
+*.lock*
+*.lck
+*.wal
+*.shm
+
+// 3. Metadados do Sistema Operacional e do Syncthing
+(?d).DS_Store
+(?d)thumbs.db
+(?d)desktop.ini
+(?d).syncthing.*
