@@ -38,8 +38,12 @@ winget install --id <Package.ID> --exact --source winget --silent --accept-packa
 
 ### 3.1 Pacotes Canônicos Homologados para o Host
 
+> [!NOTE]
+> **Elevação de Privilégios (Administrador):**  
+> A instalação de runtimes de sistema (`Microsoft.VCRedist.2015+.x64` e `Microsoft.DirectX`) requer execução em terminal com privilégios de Administrador. As demais ferramentas podem ser provisionadas em nível de usuário.
+
 ```powershell
-# Runtimes de Sistema Essenciais (Obrigatórios para todos os emuladores)
+# Runtimes de Sistema Essenciais (Obrigatórios para todos os emuladores - Requer Admin)
 winget install --id Microsoft.VCRedist.2015+.x64 -e --source winget --silent --accept-package-agreements --accept-source-agreements
 winget install --id Microsoft.DirectX -e --source winget --silent --accept-package-agreements --accept-source-agreements
 
@@ -65,18 +69,19 @@ winget install --id Astral-sh.uv -e --source winget --silent --accept-package-ag
 
 ## 4. Práticas Canônicas da Comunidade de Retrogaming
 
-### 4.1 Formatos de Mídia e Conversão Determinística (`chdman`)
+### 4.1 Formatos de Mídia e Conversão Determinística (`chdman` e `Dolphin`)
 * **Mídias baseadas em CD-ROM (PS1, Saturn, Sega CD, Dreamcast):**
   * Formatos brutos de entrada: `.cue` + `.bin`, multi-track com áudio CDDA.
   * Comando obrigatório: `chdman createcd -i arquivo.cue -o arquivo.chd`.
   * Setor bruto preservado: 2352 bytes/setor.
-* **Mídias baseadas em DVD-ROM (PS2, GameCube):**
-  * Formatos brutos de entrada: `.iso` de trilha de dados única.
+* **Mídias baseadas em DVD-ROM (PS2):**
+  * Formatos brutos de entrada: `.iso` de trilha de dados única de PS2.
   * Comando obrigatório: `chdman createdvd -i jogo.iso -o jogo.chd`.
   * Setor limpo preservado: 2048 bytes/setor.
-  * **AVISO:** Nunca rodar `createcd` em ISOs de PS2/GC, sob pena de gerar imagens corrompidas.
+  * **AVISO:** Nunca rodar `createcd` em ISOs de DVD, sob pena de gerar imagens corrompidas.
 * **GameCube / Wii:**
-  * Preferir formato **`.rvz`** gerado pelo Dolphin (compressão Zstandard, tamanho de bloco de 128KB, preservando scrubbing determinístico).
+  * **Proibição:** Nunca converter GameCube/Wii para `.chd` com `chdman`.
+  * **Padrão Homologado:** Formato **`.rvz`** gerado nativamente pelo Dolphin (`Dolphin.exe -b -e input.iso --convert-to-rvz --rvz-block-size=131072 -o output.rvz`), utilizando compressão Zstandard e preservando scrubbing determinístico.
 * **PSP:**
   * Utilizar **`.cso`** (nível 9) ou **`.chd`**.
 
@@ -88,15 +93,15 @@ A perda de saves por colisão de sincronização é o problema mais crítico de 
 
 1. **Proibição Estrita de Sincronizar Savestates:**
    * Savestates (`.state`, `.s01`, `.nvram.bak`) são atrelados a registradores de CPU e builds binárias (x86_64 vs ARM64). Sincronizá-los provoca falhas graves.
-   * Manter sempre o arquivo `.stignore` em `data/saves/.stignore` contendo `*.state*`, `*.tmp` e `(?d).syncthing.*`.
+   * Manter sempre o arquivo `.stignore` em `data/saves/.stignore` contendo `*.state*`, `*.tmp*`, `*.lock*`, `*.lck`, `*.wal`, `*.shm` e `(?d).syncthing.*`.
 2. **Padrão de Cartão de Memória Individual por Jogo (*Title-specific Memory Card*):**
    * **Proibição:** É estritamente vedado configurar cartões de memória compartilhados globais (ex.: um único `shared_card_1.mcd` ou `Mcd001.ps2` para toda a biblioteca).
    * **Padrão Homologado:**
      * **PS1 (DuckStation):** Cartão individual por título (`data/saves/ps1/<Title>_<ID>.mcd`).
      * **PS2 (PCSX2 / NetherSX2):** Cartão individual por título (`data/saves/ps2/<Title>_<ID>.ps2`) ou *Folder Memory Card*.
      * **SNES:** Arquivo `.srm` com nome idêntico à ROM em `data/saves/snes/<NomeDaRom>.srm`.
-     * **GameCube (Dolphin):** Modo GCI individual (`data/saves/gc/USA/Card A/<GameID>.gci`).
-     * **Dreamcast (Flycast):** VMU dedicado (`data/saves/dc/vmu_save_A1.bin`).
+     * **GameCube (Dolphin):** Modo GCI individual / Pastas de Região em `data/saves/gc/`.
+     * **Dreamcast (Flycast):** VMU padrão (`data/saves/dc/vms0.bin`).
 3. **Protocolo de Encerramento e Flush de Disco:**
    * Emuladores mantêm dados de save em buffer de RAM enquanto estão abertos. Instrua o usuário ou automações a **fechar o emulador** antes de alternar de dispositivo.
    * Aguardar o gatilho inotify/file-watcher do Syncthing (2 a 5 segundos na LAN) antes de iniciar a sessão no outro aparelho.
