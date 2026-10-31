@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<systemList>
+  <!-- Super Nintendo Entertainment System -->
+  <system>
+    <name>snes</name>
+    <fullname>Super Nintendo Entertainment System</fullname>
+    <path>%ROMPATH%/data/roms/snes</path>
+    <extension>.sfc .smc .zip .SFC .SMC .ZIP</extension>
+    <command>pwsh.exe -ExecutionPolicy Bypass -NoProfile -File "%ROMPATH%\scripts\launch.ps1" -Platform snes -RomPath "%ROM%"</command>
+    <platform>snes</platform>
+    <theme>snes</theme>
+  </system>
+
+  <!-- Sony PlayStation 1 -->
+  <system>
+    <name>ps1</name>
+    <fullname>Sony PlayStation 1</fullname>
+    <path>%ROMPATH%/data/roms/ps1</path>
+    <extension>.chd .CHD</extension>
+    <command>pwsh.exe -ExecutionPolicy Bypass -NoProfile -File "%ROMPATH%\scripts\launch.ps1" -Platform ps1 -RomPath "%ROM%"</command>
+    <platform>psx</platform>
+    <theme>psx</theme>
+  </system>
+
+  <!-- Sony PlayStation 2 -->
+  <system>
+    <name>ps2</name>
+    <fullname>Sony PlayStation 2</fullname>
+    <path>%ROMPATH%/data/roms/ps2</path>
+    <extension>.chd .iso .CHD .ISO</extension>
+    <command>pwsh.exe -ExecutionPolicy Bypass -NoProfile -File "%ROMPATH%\scripts\launch.ps1" -Platform ps2 -RomPath "%ROM%"</command>
+    <platform>ps2</platform>
+    <theme>ps2</theme>
+  </system>
+
+  <!-- Sony PlayStation Portable -->
+  <system>
+    <name>psp</name>
+    <fullname>Sony PlayStation Portable</fullname>
+    <path>%ROMPATH%/data/roms/psp</path>
+    <extension>.cso .chd .iso .CSO .CHD .ISO</extension>
+    <command>pwsh.exe -ExecutionPolicy Bypass -NoProfile -File "%ROMPATH%\scripts\launch.ps1" -Platform psp -RomPath "%ROM%"</command>
+    <platform>psp</platform>
+    <theme>psp</theme>
+  </system>
+
+  <!-- Nintendo GameCube -->
+  <system>
+    <name>gc</name>
+    <fullname>Nintendo GameCube</fullname>
+    <path>%ROMPATH%/data/roms/gc</path>
+    <extension>.rvz .RVZ</extension>
+    <command>pwsh.exe -ExecutionPolicy Bypass -NoProfile -File "%ROMPATH%\scripts\launch.ps1" -Platform gc -RomPath "%ROM%"</command>
+    <platform>gc</platform>
+    <theme>gc</theme>
+  </system>
+
+  <!-- Sega Dreamcast -->
+  <system>
+    <name>dc</name>
+    <fullname>Sega Dreamcast</fullname>
+    <path>%ROMPATH%/data/roms/dc</path>
+    <extension>.chd .CHD</extension>
+    <command>pwsh.exe -ExecutionPolicy Bypass -NoProfile -File "%ROMPATH%\scripts\launch.ps1" -Platform dc -RomPath "%ROM%"</command>
+    <platform>dreamcast</platform>
+    <theme>dreamcast</theme>
+  </system>
+</systemList>
