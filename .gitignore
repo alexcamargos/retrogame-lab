@@ -28,6 +28,8 @@ tools/android_apks/*.apk
 # Caches e diretórios de execução voláteis
 scratch/
 .pytest_cache/
+.coverage
+htmlcov/
 *.log
 .DS_Store
 Thumbs.db
