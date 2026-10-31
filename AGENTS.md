@@ -6,11 +6,12 @@ Este documento define as diretrizes de engenharia, padrões de desenvolvimento, 
 
 ## 1. Visão Geral e Filosofia do Projeto
 
-O **RetroGame Lab** adapta a filosofia do projeto [akitaonrails/distrobox-gaming](https://github.com/akitaonrails/distrobox-gaming) para o ambiente **Windows 11** com interoperabilidade móvel contínua para **Android** (Motorola Signature / Snapdragon 8 Gen 5):
+O **RetroGame Lab** adapta a filosofia do projeto [akitaonrails/distrobox-gaming](https://github.com/akitaonrails/distrobox-gaming) para o ambiente **Windows 11** com interoperabilidade móvel contínua para **Android** (qualquer dispositivo ARM64):
 
-1. **Portabilidade Estática por Diretório (*Zero-Install*):** Nenhuma configuração ou save deve depender de caminhos absolutos no `%APPDATA%`, `Program Files` ou registro do Windows para funcionar. Toda a suíte deve ser relocalizável.
-2. **Automação Idempotente:** Toda tarefa de instalação, atualização, verificação ou conversão de mídias deve ser executável via scripts determinísticos em **PowerShell Core (`pwsh`)** ou utilitários em **Python 3.10+** (gerenciados via `uv`).
-3. **Sincronização Híbrida Segura:** A sincronização Windows $\leftrightarrow$ Android via **Syncthing** é estritamente restrita a saves in-game (SRAM / Memory Card) e firmware/ROMs, blindada contra concorrência e conflitos de sobrescrita.
+1. **Arquitetura Estritamente Agnóstica de Hardware:** O sistema não assume uma CPU, GPU ou aparelho móvel fixo. A decisão de emulador, backend gráfico (Vulkan/D3D), escala de resolução e afinidade de threads é tomada dinamicamente no momento da seleção do jogo e análise de capacidades do host. Hardwares específicos (como PCs com Intel 12ª Gen + RTX 4050 ou smartphones Snapdragon) são meros **baselines empíricos de homologação**, e nunca requisitos estáticos.
+2. **Portabilidade Estática por Diretório (*Zero-Install*):** Nenhuma configuração ou save deve depender de caminhos absolutos no `%APPDATA%`, `Program Files` ou registro do Windows para funcionar. Toda a suíte deve ser relocalizável.
+3. **Automação Idempotente:** Toda tarefa de instalação, atualização, verificação ou conversão de mídias deve ser executável via scripts determinísticos em **PowerShell Core (`pwsh`)** ou utilitários em **Python 3.10+** (gerenciados via `uv`).
+4. **Sincronização Híbrida Segura:** A sincronização Windows $\leftrightarrow$ Android via **Syncthing** é estritamente restrita a saves in-game (SRAM / Memory Card) e firmware/ROMs, blindada contra concorrência e conflitos de sobrescrita.
 
 ---
 
@@ -102,25 +103,29 @@ A perda de saves por colisão de sincronização é o problema mais crítico de 
 
 ---
 
-## 5. Diretrizes de Engenharia para o Host Windows 11
+## 5. Diretrizes de Engenharia e Adaptação Dinâmica de Hardware (Windows 11)
 
-Ao escrever scripts ou executar comandos de inicialização de emuladores no Windows 11:
+Ao escrever scripts ou executar comandos de inicialização de emuladores no Windows 11, os agentes devem respeitar o princípio de agnoticismo de hardware:
 
-### 5.1 Forçagem Determinística da GPU Dedicada (RTX 4050 Laptop)
-* Variáveis de ambiente como `DXVK_FILTER_DEVICE_NAME` **não têm efeito** em backends Vulkan ou Direct3D 12 nativos.
-* Os agentes devem forçar a preferência de alto desempenho gravando diretamente no registro do Windows:
+### 5.1 Perfilamento Dinâmico de GPU (dGPU vs iGPU)
+* Agentes **nunca devem assumir um modelo estático de GPU** (como RTX 4050).
+* O script deve inspecionar dinamicamente se há uma GPU dedicada (NVIDIA, AMD Radeon ou Intel Arc) presente via `Win32_VideoController`.
+* Caso identificada uma dGPU em sistema híbrido (notebook ou desktop com iGPU), registrar a preferência de alto desempenho:
   ```powershell
   $RegPath = "HKCU:\Software\Microsoft\DirectX\UserGpuPreferences"
   if (-not (Test-Path $RegPath)) { New-Item -Path $RegPath -Force | Out-Null }
   Set-ItemProperty -Path $RegPath -Name (Resolve-Path $EmulatorExe).Path -Value "GpuPreference=2;"
   ```
+* Em sistemas operando exclusivamente com iGPU, o orquestrador deve calibrar resoluções e shaders para perfis leves (1x a 2x nativo).
 
-### 5.2 Afinidade de CPU para Arquiteturas Híbridas (Intel 12ª Gen P-Cores)
-* Para emuladores com demanda intensiva de IPC e temporização (PCSX2, Dolphin), vincular o processo aos **Performance-cores (P-cores 0 a 7)** para evitar quedas de performance causadas pelo Thread Director nos E-cores:
+### 5.2 Afinidade Dinâmica de CPU para Topologias Heterogêneas
+* Para emuladores com demanda intensiva de IPC e temporização (PCSX2, Dolphin), o agente deve inspecionar se a CPU possui arquitetura heterogênea (ex.: Intel 12ª Gen+ P-Cores e E-Cores).
+* Somente em CPUs híbridas deve-se vincular o processo aos **Performance-cores (P-cores 0 a 7)**. Em arquiteturas homogêneas (AMD Ryzen ou Intel clássico), o escalonamento deve permanecer livre:
   ```powershell
   $Process = Start-Process -FilePath $EmulatorExe -ArgumentList $ArgList -PassThru
-  # Máscara binária para os primeiros 8 threads lógicos (P-Cores)
-  $Process.ProcessorAffinity = [IntPtr]0x00FF
+  if ($IsHybridCpu) {
+      $Process.ProcessorAffinity = [IntPtr]0x00FF
+  }
   ```
 
 ### 5.3 Isolamento do Diretório de Trabalho (*Working Directory Isolation*)
@@ -129,24 +134,27 @@ Ao escrever scripts ou executar comandos de inicialização de emuladores no Win
 
 ---
 
-## 6. Diretrizes de Engenharia para o Ecossistema Android
+## 6. Diretrizes de Engenharia para o Ecossistema Android (Qualquer ARM64)
 
 Ao desenvolver scripts de pareamento via ADB ou automações para o dispositivo móvel:
 
-### 6.1 Tratamento do Scoped Storage (Android 11+)
+### 6.1 Detecção Dinâmica de Arquitetura via ADB
+* Validar dinamicamente o modelo e a ABI do dispositivo conectado via `adb shell "getprop ro.product.cpu.abi"` para assegurar compatibilidade ARM64 antes do download de APKs.
+
+### 6.2 Tratamento do Scoped Storage (Android 11+)
 * O comando `adb install -g` **não concede** a permissão especial de gerenciamento total de arquivos.
 * O script ADB deve obrigatoriamente executar a concessão explícita para cada emulador instalado:
   ```powershell
   adb shell "appops set <PackageName> MANAGE_EXTERNAL_STORAGE allow"
   ```
 
-### 6.2 Prevenção contra Doze Mode no Syncthing
+### 6.3 Prevenção contra Doze Mode no Syncthing
 * Para impedir que o sistema operacional Android finalize o Syncthing em segundo plano e bloqueie a sincronização de saves, adicionar o pacote à whitelist de economia de energia:
   ```powershell
   adb shell "dumpsys deviceidle whitelist +com.nutomic.syncthingcb"
   ```
 
-### 6.3 Estrutura de Diretórios Canônica no Armazenamento Interno
+### 6.4 Estrutura de Diretórios Canônica no Armazenamento Interno
 * Todos os emuladores no Android devem apontar para:
   * `/storage/emulated/0/RetroGames/bios/`
   * `/storage/emulated/0/RetroGames/roms/<plataforma>/`
