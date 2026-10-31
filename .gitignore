@@ -1,0 +1,34 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ambientes virtuais e pacotes
+.venv/
+venv/
+ENV/
+
+# Dados e mídias do pipeline (Higiene de Repositório)
+data/raw/
+data/interim/
+data/processed/
+data/roms/
+data/bios/
+data/saves/
+data/states/
+data/external/
+
+# Binários de emuladores e ferramentas portáteis
+bin/
+tools/*.exe
+tools/llvm-mingw/
+tools/android_apks/*.apk
+
+# Caches e diretórios de execução voláteis
+scratch/
+.pytest_cache/
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
