@@ -21,6 +21,8 @@ A documentação de arquitetura e decisões de engenharia está estruturada no d
 * **[Guia Operacional para Agentes (AGENTS.md)](file:///c:/WorkspaceHub/retrogame-lab/AGENTS.md)**
   * Protocolos de automação, convenções de ferramentas e pacotes via `winget`.
   * Boas práticas de retrogaming, anti-conflito de saves e regras de perfilamento dinâmico de hardware.
+* **[Guia de Implementação por Sprints e Orquestração (docs/sprints.md)](file:///c:/WorkspaceHub/retrogame-lab/docs/sprints.md)**
+  * Matriz de propriedade de arquivos, segregação de branches e relatórios de homologação E2E.
 * **[Especificação Técnica: Pipeline Windows 11](file:///c:/WorkspaceHub/retrogame-lab/docs/specs-windows.md)**
   * Arquitetura de portabilidade estática por diretório (*Zero-Install*).
   * Perfilamento dinâmico de CPU (P-cores) e GPU (dGPU vs iGPU).
@@ -34,13 +36,75 @@ A documentação de arquitetura e decisões de engenharia está estruturada no d
 
 ---
 
+## Guia Rápido de Comandos e Operação
+
+### 1. Provisionamento Inicial do Host (Cold Start)
+
+```powershell
+# Cria a estrutura de pastas e marcadores de portabilidade (sem instalar ferramentas)
+pwsh -NoProfile -File scripts\bootstrap.ps1 -SkipWinget
+
+# Instalação completa de runtimes e utilitários via winget (requer terminal de Administrador)
+pwsh -NoProfile -File scripts\bootstrap.ps1
+```
+
+### 2. Auditoria de Integridade de BIOS, ROMs e Saves
+
+```powershell
+# Auditoria interativa com relatório visual
+pwsh -NoProfile -File scripts\audit_library.ps1
+
+# Auditoria com saída estruturada em JSON para scripts e agentes
+pwsh -NoProfile -File scripts\audit_library.ps1 -Json
+
+# Execução direta via CLI Python
+uv run retrogame-lab audit
+```
+
+### 3. Lançamento Dinâmico de Jogos
+
+```powershell
+# Lançamento com detecção automática de GPU e afinidade de P-cores
+pwsh -NoProfile -File scripts\launch.ps1 -Platform ps1 -RomPath data\roms\ps1\meu_jogo.chd
+
+# Forçar uso exclusivo de GPU dedicada
+pwsh -NoProfile -File scripts\launch.ps1 -Platform ps2 -RomPath data\roms\ps2\jogo.chd -GpuMode dgpu
+```
+
+### 4. Conversão Determinística de Mídias para CHD
+
+```powershell
+# Comprimir mídias de CD (PS1/DC) e DVD (PS2) preservando setores limpos
+pwsh -NoProfile -File scripts\convert_chd.ps1 -SourceDirectory data\roms\ps1
+```
+
+### 5. Provisionamento do Dispositivo Android via ADB
+
+```powershell
+# Cria pastas remotas, concede permissão Scoped Storage e injeta .stignore
+pwsh -NoProfile -File scripts\setup_android_emulators.ps1
+```
+
+### 6. Execução da Suíte de Testes e Qualidade de Código
+
+```powershell
+# Execução da bateria completa de testes com cobertura
+uv run pytest tests/ -v --cov=retrogame_lab
+
+# Verificação estática de tipos e formatação PEP 8 com Ruff
+uv run ruff check .
+uv run ruff format --check .
+```
+
+---
+
 ## Estrutura Canônica de Diretórios
 
 ```text
 retrogame-lab/
 ├── .agy/
 │   └── skills/
-│       └── emulator-pipeline/      # Orquestrador do agente no Windows
+│       └── emulator-pipeline/      # Skill com orquestração do Agente Antigravity
 ├── bin/                            # Emuladores Portáteis (Zero-Install)
 ├── data/                           # Segregação estrita do ciclo de vida dos dados
 │   ├── bios/                       # Firmware centralizado (Sincronizado via Syncthing Send-Only)
@@ -48,15 +112,22 @@ retrogame-lab/
 │   ├── saves/                      # Saves in-game (.srm, .mcd, .ps2, .gci, .bin)
 │   └── states/                     # Savestates locais (isolados no .stignore)
 ├── docs/                           # Documentação e especificações de engenharia
-│   ├── specs-windows.md
-│   └── specs-android.md
+│   ├── specs-windows.md            # Especificação do host Windows 11
+│   ├── specs-android.md            # Especificação da bridge Android e Syncthing
+│   └── sprints.md                  # Matriz de implementação e homologação E2E
 ├── scripts/                        # Automação em PowerShell Core (pwsh)
 │   ├── bootstrap.ps1               # Instalação automatizada do host Windows
-│   ├── launch.ps1                  # Lançador dinâmico de emuladores e perfis
+│   ├── launch.ps1                  # Lançador dinâmico com perfilamento de GPU/CPU
 │   ├── convert_chd.ps1             # Conversor inteligente CD vs DVD
 │   ├── setup_android_emulators.ps1 # Provisionamento de APKs e pastas via ADB
 │   └── audit_library.ps1           # Auditoria de integridade e hashes
+├── src/
+│   └── retrogame_lab/              # Pacote Python canônico (CLI, Auditor, Config)
 ├── templates/                      # Mapeamentos pré-calibrados de controle e ES-DE
+│   ├── config/                     # Templates de retroarch.cfg, DuckStation e PCSX2
+│   ├── controllers/                # Perfis XInput, DualSense e 8BitDo
+│   └── es-de/                      # Configurações de rotas do ES-DE
+├── tests/                          # Bateria de testes unitários com pytest
 ├── tools/                          # Utilitários portáteis (chdman, 7z, adb)
 └── AGENTS.md                       # Diretrizes e governança para agentes de IA
 ```
