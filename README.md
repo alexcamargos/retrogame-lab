@@ -6,7 +6,7 @@ Inspirado na arquitetura e filosofia de isolamento do projeto [akitaonrails/dist
 
 ---
 
-## 🧭 Princípios de Arquitetura
+## Princípios de Arquitetura
 
 1. **Agnosticismo de Hardware com Perfilamento Dinâmico:** O ecossistema é projetado para operar em qualquer computador com Windows 11 (adaptando-se a CPUs Intel/AMD com ou sem topologia híbrida e a gráficos integrados ou GPUs dedicadas) e em qualquer dispositivo móvel Android (Smartphones, Tablets ou Consoles Portáteis ARM64). A seleção de backend, resoluções e alocação de núcleos é decidida dinamicamente no momento da execução do jogo.
 2. **Baselines de Referência para Homologação:** Dispositivos específicos (como notebook com Intel 12ª Gen + RTX 4050 e smartphone com Snapdragon) foram utilizados estritamente como *benchmarks empíricos de homologação* para atestar limites de estresse térmico e estabilidade, e não como requisitos rígidos de sistema.
@@ -14,19 +14,19 @@ Inspirado na arquitetura e filosofia de isolamento do projeto [akitaonrails/dist
 
 ---
 
-## 🗺️ Mapa da Documentação Técnica (Living Docs)
+## Mapa da Documentação Técnica (Living Docs)
 
 A documentação de arquitetura e decisões de engenharia está estruturada no diretório `docs/`:
 
-* 🤖 **[Guia Operacional para Agentes (AGENTS.md)](file:///c:/WorkspaceHub/retrogame-lab/AGENTS.md)**
+* **[Guia Operacional para Agentes (AGENTS.md)](file:///c:/WorkspaceHub/retrogame-lab/AGENTS.md)**
   * Protocolos de automação, convenções de ferramentas e pacotes via `winget`.
   * Boas práticas de retrogaming, anti-conflito de saves e regras de perfilamento dinâmico de hardware.
-* 🖥️ **[Especificação Técnica: Pipeline Windows 11](file:///c:/WorkspaceHub/retrogame-lab/docs/specs-windows.md)**
+* **[Especificação Técnica: Pipeline Windows 11](file:///c:/WorkspaceHub/retrogame-lab/docs/specs-windows.md)**
   * Arquitetura de portabilidade estática por diretório (*Zero-Install*).
   * Perfilamento dinâmico de CPU (P-cores) e GPU (dGPU vs iGPU).
   * Scripts de automação: `launch.ps1` (com perfilamento e isolamento de CWD), `convert_chd.ps1` e `bootstrap.ps1`.
   * Integração opcional com o frontend visual **ES-DE Portable**.
-* 📱 **[Especificação Técnica: Sincronização e Pareamento Android](file:///c:/WorkspaceHub/retrogame-lab/docs/specs-android.md)**
+* **[Especificação Técnica: Sincronização e Pareamento Android](file:///c:/WorkspaceHub/retrogame-lab/docs/specs-android.md)**
   * Topologia Syncthing: saves bidirecionais com versionamento simples, BIOS e ROMs *send-only*.
   * Matriz de formatos unificados e estratégia anti-conflito de saves (*Per-Game Memory Cards*).
   * Script de provisionamento total via ADB: `setup_android_emulators.ps1` (Scoped Storage e detecção dinâmica de ABI).
@@ -34,7 +34,7 @@ A documentação de arquitetura e decisões de engenharia está estruturada no d
 
 ---
 
-## 📂 Estrutura Canônica de Diretórios
+## Estrutura Canônica de Diretórios
 
 ```text
 retrogame-lab/
