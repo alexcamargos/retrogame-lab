@@ -266,3 +266,177 @@ def test_cli_import_rom_error(
     res = runner.invoke(app, ["import-rom", str(bad_rom), "--platform", "gc"])
     assert res.exit_code == 1
     assert "Erro de Ingestão" in res.stdout
+
+
+def test_cli_audit_library_alias(mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verifica se o alias audit-library invoca a auditoria corretamente.
+
+    Args:
+        mock_repo_root: Fixture de raiz mockada.
+        monkeypatch: Fixture do pytest.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    monkeypatch.chdir(mock_repo_root)
+    result = runner.invoke(app, ["audit-library"])
+    assert result.exit_code == 0
+    assert "Auditoria de Integridade" in result.stdout
+
+
+def test_cli_bootstrap(mocker, mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verifica se o comando bootstrap despacha para o script PowerShell.
+
+    Args:
+        mocker: Fixture do pytest-mock.
+        mock_repo_root: Fixture de raiz mockada.
+        monkeypatch: Fixture do pytest.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    monkeypatch.chdir(mock_repo_root)
+    mock_run = mocker.patch("retrogame_lab.cli.run_pwsh_script", return_value=0)
+
+    res = runner.invoke(app, ["bootstrap", "--skip-winget"])
+    assert res.exit_code == 0
+    mock_run.assert_called_once_with("bootstrap.ps1", ["-SkipWinget"])
+
+
+def test_cli_bootstrap_failure(
+    mocker, mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verifica propagação de código de saída de erro no comando bootstrap.
+
+    Args:
+        mocker: Fixture do pytest-mock.
+        mock_repo_root: Fixture de raiz mockada.
+        monkeypatch: Fixture do pytest.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    monkeypatch.chdir(mock_repo_root)
+    mocker.patch("retrogame_lab.cli.run_pwsh_script", return_value=42)
+
+    res = runner.invoke(app, ["bootstrap"])
+    assert res.exit_code == 42
+
+
+def test_cli_launch(mocker, mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verifica despacho do comando launch para o script PowerShell.
+
+    Args:
+        mocker: Fixture do pytest-mock.
+        mock_repo_root: Fixture de raiz mockada.
+        monkeypatch: Fixture do pytest.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    monkeypatch.chdir(mock_repo_root)
+    mock_run = mocker.patch("retrogame_lab.cli.run_pwsh_script", return_value=0)
+
+    rom_file = mock_repo_root / "data" / "roms" / "ps1" / "game.chd"
+    rom_file.write_text("dummy", encoding="utf-8")
+
+    res = runner.invoke(app, ["launch", "ps1", str(rom_file), "--windowed", "--gpu-mode", "dgpu"])
+    assert res.exit_code == 0
+    mock_run.assert_called_once_with(
+        "launch.ps1",
+        ["-Platform", "ps1", "-RomPath", str(rom_file), "-GpuMode", "dgpu", "-Windowed"],
+    )
+
+
+def test_cli_convert_chd(mocker, mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verifica despacho do comando convert-chd para o script PowerShell.
+
+    Args:
+        mocker: Fixture do pytest-mock.
+        mock_repo_root: Fixture de raiz mockada.
+        monkeypatch: Fixture do pytest.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    monkeypatch.chdir(mock_repo_root)
+    mock_run = mocker.patch("retrogame_lab.cli.run_pwsh_script", return_value=0)
+
+    source_dir = mock_repo_root / "staging"
+    source_dir.mkdir()
+
+    res = runner.invoke(app, ["convert-chd", str(source_dir), "--media-type", "dvd"])
+    assert res.exit_code == 0
+    mock_run.assert_called_once_with(
+        "convert_chd.ps1",
+        ["-SourceDirectory", str(source_dir), "-MediaType", "dvd"],
+    )
+
+
+def test_cli_setup_android(mocker, mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verifica despacho do comando setup-android para o script PowerShell.
+
+    Args:
+        mocker: Fixture do pytest-mock.
+        mock_repo_root: Fixture de raiz mockada.
+        monkeypatch: Fixture do pytest.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    monkeypatch.chdir(mock_repo_root)
+    mock_run = mocker.patch("retrogame_lab.cli.run_pwsh_script", return_value=0)
+
+    res = runner.invoke(
+        app,
+        ["setup-android", "--device-id", "device123", "--skip-download"],
+    )
+    assert res.exit_code == 0
+    mock_run.assert_called_once_with(
+        "setup_android_emulators.ps1",
+        [
+            "-TargetDevicePath",
+            "/storage/emulated/0/RetroGames",
+            "-DeviceId",
+            "device123",
+            "-SkipDownload",
+        ],
+    )
+
+
+def test_run_pwsh_script_missing(mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verifica se FileNotFoundError é levantado quando o script não existe.
+
+    Args:
+        mock_repo_root: Fixture de raiz mockada.
+        monkeypatch: Fixture do pytest.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    monkeypatch.chdir(mock_repo_root)
+    from retrogame_lab.cli import run_pwsh_script
+
+    with pytest.raises(FileNotFoundError, match="Script PowerShell não encontrado"):
+        run_pwsh_script("inexistente.ps1", [])
