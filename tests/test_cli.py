@@ -6,6 +6,7 @@ Valida subcomandos version, info e audit, incluindo relatórios em console e JSO
 import json
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from retrogame_lab.cli import app
@@ -157,3 +158,91 @@ def test_cli_sanitize_missing_directory(tmp_path: Path) -> None:
     res = runner.invoke(app, ["sanitize", "--path", str(tmp_path / "missing")])
     assert res.exit_code == 1
     assert "não encontrado" in res.stdout
+
+
+def test_cli_import_rom_single(
+    tmp_path: Path, mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verifica a importação de uma ROM individual via comando CLI import-rom.
+
+    Args:
+        tmp_path: Diretório temporário fornecido pelo pytest.
+        mock_repo_root: Fixture de raiz mockada.
+        monkeypatch: Fixture do pytest para alteração de diretório de trabalho.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    monkeypatch.chdir(mock_repo_root)
+
+    source_rom = tmp_path / "Chrono Trigger 'Special Edition'.sfc"
+    source_rom.write_text("dummy", encoding="utf-8")
+
+    res = runner.invoke(app, ["import-rom", str(source_rom), "--platform", "snes"])
+    assert res.exit_code == 0
+    assert "Sucesso" in res.stdout
+    assert "Chrono_Trigger_Special_Edition.sfc" in res.stdout
+
+    expected_target = (
+        mock_repo_root / "data" / "roms" / "snes" / "Chrono_Trigger_Special_Edition.sfc"
+    )
+    assert expected_target.exists()
+
+
+def test_cli_import_rom_batch(
+    tmp_path: Path, mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verifica a importação em lote via comando CLI import-rom passando um diretório.
+
+    Args:
+        tmp_path: Diretório temporário fornecido pelo pytest.
+        mock_repo_root: Fixture de raiz mockada.
+        monkeypatch: Fixture do pytest para alteração de diretório de trabalho.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    monkeypatch.chdir(mock_repo_root)
+
+    batch_dir = tmp_path / "batch_roms"
+    batch_dir.mkdir()
+    (batch_dir / "Castlevania 4.sfc").write_text("dummy", encoding="utf-8")
+    (batch_dir / "Zelda 3.smc").write_text("dummy", encoding="utf-8")
+
+    res = runner.invoke(app, ["import-rom", str(batch_dir), "--platform", "snes"])
+    assert res.exit_code == 0
+    assert "Ingestão em Lote" in res.stdout
+    assert "Castlevania_4.sfc" in res.stdout
+    assert "Zelda_3.smc" in res.stdout
+
+
+def test_cli_import_rom_error(
+    tmp_path: Path, mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verifica se erro de validação (extensão proibida) encerra com código 1 no CLI.
+
+    Args:
+        tmp_path: Diretório temporário.
+        mock_repo_root: Fixture de raiz mockada.
+        monkeypatch: Fixture do pytest.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    monkeypatch.chdir(mock_repo_root)
+
+    bad_rom = tmp_path / "game.chd"
+    bad_rom.write_text("dummy", encoding="utf-8")
+
+    res = runner.invoke(app, ["import-rom", str(bad_rom), "--platform", "gc"])
+    assert res.exit_code == 1
+    assert "Erro de Ingestão" in res.stdout

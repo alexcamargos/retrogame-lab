@@ -16,6 +16,7 @@ from rich.table import Table
 from retrogame_lab import __version__
 from retrogame_lab.auditor import Severity, run_full_audit
 from retrogame_lab.config import SUPPORTED_PLATFORMS, find_repo_root
+from retrogame_lab.ingestion import import_rom, import_roms_batch
 from retrogame_lab.sanitizer import sanitize_directory
 
 # Configuração de encoding UTF-8 resiliente para Windows
@@ -315,6 +316,96 @@ def sanitize(
         console.print(
             f"[bold green]Sucesso:[/bold green] {len(changes)} arquivo(s) renomeados com sucesso!"
         )
+
+
+@app.command(name="import-rom")
+def import_rom_cmd(
+    source: Annotated[
+        Path,
+        typer.Argument(
+            help="Caminho do arquivo ou diretório de ROMs a ser importado.",
+        ),
+    ],
+    platform: Annotated[
+        str,
+        typer.Option(
+            "--platform",
+            "-p",
+            help="Código da plataforma de destino (snes, ps1, ps2, psp, gc, dc).",
+        ),
+    ],
+    move: Annotated[
+        bool,
+        typer.Option(
+            "--move",
+            "-m",
+            help="Move o arquivo de origem em vez de copiar.",
+        ),
+    ] = False,
+) -> None:
+    """Importa uma ROM para a biblioteca canônica, validando extensão e normalizando o nome.
+
+    Aplica sanitização automática substituindo espaços por '_' e removendo caracteres especiais.
+
+    Args:
+        source: Caminho do arquivo ou pasta a importar.
+        platform: Código da plataforma alvo.
+        move: Se True, move o arquivo de origem.
+
+    Returns:
+        None.
+
+    Raises:
+        typer.Exit: Se houver erro de validação ou arquivo inexistente (código 1).
+    """
+    try:
+        resolved_root = find_repo_root()
+    except FileNotFoundError:
+        resolved_root = Path.cwd()
+
+    if not source.exists():
+        console.print(f"[bold red]Erro:[/bold red] Caminho de origem não encontrado: {source}")
+        raise typer.Exit(code=1)
+
+    try:
+        if source.is_dir():
+            console.print(
+                f"\n[bold cyan]=== Ingestão em Lote: Plataforma '{platform}' ===[/bold cyan]\n"
+            )
+            imported_list = import_roms_batch(source, platform, move=move, repo_root=resolved_root)
+            if not imported_list:
+                console.print("[bold yellow]Nenhum arquivo compatível localizado.[/bold yellow]\n")
+                return
+
+            table = Table(title="ROMs Importadas com Sucesso", header_style="bold magenta")
+            table.add_column("Arquivo Destino (Higienizado)", style="green")
+            for dest in imported_list:
+                rel = (
+                    str(dest.relative_to(resolved_root))
+                    if dest.is_relative_to(resolved_root)
+                    else dest.name
+                )
+                table.add_row(rel)
+            console.print(table)
+            console.print(
+                f"\n[bold green]Sucesso:[/bold green] {len(imported_list)} ROM(s) importada(s)!"
+            )
+        else:
+            dest = import_rom(source, platform, move=move, repo_root=resolved_root)
+            rel_dest = (
+                str(dest.relative_to(resolved_root))
+                if dest.is_relative_to(resolved_root)
+                else dest.name
+            )
+            action = "Movido" if move else "Copiado"
+            console.print(
+                f"\n[bold green]Sucesso ({action}):[/bold green] "
+                f"ROM importada e higienizada com sucesso:\n"
+                f"[cyan]Destino:[/cyan] [bold white]{rel_dest}[/bold white]\n"
+            )
+    except (ValueError, FileExistsError, FileNotFoundError, IsADirectoryError) as err:
+        console.print(f"[bold red]Erro de Ingestão:[/bold red] {err}")
+        raise typer.Exit(code=1) from err
 
 
 def main() -> None:
