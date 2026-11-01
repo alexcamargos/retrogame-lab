@@ -129,6 +129,7 @@ retrogame-lab/
 │   │   └── dc/                     # Arquivos VMU (.bin)
 │   └── states/                     # Savestates locais (NÃO sincronizados, isolados via .stignore)
 ├── docs/                           # Documentação técnica e de engenharia
+│   ├── guia-inicio.md              # Guia de início e integração multiplataforma (Windows <-> Android)
 │   ├── specs-windows.md            # Esta especificação
 │   └── specs-android.md            # Especificação de sincronização com Android
 ├── scripts/
@@ -149,7 +150,7 @@ retrogame-lab/
 │   ├── config/                     # Templates de retroarch.cfg, duckstation_settings.ini, PCSX2.ini
 │   ├── controllers/                # Mapeamentos XInput (Xbox), DualSense e 8BitDo
 │   └── es-de/                      # Configurações de rotas do ES-DE
-├── tests/                          # Bateria de 43 testes unitários com pytest e pytest-mock
+├── tests/                          # Bateria de 46 testes unitários com pytest e pytest-mock
 └── tools/                          # Utilitários de linha de comando
     ├── chdman.exe                  # MAME CHD Manager
     └── 7z.exe                      # Descompactação determinística
@@ -188,7 +189,8 @@ param (
     [Parameter(Mandatory = $true)]
     [string]$RomPath,
 
-    [switch]$Fullscreen = $true,
+    [switch]$Fullscreen,
+    [switch]$Windowed,
 
     [ValidateSet("auto", "igpu", "dgpu")]
     [string]$GpuMode = "auto"
@@ -197,6 +199,14 @@ param (
 $ErrorActionPreference = "Stop"
 $BaseDir = Split-Path -Parent $PSScriptRoot
 $BinDir  = Join-Path $BaseDir "bin"
+
+# Resolução de modo de tela: fullscreen ativo por padrão a menos que -Windowed seja acionado
+$IsFullscreen = $true
+if ($Windowed) {
+    $IsFullscreen = $false
+} elseif ($PSBoundParameters.ContainsKey('Fullscreen')) {
+    $IsFullscreen = [bool]$Fullscreen
+}
 
 if (-not (Test-Path $RomPath)) {
     Write-Error "Arquivo de ROM não encontrado: $RomPath"
@@ -210,6 +220,7 @@ if ($RomLeaf -match "[\s'""`~^!?\:;*<>|#]") {
     $Stem = [System.IO.Path]::GetFileNameWithoutExtension($RomLeaf)
     $Ext = [System.IO.Path]::GetExtension($RomLeaf)
 
+    # Limpeza de caracteres especiais e conversão de espaços para sublinhado
     $CleanStem = $Stem -replace "['""`~^!?\:;*<>|#]", ""
     $CleanStem = $CleanStem -replace "\s+", "_"
     $CleanStem = $CleanStem -replace "_+", "_"
@@ -234,38 +245,72 @@ switch ($Platform) {
         $Emulator = Join-Path $BinDir "retroarch\retroarch.exe"
         $Core = Join-Path $BinDir "retroarch\cores\snes9x_libretro.dll"
         if (-not (Test-Path $Core)) {
-            Write-Error "Core Libretro não encontrado em '$Core'. Instale via RetroArch Core Updater."
+            Write-Error "Core Libretro não encontrado em '$Core'. Abra o RetroArch e instale o core Snes9x via Core Updater."
         }
         $ArgList += @("-L", $Core, $ResolvedRom)
-        if ($Fullscreen) { $ArgList += "--fullscreen" }
+        if ($IsFullscreen) { $ArgList += "--fullscreen" }
     }
     "ps1" {
-        $Emulator = Join-Path $BinDir "duckstation\duckstation-qt.exe"
+        $DuckBin = Get-ChildItem -Path (Join-Path $BinDir "duckstation") -Filter "duckstation*.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notmatch "updater|setup|unins" } |
+            Select-Object -First 1
+        if (-not $DuckBin) {
+            $Emulator = Join-Path $BinDir "duckstation\duckstation-qt.exe"
+        } else {
+            $Emulator = $DuckBin.FullName
+        }
         $ArgList += @("-batch", $ResolvedRom)
-        if ($Fullscreen) { $ArgList += "-fullscreen" }
+        if ($IsFullscreen) { $ArgList += "-fullscreen" }
     }
     "ps2" {
+        # Localiza executável Qt moderno (pcsx2-qt.exe ou pcsx2-qtx64.exe), ignorando updaters
         $Pcsx2Bin = Get-ChildItem -Path (Join-Path $BinDir "pcsx2") -Filter "pcsx2*.exe" -ErrorAction SilentlyContinue |
             Where-Object { $_.Name -notmatch "updater|setup|unins" } |
             Select-Object -First 1
-        $Emulator = if ($Pcsx2Bin) { $Pcsx2Bin.FullName } else { Join-Path $BinDir "pcsx2\pcsx2-qt.exe" }
+        if (-not $Pcsx2Bin) {
+            $Emulator = Join-Path $BinDir "pcsx2\pcsx2-qt.exe"
+        } else {
+            $Emulator = $Pcsx2Bin.FullName
+        }
         $ArgList += @("-batch")
-        if ($Fullscreen) { $ArgList += "-fullscreen" }
+        if ($IsFullscreen) { $ArgList += "-fullscreen" }
         $ArgList += @("--", $ResolvedRom)
     }
     "psp" {
-        $Emulator = Join-Path $BinDir "ppsspp\PPSSPPWindows64.exe"
+        $PpssppBin = Get-ChildItem -Path (Join-Path $BinDir "ppsspp") -Filter "PPSSPP*.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notmatch "updater|setup|unins" } |
+            Select-Object -First 1
+        if (-not $PpssppBin) {
+            $Emulator = Join-Path $BinDir "ppsspp\PPSSPPWindows64.exe"
+        } else {
+            $Emulator = $PpssppBin.FullName
+        }
         $ArgList += $ResolvedRom
-        if ($Fullscreen) { $ArgList += "--fullscreen" }
+        if ($IsFullscreen) { $ArgList += "--fullscreen" }
     }
     "gc" {
-        $Emulator = Join-Path $BinDir "dolphin\Dolphin.exe"
+        $DolphinBin = Get-ChildItem -Path (Join-Path $BinDir "dolphin") -Filter "Dolphin*.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notmatch "updater|setup|unins" } |
+            Select-Object -First 1
+        if (-not $DolphinBin) {
+            $Emulator = Join-Path $BinDir "dolphin\Dolphin.exe"
+        } else {
+            $Emulator = $DolphinBin.FullName
+        }
+        # Dolphin inicia fullscreen via configuração em Dolphin.ini; flag CLI -b encerra ao sair
         $ArgList += @("-b", "-e", $ResolvedRom)
     }
     "dc" {
-        $Emulator = Join-Path $BinDir "flycast\flycast.exe"
+        $FlycastBin = Get-ChildItem -Path (Join-Path $BinDir "flycast") -Filter "flycast*.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notmatch "updater|setup|unins" } |
+            Select-Object -First 1
+        if (-not $FlycastBin) {
+            $Emulator = Join-Path $BinDir "flycast\flycast.exe"
+        } else {
+            $Emulator = $FlycastBin.FullName
+        }
         $ArgList += $ResolvedRom
-        if ($Fullscreen) { $ArgList += "--fullscreen" }
+        if ($IsFullscreen) { $ArgList += "--fullscreen" }
     }
 }
 
@@ -291,31 +336,42 @@ if ($ApplyDgpu -and (Test-Path $Emulator)) {
 
 # 3. Execução com Isolamento de CWD e Afinidade Protegida de CPU
 if (-not (Test-Path $Emulator)) {
-    Write-Error "Executável do emulador não encontrado: $Emulator. Execute scripts\bootstrap.ps1 primeiro."
+    Write-Error "Executável do emulador não encontrado: $Emulator. Execute o provisionamento ou verifique a pasta bin/."
 }
 
 Push-Location (Split-Path $Emulator)
 try {
     Write-Host ">>> Executando $Platform [$RomPath]..." -ForegroundColor Cyan
 
+    # Encapsula argumentos que contêm espaços para evitar fragmentação no Start-Process
     $EscapedArgs = $ArgList | ForEach-Object {
-        if ($_ -match '\s' -and $_ -notmatch '^".*"$') { "`"$_`"" } else { $_ }
+        if ($_ -match '\s' -and $_ -notmatch '^".*"$') {
+            "`"$_`""
+        } else {
+            $_
+        }
     }
+
     $Process = Start-Process -FilePath $Emulator -ArgumentList $EscapedArgs -PassThru
 
+    # Aplicação segura de afinidade de P-cores se CPU híbrida for identificada
     if ($Platform -in @("ps2", "gc")) {
         try {
             Start-Sleep -Milliseconds 150
             if (-not $Process.HasExited) {
                 $Cpu = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue
                 if ($Cpu.Name -match "12th|13th|14th|Core Ultra") {
-                    if ([Environment]::ProcessorCount -ge 8) {
+                    $CoreCount = [Environment]::ProcessorCount
+                    # Vincula aos P-cores (threads 0 a 7) se a topologia tiver threads suficientes
+                    if ($CoreCount -ge 8) {
                         $Process.ProcessorAffinity = [IntPtr]0x00FF
                         Write-Host ">>> Afinidade vinculada aos P-cores." -ForegroundColor Gray
                     }
                 }
             }
-        } catch { }
+        } catch {
+            # Não interrompe a execução caso o processo recuse ajuste de afinidade
+        }
     }
 
     $Process.WaitForExit()
@@ -423,10 +479,18 @@ Write-Host "=== Provisionamento do Pipeline Retrogaming no Windows 11 ===" -Fore
 # 1. Instalação de Runtimes e Ferramentas via Winget
 if (-not $SkipWinget) {
     Write-Host "`n>>> Verificando Runtimes e Ferramentas via winget..." -ForegroundColor Cyan
+    
+    # Runtimes que exigem elevação (avisa se não for Administrador)
+    $IsAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    if (-not $IsAdmin) {
+        Write-Warning "Aviso: Para instalar os runtimes de sistema (VCRedist e DirectX), execute este script como Administrador caso ainda não estejam presentes."
+    }
+
     $Packages = @(
         "Microsoft.VCRedist.2015+.x64", "Microsoft.DirectX", "Microsoft.PowerShell",
         "Git.Git", "7zip.7zip", "Google.PlatformTools", "Syncthing.Syncthing", "Astral-sh.uv"
     )
+
     foreach ($Pkg in $Packages) {
         Write-Host "Verificando/Instalando: $Pkg..." -ForegroundColor Gray
         winget install --id $Pkg -e --source winget --silent --accept-package-agreements --accept-source-agreements 2>$null
@@ -434,6 +498,7 @@ if (-not $SkipWinget) {
 }
 
 # 2. Criação da Estrutura de Diretórios
+Write-Host "`n>>> Criando estrutura hierárquica..." -ForegroundColor Cyan
 $Folders = @(
     "$DataDir\bios\ps1", "$DataDir\bios\ps2", "$DataDir\bios\dc",
     "$DataDir\roms\snes", "$DataDir\roms\ps1", "$DataDir\roms\ps2", "$DataDir\roms\psp", "$DataDir\roms\gc", "$DataDir\roms\dc",
@@ -443,27 +508,37 @@ $Folders = @(
     $ToolsDir
 )
 foreach ($Folder in $Folders) {
-    if (-not (Test-Path $Folder)) { New-Item -ItemType Directory -Path $Folder -Force | Out-Null }
+    if (-not (Test-Path $Folder)) {
+        New-Item -ItemType Directory -Path $Folder -Force | Out-Null
+    }
 }
 
-# 3. Criação dos Marcadores de Portabilidade e Junção PPSSPP
+# 3. Criação dos Marcadores de Portabilidade Oficiais
 New-Item -ItemType File -Path (Join-Path $BinDir "duckstation\portable.txt") -Force | Out-Null
 New-Item -ItemType File -Path (Join-Path $BinDir "pcsx2\portable.txt") -Force | Out-Null
 New-Item -ItemType File -Path (Join-Path $BinDir "dolphin\portable.txt") -Force | Out-Null
 $PpssppMemstick = Join-Path $BinDir "ppsspp\memstick"
 New-Item -ItemType Directory -Path $PpssppMemstick -Force | Out-Null
 
+# Vincula a pasta SAVEDATA do PPSSPP ao diretório centralizado data\saves\psp\SAVEDATA via junção
 $PpssppPsp = Join-Path $PpssppMemstick "PSP"
 $PpssppSaveData = Join-Path $PpssppPsp "SAVEDATA"
 $TargetPspSave = Join-Path $DataDir "saves\psp\SAVEDATA"
 if (-not (Test-Path $TargetPspSave)) { New-Item -ItemType Directory -Path $TargetPspSave -Force | Out-Null }
 if (-not (Test-Path $PpssppPsp)) { New-Item -ItemType Directory -Path $PpssppPsp -Force | Out-Null }
 if (-not (Test-Path $PpssppSaveData)) {
-    cmd /c mklink /J "$PpssppSaveData" "$TargetPspSave" 2>$null | Out-Null
+    $BinDrive = (Split-Path (Resolve-Path $PpssppPsp).Path -Qualifier)
+    $DataDrive = (Split-Path (Resolve-Path $TargetPspSave).Path -Qualifier)
+    if ($BinDrive -eq $DataDrive) {
+        cmd /c mklink /J "$PpssppSaveData" "$TargetPspSave" 2>$null | Out-Null
+    } else {
+        Write-Warning "Junções NTFS (/J) não podem atravessar volumes distintos ($BinDrive vs $DataDrive). Mantenha bin/ e data/ no mesmo volume ou ative links simbólicos."
+    }
 }
 
-# 4. Injeção de Templates de Configuração
+# 4. Injeção de Templates de Configuração Inicial (Cold Start Protection)
 if (Test-Path $TplDir) {
+    Write-Host "`n>>> Injetando templates de configuração de saves e BIOS..." -ForegroundColor Cyan
     if (Test-Path "$TplDir\retroarch.cfg") { Copy-Item "$TplDir\retroarch.cfg" "$BinDir\retroarch\" -Force }
     if (Test-Path "$TplDir\duckstation_settings.ini") { Copy-Item "$TplDir\duckstation_settings.ini" "$BinDir\duckstation\settings.ini" -Force }
     if (Test-Path "$TplDir\PCSX2.ini") { 
@@ -472,6 +547,15 @@ if (Test-Path $TplDir) {
         Copy-Item "$TplDir\PCSX2.ini" "$Pcsx2Inis\PCSX2.ini" -Force 
     }
 }
+
+# 5. Verificação de Utilitários de Linha de Comando (tools/)
+$ChdmanExe = Join-Path $ToolsDir "chdman.exe"
+$ChdmanInPath = Get-Command "chdman" -ErrorAction SilentlyContinue
+if (-not (Test-Path $ChdmanExe) -and -not $ChdmanInPath) {
+    Write-Host "`n[AVISO] chdman.exe não detectado em tools\ nem no PATH." -ForegroundColor Yellow
+    Write-Host "Para compactar mídias de CD/DVD via scripts\convert_chd.ps1, extraia o 'chdman.exe' (distribuído no pacote oficial MAME) para a pasta '$ToolsDir'." -ForegroundColor Gray
+}
+
 Write-Host "`n=== Provisionamento Concluído com Sucesso! ===" -ForegroundColor Green
 ```
 
