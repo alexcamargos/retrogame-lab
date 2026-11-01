@@ -143,11 +143,12 @@ def test_audit_bios_empty_directory(tmp_path: Path) -> None:
     assert summary.issues[0].severity == Severity.INFO
 
 
-def test_audit_bios_valid_and_invalid_hash(tmp_path: Path) -> None:
+def test_audit_bios_valid_and_invalid_hash(tmp_path: Path, mocker: MockerFixture) -> None:
     """Verifica a correta validação de hashes conhecidos vs corrompidos de BIOS.
 
     Args:
         tmp_path: Diretório temporário.
+        mocker: Fixture do pytest-mock para isolamento de estado global.
 
     Returns:
         None.
@@ -166,9 +167,9 @@ def test_audit_bios_valid_and_invalid_hash(tmp_path: Path) -> None:
     invalid_file = bios_dir / "scph7001.bin"
     invalid_file.write_bytes(b"corrupted dump")
 
-    # Mapeamos o hash do dummy para ser aceito
+    # Mapeamos o hash do dummy para ser aceito sem mutar permanentemente o dicionário
     dummy_hash = hashlib.sha256(b"dummy").hexdigest()
-    KNOWN_BIOS_HASHES["scph5501.bin"] = dummy_hash
+    mocker.patch.dict(KNOWN_BIOS_HASHES, {"scph5501.bin": dummy_hash})
 
     summary = audit_bios(tmp_path / "bios")
     # scph7001.bin deve gerar um ERROR

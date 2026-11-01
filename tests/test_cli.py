@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 
 import pytest
+from pytest_mock import MockerFixture
 from typer.testing import CliRunner
 
 from retrogame_lab.cli import app
@@ -287,7 +288,9 @@ def test_cli_audit_library_alias(mock_repo_root: Path, monkeypatch: pytest.Monke
     assert "Auditoria de Integridade" in result.stdout
 
 
-def test_cli_bootstrap(mocker, mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_bootstrap(
+    mocker: MockerFixture, mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Verifica se o comando bootstrap despacha para o script PowerShell.
 
     Args:
@@ -310,7 +313,7 @@ def test_cli_bootstrap(mocker, mock_repo_root: Path, monkeypatch: pytest.MonkeyP
 
 
 def test_cli_bootstrap_failure(
-    mocker, mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch
+    mocker: MockerFixture, mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Verifica propagação de código de saída de erro no comando bootstrap.
 
@@ -332,7 +335,9 @@ def test_cli_bootstrap_failure(
     assert res.exit_code == 42
 
 
-def test_cli_launch(mocker, mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_launch(
+    mocker: MockerFixture, mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Verifica despacho do comando launch para o script PowerShell.
 
     Args:
@@ -360,7 +365,39 @@ def test_cli_launch(mocker, mock_repo_root: Path, monkeypatch: pytest.MonkeyPatc
     )
 
 
-def test_cli_convert_chd(mocker, mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_launch_fullscreen(
+    mocker: MockerFixture, mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verifica despacho do comando launch em modo fullscreen padrão.
+
+    Args:
+        mocker: Fixture do pytest-mock.
+        mock_repo_root: Fixture de raiz mockada.
+        monkeypatch: Fixture do pytest.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    monkeypatch.chdir(mock_repo_root)
+    mock_run = mocker.patch("retrogame_lab.cli.run_pwsh_script", return_value=0)
+
+    rom_file = mock_repo_root / "data" / "roms" / "ps1" / "game.chd"
+    rom_file.write_text("dummy", encoding="utf-8")
+
+    res = runner.invoke(app, ["launch", "ps1", str(rom_file)])
+    assert res.exit_code == 0
+    mock_run.assert_called_once_with(
+        "launch.ps1",
+        ["-Platform", "ps1", "-RomPath", str(rom_file), "-GpuMode", "auto", "-Fullscreen"],
+    )
+
+
+def test_cli_convert_chd(
+    mocker: MockerFixture, mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Verifica despacho do comando convert-chd para o script PowerShell.
 
     Args:
@@ -388,7 +425,9 @@ def test_cli_convert_chd(mocker, mock_repo_root: Path, monkeypatch: pytest.Monke
     )
 
 
-def test_cli_setup_android(mocker, mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_setup_android(
+    mocker: MockerFixture, mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Verifica despacho do comando setup-android para o script PowerShell.
 
     Args:
