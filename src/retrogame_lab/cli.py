@@ -105,16 +105,25 @@ def audit(
         bool,
         typer.Option(
             "--json-output",
+            "--json",
             "-j",
             help="Retorna o relatório em formato JSON estruturado.",
         ),
     ] = False,
+    full: Annotated[
+        bool,
+        typer.Option(
+            "--full",
+            help="Executa auditoria completa de todos os subsistemas (comportamento padrão).",
+        ),
+    ] = True,
 ) -> None:
     """Audita a integridade de BIOS, ROMs e regras de salvamento no repositório.
 
     Args:
         repo_path: Caminho opcional para a raiz do repositório.
         json_output: Se True, formata a saída como documento JSON.
+        full: Se True, realiza a auditoria completa de todos os subsistemas.
 
     Returns:
         None.

@@ -91,6 +91,26 @@ def test_cli_audit_json(mock_repo_root: Path) -> None:
     assert parsed["has_errors"] is False
 
 
+def test_cli_audit_json_alias_and_full(mock_repo_root: Path) -> None:
+    """Verifica se os aliases --json e --full são aceitos sem erro.
+
+    Args:
+        mock_repo_root: Fixture de raiz mockada.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    result = runner.invoke(app, ["audit", "--path", str(mock_repo_root), "--json", "--full"])
+    assert result.exit_code == 0
+
+    parsed = json.loads(result.stdout)
+    assert "bios" in parsed
+    assert parsed["has_errors"] is False
+
+
 def test_cli_audit_error_exit_code(mock_repo_root: Path) -> None:
     """Verifica se a auditoria encerra com código 1 quando há erros críticos.
 
