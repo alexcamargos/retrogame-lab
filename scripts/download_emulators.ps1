@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param (
     [string[]]$Emulators = @("retroarch", "duckstation", "pcsx2", "ppsspp", "dolphin", "flycast"),
+    [switch]$CheckOnly = $false,
+    [switch]$Update = $false,
     [switch]$Force = $false
 )
 
@@ -9,6 +11,7 @@ $BaseDir = Split-Path -Parent $PSScriptRoot
 $BinDir  = Join-Path $BaseDir "bin"
 $DataDir = Join-Path $BaseDir "data"
 $TempDir = Join-Path $BaseDir "tools\temp_downloads"
+$VersionsFile = Join-Path $BinDir ".versions.json"
 
 if (-not (Test-Path $TempDir)) {
     New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
@@ -76,7 +79,8 @@ function Flatten-SingleDirectory {
 function Install-RetroArchCores {
     param (
         [string]$RetroArchFolder,
-        [string[]]$CoreNames = @("snes9x")
+        [string[]]$CoreNames = @("snes9x"),
+        [switch]$ForceDownload = $false
     )
 
     $CoreDir = Join-Path $RetroArchFolder "cores"
@@ -86,7 +90,7 @@ function Install-RetroArchCores {
 
     foreach ($Core in $CoreNames) {
         $CoreDll = Join-Path $CoreDir "${Core}_libretro.dll"
-        if ((Test-Path $CoreDll) -and -not $Force) {
+        if ((Test-Path $CoreDll) -and -not $ForceDownload) {
             Write-Host "Core Libretro '${Core}' já presente em '$CoreDll'." -ForegroundColor Gray
             continue
         }
@@ -106,7 +110,41 @@ function Install-RetroArchCores {
     }
 }
 
-Write-Host "=== Download e Provisionamento de Emuladores Portáteis no Windows 11 ===" -ForegroundColor Green
+function Get-InstalledVersionsManifest {
+    if (Test-Path $VersionsFile) {
+        try {
+            $Content = Get-Content $VersionsFile -Raw -ErrorAction SilentlyContinue
+            if ($Content) {
+                return ($Content | ConvertFrom-Json)
+            }
+        } catch {
+            Write-Warning "Manifesto .versions.json corrompido. Será regerado."
+        }
+    }
+    return [PSCustomObject]@{}
+}
+
+function Save-InstalledVersionEntry {
+    param (
+        [string]$EmuKey,
+        [string]$VersionString
+    )
+
+    $Manifest = Get-InstalledVersionsManifest
+    $Now = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ssZ")
+
+    if ($Manifest.PSObject.Properties[$EmuKey]) {
+        $Manifest.$EmuKey.version = $VersionString
+        $Manifest.$EmuKey.updated_at = $Now
+    } else {
+        $Manifest | Add-Member -MemberType NoteProperty -Name $EmuKey -Value ([PSCustomObject]@{
+            version = $VersionString
+            updated_at = $Now
+        }) -Force
+    }
+
+    $Manifest | ConvertTo-Json -Depth 5 | Set-Content -Path $VersionsFile -Force
+}
 
 $Headers = @{ "User-Agent" = "RetroGameLab-Bootstrap/1.0" }
 
@@ -121,159 +159,266 @@ foreach ($Entry in $Emulators) {
 }
 $Emulators = $ParsedEmulators
 
+# Carrega manifesto local
+$LocalManifest = Get-InstalledVersionsManifest
+
+Write-Host "=== RetroGame Lab: Gerenciador de Emuladores e Atualizações ===" -ForegroundColor Green
+
+# 2. Resolução Dinâmica de Metadados Remotos
+$RemoteCatalog = [ordered]@{}
+
+Write-Host "`n>>> Consultando repositórios e buildbots oficiais..." -ForegroundColor Cyan
+
 foreach ($Emu in $Emulators) {
     $EmuName = $Emu.ToLower().Trim()
     $TargetFolder = Join-Path $BinDir $EmuName
 
-    if (-not (Test-Path $TargetFolder)) {
-        New-Item -ItemType Directory -Path $TargetFolder -Force | Out-Null
-    }
-
-    Write-Host "`n--- Processando: $EmuName ---" -ForegroundColor Cyan
-
-    # Verificação de existência prévia
     $ExistingExe = Get-ChildItem -Path $TargetFolder -Filter "*.exe" -Recurse -ErrorAction SilentlyContinue |
         Where-Object { $_.Name -notmatch "updater|setup|unins|vcredist" } |
         Select-Object -First 1
 
-    if ($ExistingExe -and -not $Force) {
-        Write-Host "Emulador já presente em '$($ExistingExe.FullName)' (Use -Force para reinstalar)." -ForegroundColor Gray
-        if ($EmuName -eq "retroarch") {
-            # Garante que os cores Libretro homologados estejam presentes mesmo se o RetroArch já existir
-            Install-RetroArchCores -RetroArchFolder $TargetFolder
-        }
-        continue
+    $InstalledVer = if ($LocalManifest.PSObject.Properties[$EmuName]) {
+        $LocalManifest.$EmuName.version
+    } elseif ($ExistingExe) {
+        "instalado (versão não registrada)"
+    } else {
+        "não instalado"
     }
 
     try {
         switch ($EmuName) {
             "duckstation" {
-                Write-Host "Consultando release oficial do DuckStation via GitHub API..." -ForegroundColor Gray
                 $Release = Invoke-RestMethod -Uri "https://api.github.com/repos/stenzek/duckstation/releases/latest" -Headers $Headers
                 $Asset = $Release.assets | Where-Object { $_.name -match "duckstation-windows-x64-release\.zip" } | Select-Object -First 1
                 if (-not $Asset) {
                     $Asset = $Release.assets | Where-Object { $_.name -match "windows.*x64.*zip" } | Select-Object -First 1
                 }
-                $Url = $Asset.browser_download_url
-                $ArchiveFile = Join-Path $TempDir "duckstation.zip"
-
-                Write-Host "Baixando DuckStation ($($Asset.name))..." -ForegroundColor Yellow
-                Invoke-WebRequest -Uri $Url -OutFile $ArchiveFile -MaximumRedirection 10 -UserAgent "Mozilla/5.0"
-                Expand-ArchivePortable -ArchiveFile $ArchiveFile -DestinationPath $TargetFolder
-                Flatten-SingleDirectory -DirectoryPath $TargetFolder
-                New-Item -ItemType File -Path (Join-Path $TargetFolder "portable.txt") -Force | Out-Null
+                $DateTag = if ($Asset.updated_at -is [System.DateTime]) { 
+                    $Asset.updated_at.ToString("yyyy-MM-dd") 
+                } elseif ($Asset.updated_at) { 
+                    $Asset.updated_at.ToString().Substring(0, 10) 
+                } else { 
+                    "latest" 
+                }
+                $RemoteVer = "latest ($DateTag)"
+                $RemoteCatalog[$EmuName] = [ordered]@{
+                    Name = "DuckStation (PS1)"
+                    RemoteVersion = $RemoteVer
+                    InstalledVersion = $InstalledVer
+                    Url = $Asset.browser_download_url
+                    Archive = "duckstation.zip"
+                    Type = "zip"
+                    ExistingExe = $ExistingExe
+                }
             }
 
             "pcsx2" {
-                Write-Host "Consultando release oficial do PCSX2 v2.x via GitHub API..." -ForegroundColor Gray
                 $Release = Invoke-RestMethod -Uri "https://api.github.com/repos/PCSX2/pcsx2/releases/latest" -Headers $Headers
                 $Asset = $Release.assets | Where-Object { $_.name -match "windows-x64-Qt\.7z" -and $_.name -notmatch "symbols" } | Select-Object -First 1
                 if (-not $Asset) {
                     $Asset = $Release.assets | Where-Object { $_.name -match "windows.*Qt.*7z" -and $_.name -notmatch "symbols" } | Select-Object -First 1
                 }
-                $Url = $Asset.browser_download_url
-                $ArchiveFile = Join-Path $TempDir "pcsx2.7z"
-
-                Write-Host "Baixando PCSX2 ($($Asset.name))..." -ForegroundColor Yellow
-                Invoke-WebRequest -Uri $Url -OutFile $ArchiveFile -MaximumRedirection 10 -UserAgent "Mozilla/5.0"
-                Expand-ArchivePortable -ArchiveFile $ArchiveFile -DestinationPath $TargetFolder
-                Flatten-SingleDirectory -DirectoryPath $TargetFolder
-                New-Item -ItemType File -Path (Join-Path $TargetFolder "portable.txt") -Force | Out-Null
+                $RemoteCatalog[$EmuName] = [ordered]@{
+                    Name = "PCSX2 v2.x (PS2)"
+                    RemoteVersion = $Release.tag_name
+                    InstalledVersion = $InstalledVer
+                    Url = $Asset.browser_download_url
+                    Archive = "pcsx2.7z"
+                    Type = "7z"
+                    ExistingExe = $ExistingExe
+                }
             }
 
             "ppsspp" {
-                Write-Host "Consultando release oficial do PPSSPP via GitHub API..." -ForegroundColor Gray
                 $Release = Invoke-RestMethod -Uri "https://api.github.com/repos/hrydgard/ppsspp/releases/latest" -Headers $Headers
                 $Asset = $Release.assets | Where-Object { $_.name -match "Windows-x64\.zip" } | Select-Object -First 1
                 if (-not $Asset) {
                     $Asset = $Release.assets | Where-Object { $_.name -match "Windows.*zip" -and $_.name -notmatch "ARM64" } | Select-Object -First 1
                 }
-                $Url = $Asset.browser_download_url
-                $ArchiveFile = Join-Path $TempDir "ppsspp.zip"
-
-                Write-Host "Baixando PPSSPP ($($Asset.name))..." -ForegroundColor Yellow
-                Invoke-WebRequest -Uri $Url -OutFile $ArchiveFile -MaximumRedirection 10 -UserAgent "Mozilla/5.0"
-                Expand-ArchivePortable -ArchiveFile $ArchiveFile -DestinationPath $TargetFolder
-                Flatten-SingleDirectory -DirectoryPath $TargetFolder
-                
-                # Garantir estrutura do memstick
-                $PpssppMemstick = Join-Path $TargetFolder "memstick"
-                New-Item -ItemType Directory -Path $PpssppMemstick -Force | Out-Null
+                $RemoteCatalog[$EmuName] = [ordered]@{
+                    Name = "PPSSPP (PSP)"
+                    RemoteVersion = $Release.tag_name
+                    InstalledVersion = $InstalledVer
+                    Url = $Asset.browser_download_url
+                    Archive = "ppsspp.zip"
+                    Type = "zip"
+                    ExistingExe = $ExistingExe
+                }
             }
 
             "dolphin" {
-                Write-Host "Consultando versão oficial do Dolphin..." -ForegroundColor Gray
                 $DolphinMeta = Invoke-RestMethod -Uri "https://dolphin-emu.org/update/latest/beta" -Headers $Headers
                 $Asset = $DolphinMeta.artifacts | Where-Object { $_.system -eq "Windows x64" } | Select-Object -First 1
-                $Url = $Asset.url
-                $ArchiveFile = Join-Path $TempDir "dolphin.7z"
-
-                Write-Host "Baixando Dolphin ($($DolphinMeta.shortrev))..." -ForegroundColor Yellow
-                Invoke-WebRequest -Uri $Url -OutFile $ArchiveFile -MaximumRedirection 10 -UserAgent "Mozilla/5.0"
-                Expand-ArchivePortable -ArchiveFile $ArchiveFile -DestinationPath $TargetFolder
-                Flatten-SingleDirectory -DirectoryPath $TargetFolder
-                New-Item -ItemType File -Path (Join-Path $TargetFolder "portable.txt") -Force | Out-Null
+                $RemoteCatalog[$EmuName] = [ordered]@{
+                    Name = "Dolphin (GameCube/Wii)"
+                    RemoteVersion = $DolphinMeta.shortrev
+                    InstalledVersion = $InstalledVer
+                    Url = $Asset.url
+                    Archive = "dolphin.7z"
+                    Type = "7z"
+                    ExistingExe = $ExistingExe
+                }
             }
 
             "flycast" {
-                Write-Host "Consultando release oficial do Flycast via GitHub API..." -ForegroundColor Gray
                 $Release = Invoke-RestMethod -Uri "https://api.github.com/repos/flyinghead/flycast/releases/latest" -Headers $Headers
                 $Asset = $Release.assets | Where-Object { $_.name -match "win64.*\.zip" } | Select-Object -First 1
-                $Url = $Asset.browser_download_url
-                $ArchiveFile = Join-Path $TempDir "flycast.zip"
-
-                Write-Host "Baixando Flycast ($($Asset.name))..." -ForegroundColor Yellow
-                Invoke-WebRequest -Uri $Url -OutFile $ArchiveFile -MaximumRedirection 10 -UserAgent "Mozilla/5.0"
-                Expand-ArchivePortable -ArchiveFile $ArchiveFile -DestinationPath $TargetFolder
-                Flatten-SingleDirectory -DirectoryPath $TargetFolder
+                $RemoteCatalog[$EmuName] = [ordered]@{
+                    Name = "Flycast (Dreamcast)"
+                    RemoteVersion = $Release.tag_name
+                    InstalledVersion = $InstalledVer
+                    Url = $Asset.browser_download_url
+                    Archive = "flycast.zip"
+                    Type = "zip"
+                    ExistingExe = $ExistingExe
+                }
             }
 
             "retroarch" {
-                Write-Host "Consultando pacote portátil do RetroArch..." -ForegroundColor Gray
-                $Url = "https://buildbot.libretro.com/nightly/windows/x86_64/RetroArch.7z"
-                $ArchiveFile = Join-Path $TempDir "retroarch.7z"
-
-                Write-Host "Baixando RetroArch 64-bit..." -ForegroundColor Yellow
-                Invoke-WebRequest -Uri $Url -OutFile $ArchiveFile -MaximumRedirection 10 -UserAgent "Mozilla/5.0"
-                Expand-ArchivePortable -ArchiveFile $ArchiveFile -DestinationPath $TargetFolder
-                Flatten-SingleDirectory -DirectoryPath $TargetFolder
-
-                # Download automatizado de Cores Libretro homologados (SNES, etc.)
-                Install-RetroArchCores -RetroArchFolder $TargetFolder
-            }
-
-            default {
-                Write-Warning "Emulador desconhecido: '$EmuName'. Emuladores suportados: retroarch, duckstation, pcsx2, ppsspp, dolphin, flycast"
+                $RaRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/libretro/RetroArch/releases/latest" -Headers $Headers
+                $RemoteVer = if ($RaRelease.tag_name) { $RaRelease.tag_name } else { "stable" }
+                $RemoteCatalog[$EmuName] = [ordered]@{
+                    Name = "RetroArch (SNES/2D)"
+                    RemoteVersion = $RemoteVer
+                    InstalledVersion = $InstalledVer
+                    Url = "https://buildbot.libretro.com/nightly/windows/x86_64/RetroArch.7z"
+                    Archive = "retroarch.7z"
+                    Type = "7z"
+                    ExistingExe = $ExistingExe
+                }
             }
         }
-        Write-Host ">>> $EmuName provisionado com sucesso em '$TargetFolder'!" -ForegroundColor Green
+    } catch {
+        Write-Warning "Falha ao obter metadados de '$EmuName': $($_.Exception.Message)"
+    }
+}
+
+# 3. Exibição da Tabela de Auditoria de Versões
+Write-Host "`nStatus Comparativo de Versões:" -ForegroundColor Cyan
+$Report = @()
+$UpdatesAvailable = 0
+
+foreach ($Key in $RemoteCatalog.Keys) {
+    $Info = $RemoteCatalog[$Key]
+    $Status = "Atualizado"
+    $NeedsWork = $false
+
+    if (-not $Info.ExistingExe) {
+        $Status = "Não Instalado"
+        $NeedsWork = $true
+    } elseif ($Info.InstalledVersion -eq "instalado (versão não registrada)") {
+        # Registra a versão atual para manter o tracking ativo
+        Save-InstalledVersionEntry -EmuKey $Key -VersionString $Info.RemoteVersion
+        $Info.InstalledVersion = $Info.RemoteVersion
+        $Status = "Atualizado"
+    } elseif ($Info.InstalledVersion -ne $Info.RemoteVersion) {
+        $Status = "Atualização Disponível"
+        $NeedsWork = $true
+        $UpdatesAvailable++
+    }
+
+    $Info["Status"] = $Status
+    $Info["NeedsWork"] = $NeedsWork
+
+    $Report += [PSCustomObject]@{
+        "Emulador"         = $Info.Name
+        "Versão Instalada" = $Info.InstalledVersion
+        "Versão Remota"    = $Info.RemoteVersion
+        "Status"           = $Status
+    }
+}
+
+$Report | Format-Table -AutoSize | Out-String | Write-Host -ForegroundColor Gray
+
+# Se foi solicitado apenas checagem, exibe orientações e encerra
+if ($CheckOnly) {
+    if ($UpdatesAvailable -gt 0) {
+        Write-Host "Há $UpdatesAvailable emulador(es) com atualização disponível!" -ForegroundColor Yellow
+        Write-Host "Para atualizar, execute: .\retrogame update-emulators`n" -ForegroundColor Cyan
+    } else {
+        Write-Host "Todos os emuladores instalados estão na versão mais recente homologada.`n" -ForegroundColor Green
+    }
+    exit 0
+}
+
+# 4. Execução de Download / Atualização
+Write-Host "`n>>> Processando instalação/atualização de emuladores..." -ForegroundColor Cyan
+
+foreach ($EmuName in $RemoteCatalog.Keys) {
+    $Info = $RemoteCatalog[$EmuName]
+    $TargetFolder = Join-Path $BinDir $EmuName
+
+    $ShouldDownload = $false
+    if ($Force) {
+        $ShouldDownload = $true
+    } elseif ($Update) {
+        if ($Info.NeedsWork) { $ShouldDownload = $true }
+    } else {
+        # Modo padrão de download-emulators: instala se faltar, atualiza se versão não registrada ou desatualizada
+        if ($Info.NeedsWork) { $ShouldDownload = $true }
+    }
+
+    if (-not $ShouldDownload) {
+        Write-Host "`n--- ${EmuName}: Já está na versão mais recente ($($Info.InstalledVersion)) ---" -ForegroundColor Gray
+        if ($EmuName -eq "retroarch") {
+            Install-RetroArchCores -RetroArchFolder $TargetFolder
+        }
+        continue
+    }
+
+    Write-Host "`n--- Processando: $EmuName ($($Info.Status)) ---" -ForegroundColor Yellow
+    $ArchiveFile = Join-Path $TempDir $Info.Archive
+
+    try {
+        Write-Host "Baixando $($Info.Name) ($($Info.RemoteVersion))..." -ForegroundColor Cyan
+        Invoke-WebRequest -Uri $Info.Url -OutFile $ArchiveFile -MaximumRedirection 10 -UserAgent "Mozilla/5.0"
+        Expand-ArchivePortable -ArchiveFile $ArchiveFile -DestinationPath $TargetFolder
+        Flatten-SingleDirectory -DirectoryPath $TargetFolder
+
+        # Marcadores de portabilidade e ações específicas
+        if ($EmuName -in @("duckstation", "pcsx2", "dolphin")) {
+            New-Item -ItemType File -Path (Join-Path $TargetFolder "portable.txt") -Force | Out-Null
+        } elseif ($EmuName -eq "ppsspp") {
+            $PpssppMemstick = Join-Path $TargetFolder "memstick"
+            New-Item -ItemType Directory -Path $PpssppMemstick -Force | Out-Null
+        } elseif ($EmuName -eq "retroarch") {
+            Install-RetroArchCores -RetroArchFolder $TargetFolder -ForceDownload:$Force
+        }
+
+        # Registra a versão instalada no manifesto local
+        Save-InstalledVersionEntry -EmuKey $EmuName -VersionString $Info.RemoteVersion
+        Write-Host ">>> $($Info.Name) atualizado para $($Info.RemoteVersion) com sucesso!" -ForegroundColor Green
+
     } catch {
         Write-Error "Falha ao processar o emulador '$EmuName': $($_.Exception.Message)"
     }
 }
 
-# 3. Limpeza de arquivos temporários de download
+# 5. Limpeza de arquivos temporários de download
 if (Test-Path $TempDir) {
     Remove-Item -Path $TempDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 Write-Host "`n=== Verificação Final dos Executáveis em bin/ ===" -ForegroundColor Green
+$UpdatedManifest = Get-InstalledVersionsManifest
 foreach ($Emu in @("retroarch", "duckstation", "pcsx2", "ppsspp", "dolphin", "flycast")) {
     $Folder = Join-Path $BinDir $Emu
     $Exe = Get-ChildItem -Path $Folder -Filter "*.exe" -Recurse -ErrorAction SilentlyContinue |
         Where-Object { $_.Name -notmatch "updater|setup|unins|vcredist" } |
         Select-Object -First 1
 
+    $Ver = if ($UpdatedManifest.PSObject.Properties[$Emu]) { $UpdatedManifest.$Emu.version } else { "presente" }
+
     if ($Exe) {
         if ($Emu -eq "retroarch") {
             $Core = Join-Path $Folder "cores\snes9x_libretro.dll"
             if (Test-Path $Core) {
-                Write-Host "  [OK] $Emu -> $($Exe.Name) (Core snes9x: OK)" -ForegroundColor Green
+                Write-Host "  [OK] $Emu ($Ver) -> $($Exe.Name) (Core snes9x: OK)" -ForegroundColor Green
             } else {
-                Write-Host "  [AVISO] $Emu -> $($Exe.Name) (Core snes9x ausente em cores/)" -ForegroundColor Yellow
+                Write-Host "  [AVISO] $Emu ($Ver) -> $($Exe.Name) (Core snes9x ausente em cores/)" -ForegroundColor Yellow
             }
         } else {
-            Write-Host "  [OK] $Emu -> $($Exe.Name)" -ForegroundColor Green
+            Write-Host "  [OK] $Emu ($Ver) -> $($Exe.Name)" -ForegroundColor Green
         }
     } else {
         Write-Host "  [PENDENTE] $Emu -> Nenhum executável encontrado em '$Folder'" -ForegroundColor Yellow
