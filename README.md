@@ -18,6 +18,10 @@ Inspirado na arquitetura e filosofia de isolamento do projeto [akitaonrails/dist
 
 A documentação de arquitetura e decisões de engenharia está estruturada no diretório `docs/`:
 
+* **[Guia de Início e Integração Multiplataforma (docs/guia-inicio.md)](file:///c:/WorkspaceHub/retrogame-lab/docs/guia-inicio.md)**
+  * Passo a passo para novos usuários: do zero à sincronização perfeita Windows 11 $\leftrightarrow$ Android ARM64.
+  * Configuração detalhada do Syncthing (pastas `retrogames-saves`, `retrogames-bios`, `retrogames-roms`).
+  * Calibração de memory cards individuais (*Title-specific*) por emulador e rotina de cross-save sem erros.
 * **[Guia Operacional para Agentes (AGENTS.md)](file:///c:/WorkspaceHub/retrogame-lab/AGENTS.md)**
   * Protocolos de automação, convenções de ferramentas e pacotes via `winget`.
   * Boas práticas de retrogaming, anti-conflito de saves e regras de perfilamento dinâmico de hardware.
@@ -90,6 +94,9 @@ O script `launch.ps1` conta com uma **trava de segurança pré-voo (Pre-flight G
 # Lançamento com detecção automática de GPU e afinidade de P-cores
 pwsh -NoProfile -File scripts\launch.ps1 -Platform ps1 -RomPath data\roms\ps1\meu_jogo.chd
 
+# Lançamento em modo janela (-Windowed)
+pwsh -NoProfile -File scripts\launch.ps1 -Platform snes -RomPath data\roms\snes\jogo.sfc -Windowed
+
 # Forçar uso exclusivo de GPU dedicada
 pwsh -NoProfile -File scripts\launch.ps1 -Platform ps2 -RomPath data\roms\ps2\jogo.chd -GpuMode dgpu
 ```
@@ -135,6 +142,7 @@ retrogame-lab/
 │   ├── saves/                      # Saves in-game (.srm, .mcd, .ps2, .gci, .bin)
 │   └── states/                     # Savestates locais (isolados no .stignore)
 ├── docs/                           # Documentação e especificações de engenharia
+│   ├── guia-inicio.md              # Guia de início e integração multiplataforma (Windows <-> Android)
 │   ├── specs-windows.md            # Especificação do host Windows 11
 │   └── specs-android.md            # Especificação da bridge Android e Syncthing
 ├── scripts/                        # Automação em PowerShell Core (pwsh)
@@ -149,7 +157,7 @@ retrogame-lab/
 │   ├── config/                     # Templates de retroarch.cfg, DuckStation e PCSX2
 │   ├── controllers/                # Perfis XInput, DualSense e 8BitDo
 │   └── es-de/                      # Configurações de rotas do ES-DE
-├── tests/                          # Bateria de 43 testes unitários com pytest e pytest-mock
+├── tests/                          # Bateria de 46 testes unitários com pytest e pytest-mock
 ├── tools/                          # Utilitários portáteis (chdman, 7z, adb)
 └── AGENTS.md                       # Diretrizes e governança para agentes de IA
 ```
