@@ -333,7 +333,9 @@ def test_cli_download_emulators(
 
     res = runner.invoke(app, ["download-emulators", "-e", "pcsx2,duckstation", "--force"])
     assert res.exit_code == 0
-    mock_run.assert_called_once_with("download_emulators.ps1", ["-Emulators", "pcsx2,duckstation", "-Force"])
+    mock_run.assert_called_once_with(
+        "download_emulators.ps1", ["-Emulators", "pcsx2,duckstation", "-Force"]
+    )
 
 
 def test_cli_check_updates(
