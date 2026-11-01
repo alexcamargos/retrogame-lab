@@ -606,6 +606,8 @@ Para simplificar a operação do ecossistema, o projeto disponibiliza um ponto d
 Principais subcomandos suportados:
 * `bootstrap`: Provisiona pastas, marcadores portáteis e ferramentas via winget (`[-SkipWinget] [-DownloadEmulators]`).
 * `download-emulators`: Baixa e extrai versões portáteis oficiais de 64 bits para `bin/` (`[-Force] [-Emulators <lista>]`).
+* `check-updates`: Compara versões instaladas contra os repositórios remotos oficiais (`[-Emulators <lista>]`).
+* `update-emulators`: Atualiza apenas emuladores com novas versões disponíveis em `bin/` (`[-Force] [-Emulators <lista>]`).
 * `launch`: Inicializa jogos com detecção de GPU, P-cores e trava pré-voo (`-Platform <plat> -RomPath <rom> [-Windowed] [-GpuMode auto|igpu|dgpu]`).
 * `convert-chd`: Compacta imagens para CHD determinístico (`-SourceDirectory <pasta> [-MediaType auto|cd|dvd]`).
 * `android`: Provisiona o dispositivo Android conectado via ADB (`[-SkipDownload]`).

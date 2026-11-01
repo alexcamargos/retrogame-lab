@@ -68,6 +68,20 @@ O script automatiza:
 * Baixa e instala automaticamente o core Libretro `snes9x_libretro.dll` em `bin/retroarch/cores/` (sem necessidade de navegacao em menus).
 * Caso um jogo de SNES seja iniciado pelo lancador sem o core presente, o proprio `launch.ps1` realiza o auto-provisionamento em tempo de execucao.
 
+#### Checagem e Atualizacao de Emuladores
+O gerenciador mantem um manifesto local em `bin/.versions.json` rastreando a versao exata de cada emulador:
+
+```powershell
+# Compara as versoes instaladas contra as releases oficiais disponiveis (sem baixar nada)
+.\retrogame check-updates
+
+# Atualiza apenas os emuladores que possuem versoes mais novas disponiveis
+.\retrogame update-emulators
+
+# Forca a reinstalacao/re-download de emuladores especificos
+.\retrogame download-emulators -Force -Emulators pcsx2,duckstation
+```
+
 #### Opcao B: Download e Extracao Manual
 Caso prefira baixar manualmente, faca o download das versoes portateis oficiais (Windows x64) e extraia o conteudo de cada pacote diretamente dentro da subpasta indicada em `bin/`:
 
