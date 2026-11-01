@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param (
-    [switch]$SkipWinget = $false
+    [switch]$SkipWinget = $false,
+    [switch]$DownloadEmulators = $false
 )
 
 $ErrorActionPreference = "Stop"
@@ -96,6 +97,18 @@ $ChdmanInPath = Get-Command "chdman" -ErrorAction SilentlyContinue
 if (-not (Test-Path $ChdmanExe) -and -not $ChdmanInPath) {
     Write-Host "`n[AVISO] chdman.exe não detectado em tools\ nem no PATH." -ForegroundColor Yellow
     Write-Host "Para compactar mídias de CD/DVD via scripts\convert_chd.ps1, extraia o 'chdman.exe' (distribuído no pacote oficial MAME) para a pasta '$ToolsDir'." -ForegroundColor Gray
+}
+
+# 6. Download Automático Opcional dos Emuladores Portáteis
+if ($DownloadEmulators) {
+    Write-Host "`n>>> Iniciando download automático de emuladores portáteis..." -ForegroundColor Cyan
+    $DownloadScript = Join-Path $PSScriptRoot "download_emulators.ps1"
+    if (Test-Path $DownloadScript) {
+        & pwsh -NoProfile -File $DownloadScript
+    }
+} else {
+    Write-Host "`n[DICA] Para baixar e provisionar automaticamente os emuladores portáteis em bin/, execute:" -ForegroundColor Cyan
+    Write-Host "       .\retrogame download-emulators`n" -ForegroundColor Yellow
 }
 
 Write-Host "`n=== Provisionamento Concluído com Sucesso! ===" -ForegroundColor Green
