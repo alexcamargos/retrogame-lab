@@ -122,6 +122,22 @@ Valida o formato aceito para a plataforma, bloqueia extensões proibidas (ex.: `
 *Comandos alternativos diretos:*
 * `uv run retrogame-lab import-rom <origem> -p <plataforma> [--move]`
 
+### 4.1 Ingestão Interativa de ROMs Preservadas (No-Intro / Internet Archive)
+
+Permite buscar, escolher e baixar títulos de Super Nintendo diretamente da coleção de preservação No-Intro no Internet Archive, integrando o arquivo automaticamente na esteira de sanitização de nomenclatura e ingestão física:
+
+```powershell
+# Busca interativa de títulos catalogados
+.\retrogame fetch-snes
+
+# Pré-filtrar busca inicial por nome
+.\retrogame fetch-snes -q "donkey kong"
+```
+
+*Comandos alternativos diretos:*
+* `pwsh -NoProfile -File scripts\fetch_snes.ps1 [-Query <termo>]`
+* `uv run retrogame-lab fetch-snes [--query <termo>]`
+
 ### 5. Lançamento Dinâmico de Jogos
 
 Inicia o emulador da plataforma selecionada aplicando perfilamento dinâmico de GPU (dGPU vs iGPU), isolamento de diretório de trabalho (*CWD*) e afinidade protegida de CPU para P-cores em processadores híbridos. Conta ainda com **trava de pré-voo ativa**: caso uma ROM contenha espaços ou caracteres proibidos, realiza a auto-higienização física no disco antes de abrir o emulador.
