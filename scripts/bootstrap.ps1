@@ -69,7 +69,13 @@ $TargetPspSave = Join-Path $DataDir "saves\psp\SAVEDATA"
 if (-not (Test-Path $TargetPspSave)) { New-Item -ItemType Directory -Path $TargetPspSave -Force | Out-Null }
 if (-not (Test-Path $PpssppPsp)) { New-Item -ItemType Directory -Path $PpssppPsp -Force | Out-Null }
 if (-not (Test-Path $PpssppSaveData)) {
-    cmd /c mklink /J "$PpssppSaveData" "$TargetPspSave" 2>$null | Out-Null
+    $BinDrive = (Split-Path (Resolve-Path $PpssppPsp).Path -Qualifier)
+    $DataDrive = (Split-Path (Resolve-Path $TargetPspSave).Path -Qualifier)
+    if ($BinDrive -eq $DataDrive) {
+        cmd /c mklink /J "$PpssppSaveData" "$TargetPspSave" 2>$null | Out-Null
+    } else {
+        Write-Warning "Junções NTFS (/J) não podem atravessar volumes distintos ($BinDrive vs $DataDrive). Mantenha bin/ e data/ no mesmo volume ou ative links simbólicos."
+    }
 }
 
 # 4. Injeção de Templates de Configuração Inicial (Cold Start Protection)
