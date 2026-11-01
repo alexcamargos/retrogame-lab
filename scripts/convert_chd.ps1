@@ -12,7 +12,16 @@ $BaseDir = Split-Path -Parent $PSScriptRoot
 $Chdman = Join-Path $BaseDir "tools\chdman.exe"
 
 if (-not (Test-Path $Chdman)) {
-    Write-Error "chdman.exe não encontrado em tools\. Execute o bootstrap ou copie chdman para tools\ primeiro."
+    # Fallback transparente para chdman presente no PATH do sistema
+    $ChdmanCmd = Get-Command "chdman.exe" -ErrorAction SilentlyContinue
+    if (-not $ChdmanCmd) {
+        $ChdmanCmd = Get-Command "chdman" -ErrorAction SilentlyContinue
+    }
+    if ($ChdmanCmd) {
+        $Chdman = $ChdmanCmd.Source
+    } else {
+        Write-Error "chdman.exe não encontrado em tools\ nem no PATH do sistema. Copie chdman.exe (do pacote MAME) para tools\ ou adicione-o ao PATH."
+    }
 }
 
 if (-not (Test-Path $SourceDirectory)) {

@@ -73,4 +73,12 @@ if (Test-Path $TplDir) {
     }
 }
 
+# 5. Verificação de Utilitários de Linha de Comando (tools/)
+$ChdmanExe = Join-Path $ToolsDir "chdman.exe"
+$ChdmanInPath = Get-Command "chdman" -ErrorAction SilentlyContinue
+if (-not (Test-Path $ChdmanExe) -and -not $ChdmanInPath) {
+    Write-Host "`n[AVISO] chdman.exe não detectado em tools\ nem no PATH." -ForegroundColor Yellow
+    Write-Host "Para compactar mídias de CD/DVD via scripts\convert_chd.ps1, extraia o 'chdman.exe' (distribuído no pacote oficial MAME) para a pasta '$ToolsDir'." -ForegroundColor Gray
+}
+
 Write-Host "`n=== Provisionamento Concluído com Sucesso! ===" -ForegroundColor Green
