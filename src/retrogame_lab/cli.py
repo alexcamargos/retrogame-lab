@@ -17,6 +17,7 @@ from rich.table import Table
 from retrogame_lab import __version__
 from retrogame_lab.auditor import Severity, run_full_audit
 from retrogame_lab.config import SUPPORTED_PLATFORMS, find_repo_root
+from retrogame_lab.fetcher import run_interactive_snes_fetcher
 from retrogame_lab.ingestion import import_rom, import_roms_batch
 from retrogame_lab.sanitizer import sanitize_directory
 
@@ -418,6 +419,36 @@ def import_rom_cmd(
         raise typer.Exit(code=1) from err
 
 
+@app.command(name="fetch-snes")
+def fetch_snes_cmd(
+    query: Annotated[
+        Optional[str],
+        typer.Option(
+            "--query",
+            "-q",
+            help="Termo de pesquisa opcional para pré-filtrar os jogos de SNES.",
+        ),
+    ] = None,
+) -> None:
+    """Busca, seleciona e ingere interativamente jogos de SNES do acervo No-Intro.
+
+    Args:
+        query: Termo opcional para pré-filtrar títulos do acervo.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    try:
+        resolved_root = find_repo_root()
+    except FileNotFoundError:
+        resolved_root = Path.cwd()
+
+    run_interactive_snes_fetcher(query=query, repo_root=resolved_root, console=console)
+
+
 def run_pwsh_script(script_name: str, args: list[str]) -> int:
     """Executa um script PowerShell Core (pwsh) localizado no diretório scripts/.
 
@@ -497,12 +528,28 @@ def download_emulators_cmd(
             help="Lista de emuladores separados por vírgula (ex: 'pcsx2,duckstation').",
         ),
     ] = None,
+    check_only: Annotated[
+        bool,
+        typer.Option(
+            "--check-only",
+            "-c",
+            help="Apenas verifica versões disponíveis sem efetuar downloads.",
+        ),
+    ] = False,
+    update: Annotated[
+        bool,
+        typer.Option(
+            "--update",
+            "-u",
+            help="Atualiza apenas os emuladores com novas versões disponíveis.",
+        ),
+    ] = False,
     force: Annotated[
         bool,
         typer.Option(
             "--force",
             "-f",
-            help="Força o re-download mesmo se os emuladores já estiverem presentes.",
+            help="Força o re-download mesmo se os emuladores já estiverem na versão mais recente.",
         ),
     ] = False,
 ) -> None:
@@ -510,6 +557,8 @@ def download_emulators_cmd(
 
     Args:
         emulators: Lista opcional de emuladores específicos.
+        check_only: Flag para somente auditoria de versões.
+        update: Flag para atualizar apenas desatualizados.
         force: Flag para forçar sobrescrita/re-download.
 
     Returns:
@@ -521,6 +570,10 @@ def download_emulators_cmd(
     pwsh_args = []
     if emulators:
         pwsh_args.extend(["-Emulators", emulators])
+    if check_only:
+        pwsh_args.append("-CheckOnly")
+    if update:
+        pwsh_args.append("-Update")
     if force:
         pwsh_args.append("-Force")
 
@@ -531,6 +584,65 @@ def download_emulators_cmd(
     except FileNotFoundError as err:
         console.print(f"[bold red]Erro:[/bold red] {err}")
         raise typer.Exit(code=1) from err
+
+
+@app.command(name="check-updates")
+def check_updates_cmd(
+    emulators: Annotated[
+        Optional[str],
+        typer.Option(
+            "--emulators",
+            "-e",
+            help="Lista de emuladores específicos a verificar.",
+        ),
+    ] = None,
+) -> None:
+    """Compara versões instaladas contra os repositórios remotos oficiais.
+
+    Args:
+        emulators: Lista opcional de emuladores específicos.
+
+    Returns:
+        None.
+
+    Raises:
+        typer.Exit: Se o script de verificação falhar.
+    """
+    download_emulators_cmd(emulators=emulators, check_only=True)
+
+
+@app.command(name="update-emulators")
+def update_emulators_cmd(
+    emulators: Annotated[
+        Optional[str],
+        typer.Option(
+            "--emulators",
+            "-e",
+            help="Lista de emuladores específicos a atualizar.",
+        ),
+    ] = None,
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force",
+            "-f",
+            help="Força reinstalação mesmo se já estiver atualizado.",
+        ),
+    ] = False,
+) -> None:
+    """Atualiza emuladores portáteis com novas versões disponíveis em bin/.
+
+    Args:
+        emulators: Lista opcional de emuladores específicos.
+        force: Se True, reinstala mesmo se atualizado.
+
+    Returns:
+        None.
+
+    Raises:
+        typer.Exit: Se o script de atualização falhar.
+    """
+    download_emulators_cmd(emulators=emulators, update=True, force=force)
 
 
 @app.command(name="audit-library", hidden=True)

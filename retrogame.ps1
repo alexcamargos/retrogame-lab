@@ -26,6 +26,10 @@ function Show-Help {
     Write-Host "                     Ex.: .\retrogame bootstrap [-SkipWinget]"
     Write-Host "  download-emulators Baixa e extrai versões portáteis oficiais dos emuladores em bin/"
     Write-Host "                     Ex.: .\retrogame download-emulators [-Force] [-Emulators pcsx2,duckstation]"
+    Write-Host "  check-updates      Compara versões instaladas contra os repositórios oficiais"
+    Write-Host "                     Ex.: .\retrogame check-updates"
+    Write-Host "  update-emulators   Atualiza apenas os emuladores que possuem novas versões disponíveis"
+    Write-Host "                     Ex.: .\retrogame update-emulators"
     Write-Host "  launch             Inicializa jogos com seleção dinâmica de GPU e afinidade de CPU"
     Write-Host "                     Ex.: .\retrogame launch -Platform ps1 -RomPath data\roms\ps1\jogo.chd"
     Write-Host "  convert-chd     Compacta imagens de disco em lote para formato CHD determinístico"
@@ -40,6 +44,8 @@ function Show-Help {
     Write-Host "                  Ex.: .\retrogame sanitize [--apply]"
     Write-Host "  import-rom      Ingere e higieniza uma nova ROM para a biblioteca canônica"
     Write-Host "                  Ex.: .\retrogame import-rom c:\temp\jogo.bin -p ps1"
+    Write-Host "  fetch-snes      Busca e ingere interativamente jogos SNES do acervo No-Intro"
+    Write-Host "                  Ex.: .\retrogame fetch-snes [-q mario]"
     Write-Host "  info            Exibe o catálogo de plataformas suportadas e formatos aceitos"
     Write-Host "  version         Exibe a versão instalada do RetroGame Lab`n"
 
@@ -57,6 +63,12 @@ switch -Regex ($Command.ToLower()) {
     "^(download-emulators|download_emulators|install-emulators|install_emulators|emulators)$" {
         & pwsh -NoProfile -File "$ScriptsDir\download_emulators.ps1" @RemainingArgs
     }
+    "^(check-updates|check_updates|check)$" {
+        & pwsh -NoProfile -File "$ScriptsDir\download_emulators.ps1" -CheckOnly @RemainingArgs
+    }
+    "^(update-emulators|update_emulators|update)$" {
+        & pwsh -NoProfile -File "$ScriptsDir\download_emulators.ps1" -Update @RemainingArgs
+    }
     "^(audit|audit_library|audit-library)$" {
         & uv run retrogame-lab audit @RemainingArgs
     }
@@ -65,6 +77,9 @@ switch -Regex ($Command.ToLower()) {
     }
     "^(import-rom|import_rom|import)$" {
         & uv run retrogame-lab import-rom @RemainingArgs
+    }
+    "^(fetch-snes|fetch_snes|fetch)$" {
+        & uv run retrogame-lab fetch-snes @RemainingArgs
     }
     "^launch$" {
         & pwsh -NoProfile -File "$ScriptsDir\launch.ps1" @RemainingArgs
