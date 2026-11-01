@@ -40,6 +40,7 @@ Para permitir que múltiplos agentes trabalhem concorrentemente sem risco de con
 | `feat/sprint-auditor-cli` | **Agente C** (Python & QA) | Pacote Python, CLI de Auditoria e Testes Unitários | `pyproject.toml`, `src/retrogame_lab/*`, `tests/*`, `scripts/audit_library.ps1` | **Concluído e Homologado** |
 | `feat/sprint-frontend-skill` | **Agente D** (UI & Skill) | Integração ES-DE e Skill Antigravity | `templates/es-de/es_systems.xml`, `.agy/skills/emulator-pipeline/*` | **Concluído e Homologado** |
 | `feat/sprint-e2e-homologation` | **Agente Integrador** | Validação E2E, Pipeline de Sintaxe e Living Docs | `docs/sprints.md` (status), `README.md` (links finais) | **Concluído e Homologado** |
+| `feat/sprint-ingestion-safety` | **Agente Integrador** (Python & Host) | Higienização, Ingestão Segura e Trava Pré-Voo | `src/retrogame_lab/sanitizer.py`, `src/retrogame_lab/ingestion.py`, `scripts/launch.ps1`, `tests/*` | **Concluído e Homologado** |
 
 ---
 
@@ -53,6 +54,7 @@ flowchart TD
     S4["Sprint 4: Pacote Python, Auditoria e Pytest<br/>(Status: Concluído)"]
     S5["Sprint 5: Frontend ES-DE e Skill Antigravity<br/>(Status: Concluído)"]
     S6["Sprint 6: Homologação Integrada e Testes E2E<br/>(Status: Concluído)"]
+    S7["Sprint 7: Nomenclatura, Ingestão Segura e Trava Pré-Voo<br/>(Status: Concluído)"]
 
     S1 --> S2
     S1 --> S3
@@ -61,6 +63,7 @@ flowchart TD
     S3 --> S6
     S4 --> S6
     S5 --> S6
+    S6 --> S7
 ```
 
 ---
@@ -103,6 +106,14 @@ flowchart TD
 ### Sprint 6: Homologação Integrada e Testes Ponta a Ponta (E2E)
 * **Critérios de Homologação Atestados:**
   * **AST Parser:** 100% de sucesso na análise sintática dos 5 scripts PowerShell Core.
-  * **Pytest:** 20 testes aprovados com 93% de cobertura de código.
+  * **Pytest:** 20 testes iniciais aprovados com 93% de cobertura de código.
   * **Ruff:** 0 erros de linting (`ruff check`) e formatação integral (`ruff format`).
   * **Cold Start:** Execução de `scripts/bootstrap.ps1 -SkipWinget` gerou com sucesso todos os marcadores portáteis oficiais (`portable.txt`, pasta `memstick`) e templates em `bin/`.
+
+### Sprint 7: Padronização de Nomenclatura, Pipeline de Ingestão e Travas Pré-Voo
+* **Entregas Realizadas:**
+  * [src/retrogame_lab/sanitizer.py](file:///c:/WorkspaceHub/retrogame-lab/src/retrogame_lab/sanitizer.py): Normalização de nomes de arquivos e diretórios, substituindo espaços por `_` e removendo caracteres especiais reservados.
+  * [src/retrogame_lab/ingestion.py](file:///c:/WorkspaceHub/retrogame-lab/src/retrogame_lab/ingestion.py): Pipeline canônico de importação de ROMs com validação de formatos autorizados/proibidos por plataforma e roteamento seguro.
+  * [src/retrogame_lab/cli.py](file:///c:/WorkspaceHub/retrogame-lab/src/retrogame_lab/cli.py): Comandos `sanitize` (com `--apply` e `--dir`) e `import-rom` (com `--platform` e `--move`) com relatórios visuais formatados via `rich`.
+  * [scripts/launch.ps1](file:///c:/WorkspaceHub/retrogame-lab/scripts/launch.ps1): Trava de segurança ativa (Passo 0) com auto-higienização física no disco antes da inicialização do emulador.
+  * [tests/](file:///c:/WorkspaceHub/retrogame-lab/tests/): Expansão da suíte para **43 testes unitários** com **90% de cobertura** total via `pytest` e `pytest-mock`.
