@@ -59,7 +59,18 @@ foreach ($Folder in $Folders) {
 New-Item -ItemType File -Path (Join-Path $BinDir "duckstation\portable.txt") -Force | Out-Null
 New-Item -ItemType File -Path (Join-Path $BinDir "pcsx2\portable.txt") -Force | Out-Null
 New-Item -ItemType File -Path (Join-Path $BinDir "dolphin\portable.txt") -Force | Out-Null
-New-Item -ItemType Directory -Path (Join-Path $BinDir "ppsspp\memstick") -Force | Out-Null
+$PpssppMemstick = Join-Path $BinDir "ppsspp\memstick"
+New-Item -ItemType Directory -Path $PpssppMemstick -Force | Out-Null
+
+# Vincula a pasta SAVEDATA do PPSSPP ao diretório centralizado data\saves\psp\SAVEDATA via junção
+$PpssppPsp = Join-Path $PpssppMemstick "PSP"
+$PpssppSaveData = Join-Path $PpssppPsp "SAVEDATA"
+$TargetPspSave = Join-Path $DataDir "saves\psp\SAVEDATA"
+if (-not (Test-Path $TargetPspSave)) { New-Item -ItemType Directory -Path $TargetPspSave -Force | Out-Null }
+if (-not (Test-Path $PpssppPsp)) { New-Item -ItemType Directory -Path $PpssppPsp -Force | Out-Null }
+if (-not (Test-Path $PpssppSaveData)) {
+    cmd /c mklink /J "$PpssppSaveData" "$TargetPspSave" 2>$null | Out-Null
+}
 
 # 4. Injeção de Templates de Configuração Inicial (Cold Start Protection)
 if (Test-Path $TplDir) {
