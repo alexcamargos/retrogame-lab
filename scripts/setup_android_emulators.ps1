@@ -72,7 +72,11 @@ foreach ($Dir in $Directories) {
 }
 
 # 3. Injeção de Regras .stignore no Android
-$StIgnoreContent = @"
+$LocalStIgnore = Join-Path $BaseDir "data\saves\.stignore"
+if (Test-Path $LocalStIgnore) {
+    & adb @AdbArgs push $LocalStIgnore "$TargetDevicePath/saves/.stignore" | Out-Null
+} else {
+    $StIgnoreContent = @"
 // .stignore para retrogames-saves
 *.state*
 *.s[0-9][0-9]
@@ -87,10 +91,11 @@ $StIgnoreContent = @"
 (?d)desktop.ini
 (?d).syncthing.*
 "@
-$TempStIgnore = [System.IO.Path]::GetTempFileName()
-Set-Content -Path $TempStIgnore -Value $StIgnoreContent -Encoding UTF8
-& adb @AdbArgs push $TempStIgnore "$TargetDevicePath/saves/.stignore" | Out-Null
-Remove-Item -Path $TempStIgnore -Force
+    $TempStIgnore = [System.IO.Path]::GetTempFileName()
+    Set-Content -Path $TempStIgnore -Value $StIgnoreContent -Encoding UTF8
+    & adb @AdbArgs push $TempStIgnore "$TargetDevicePath/saves/.stignore" | Out-Null
+    Remove-Item -Path $TempStIgnore -Force
+}
 
 # 4. Definição do Catálogo de Emuladores ARM64
 $Emulators = @(
@@ -160,6 +165,7 @@ if (Test-Path $NetherApk) {
     Write-Host "`n--- Instalando NetherSX2 (PS2) do cache local ---" -ForegroundColor Yellow
     & adb @AdbArgs install -r -d -g $NetherApk
     & adb @AdbArgs shell "appops set xyz.aethersx2.android MANAGE_EXTERNAL_STORAGE allow" 2>$null
+    & adb @AdbArgs shell "appops set xyz.nethersx2.android MANAGE_EXTERNAL_STORAGE allow" 2>$null
 } else {
     Write-Host "`n[AVISO] NetherSX2.apk não encontrado em tools\android_apks\. Copie o APK patcheado para concluir a instalação do PS2." -ForegroundColor Magenta
 }

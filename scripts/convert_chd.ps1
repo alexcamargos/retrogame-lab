@@ -76,4 +76,8 @@ foreach ($File in $Candidates) {
 
     Write-Host ">>> Comprimindo ($Command): $($File.Name) -> $(Split-Path $OutFile -Leaf)" -ForegroundColor Cyan
     & $Chdman $Command -i $File.FullName -o $OutFile
+    if ($LASTEXITCODE -ne 0) {
+        if (Test-Path $OutFile) { Remove-Item $OutFile -Force }
+        Write-Error "Falha ao converter '$($File.Name)' para CHD via chdman (código de saída: $LASTEXITCODE)."
+    }
 }
