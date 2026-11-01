@@ -22,6 +22,31 @@ if (-not (Test-Path $RomPath)) {
 }
 $ResolvedRom = (Resolve-Path $RomPath).Path
 
+# 0. Trava de Pré-Voo e Segurança Ativa: Normalização mandatória de nomenclatura
+$RomItem = Get-Item $ResolvedRom
+$RomLeaf = $RomItem.Name
+if ($RomLeaf -match "[\s'""`~^!?\:;*<>|#]") {
+    $Stem = [System.IO.Path]::GetFileNameWithoutExtension($RomLeaf)
+    $Ext = [System.IO.Path]::GetExtension($RomLeaf)
+
+    # Limpeza de caracteres especiais e conversão de espaços para sublinhado
+    $CleanStem = $Stem -replace "['""`~^!?\:;*<>|#]", ""
+    $CleanStem = $CleanStem -replace "\s+", "_"
+    $CleanStem = $CleanStem -replace "_+", "_"
+    $CleanStem = $CleanStem.Trim("_")
+
+    $NewLeaf = "$CleanStem$Ext"
+    $NewRomPath = Join-Path $RomItem.DirectoryName $NewLeaf
+
+    Write-Host ">>> [SEGURANÇA ATIVA] Nome fora do padrão detectado ('$RomLeaf')." -ForegroundColor Yellow
+    Write-Host ">>> Normalizando automaticamente para: '$NewLeaf'..." -ForegroundColor Cyan
+
+    if (-not (Test-Path $NewRomPath)) {
+        Rename-Item -Path $ResolvedRom -NewName $NewLeaf -Force
+    }
+    $ResolvedRom = (Resolve-Path $NewRomPath).Path
+}
+
 # 1. Resolução Dinâmica de Executáveis e Montagem de Argumentos
 $ArgList = @()
 switch ($Platform) {
