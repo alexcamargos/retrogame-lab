@@ -123,7 +123,12 @@ if (-not (Test-Path $ApkCacheDir)) {
 Write-Host ">>> Identificando conexões via ADB..." -ForegroundColor Cyan
 
 # 1. Resolução Segura de Dispositivo (Suporte a Multi-Device)
-$DeviceLines = (adb devices | Out-String) -split "`r?`n" | Where-Object { $_ -match "\bdevice\b" -and $_ -notmatch "List of devices" }
+try {
+    $DeviceLines = (adb devices | Out-String) -split "`r?`n" | Where-Object { $_ -match "\bdevice\b" -and $_ -notmatch "List of devices" }
+} catch {
+    Write-Error "O utilitário adb não foi encontrado no PATH. Execute scripts/bootstrap.ps1 para instalar o Google.PlatformTools."
+}
+
 if (-not $DeviceLines) {
     Write-Error "Nenhum dispositivo Android autorizado foi detectado. Ative a Depuração USB e autorize o computador."
 }
@@ -136,8 +141,12 @@ if (-not $DeviceId) {
 $AdbArgs = @("-s", $DeviceId)
 
 # Identificação Dinâmica da Arquitetura
-$DeviceModel = (& adb @AdbArgs shell "getprop ro.product.model").Trim()
-$DeviceAbi   = (& adb @AdbArgs shell "getprop ro.product.cpu.abi").Trim()
+& adb @AdbArgs start-server 2>$null | Out-Null
+$DeviceModelRaw = (& adb @AdbArgs shell "getprop ro.product.model") | Out-String
+$DeviceAbiRaw   = (& adb @AdbArgs shell "getprop ro.product.cpu.abi") | Out-String
+
+$DeviceModel = ($DeviceModelRaw.Trim() -split "`r?`n")[-1].Trim()
+$DeviceAbi   = ($DeviceAbiRaw.Trim() -split "`r?`n")[-1].Trim()
 Write-Host ">>> Dispositivo Alvo: $DeviceModel (ABI: $DeviceAbi)" -ForegroundColor Green
 
 if ($DeviceAbi -notmatch "arm64") {
@@ -278,6 +287,9 @@ Write-Host "`n=== Provisionamento Android Concluído com Sucesso! ===" -Foregrou
 ---
 
 ## 5. Procedimento de Configuração Operacional
+
+> [!TIP]
+> Para um passo a passo detalhado voltado a novos usuários, consulte o [Guia de Início e Integração Multiplataforma](file:///c:/WorkspaceHub/retrogame-lab/docs/guia-inicio.md).
 
 1. **Inicialização do Syncthing:**
    * **No Windows:** Instale via Winget (`winget install Syncthing.Syncthing`) e inicie o serviço. Acesse `http://127.0.0.1:8384`.
