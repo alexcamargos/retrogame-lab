@@ -55,7 +55,14 @@ $Candidates = Get-ChildItem -Path $SourceDirectory -Include *.cue, *.gdi, *.iso,
 }
 
 foreach ($File in $Candidates) {
-    $OutFile = [System.IO.Path]::ChangeExtension($File.FullName, ".chd")
+    # Higieniza o nome do arquivo de saída (substitui espaços por '_' e remove aspas e caracteres especiais)
+    $BaseName = [System.IO.Path]::GetFileNameWithoutExtension($File.FullName)
+    $SanitizedBase = $BaseName -replace "['""`~^!?\:;*<>|#]", ""
+    $SanitizedBase = $SanitizedBase -replace "\s+", "_"
+    $SanitizedBase = $SanitizedBase -replace "_+", "_"
+    $SanitizedBase = $SanitizedBase.Trim("_")
+
+    $OutFile = Join-Path $File.DirectoryName "$SanitizedBase.chd"
     if (Test-Path $OutFile) {
         Write-Host ">>> Arquivo já convertido, pulando: $(Split-Path $OutFile -Leaf)" -ForegroundColor Gray
         continue
