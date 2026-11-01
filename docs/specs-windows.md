@@ -130,8 +130,7 @@ retrogame-lab/
 │   └── states/                     # Savestates locais (NÃO sincronizados, isolados via .stignore)
 ├── docs/                           # Documentação técnica e de engenharia
 │   ├── specs-windows.md            # Esta especificação
-│   ├── specs-android.md            # Especificação de sincronização com Android
-│   └── sprints.md                  # Matriz de sprints e homologação E2E
+│   └── specs-android.md            # Especificação de sincronização com Android
 ├── scripts/
 │   ├── bootstrap.ps1               # Download idempotente via winget, junção PPSSPP e setup de templates
 │   ├── launch.ps1                  # Lançador dinâmico com trava pré-voo, perfilamento de GPU/CPU e CWD isolado

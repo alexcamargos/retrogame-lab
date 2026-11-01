@@ -21,8 +21,6 @@ A documentação de arquitetura e decisões de engenharia está estruturada no d
 * **[Guia Operacional para Agentes (AGENTS.md)](file:///c:/WorkspaceHub/retrogame-lab/AGENTS.md)**
   * Protocolos de automação, convenções de ferramentas e pacotes via `winget`.
   * Boas práticas de retrogaming, anti-conflito de saves e regras de perfilamento dinâmico de hardware.
-* **[Guia de Implementação por Sprints e Orquestração (docs/sprints.md)](file:///c:/WorkspaceHub/retrogame-lab/docs/sprints.md)**
-  * Matriz de propriedade de arquivos, segregação de branches e relatórios de homologação E2E.
 * **[Especificação Técnica: Pipeline Windows 11](file:///c:/WorkspaceHub/retrogame-lab/docs/specs-windows.md)**
   * Arquitetura de portabilidade estática por diretório (*Zero-Install*).
   * Perfilamento dinâmico de CPU (P-cores) e GPU (dGPU vs iGPU).
@@ -138,8 +136,7 @@ retrogame-lab/
 │   └── states/                     # Savestates locais (isolados no .stignore)
 ├── docs/                           # Documentação e especificações de engenharia
 │   ├── specs-windows.md            # Especificação do host Windows 11
-│   ├── specs-android.md            # Especificação da bridge Android e Syncthing
-│   └── sprints.md                  # Matriz de implementação e homologação E2E
+│   └── specs-android.md            # Especificação da bridge Android e Syncthing
 ├── scripts/                        # Automação em PowerShell Core (pwsh)
 │   ├── bootstrap.ps1               # Instalação automatizada do host Windows
 │   ├── launch.ps1                  # Lançador dinâmico com trava pré-voo e perfilamento de GPU/CPU
