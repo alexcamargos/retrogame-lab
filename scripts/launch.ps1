@@ -7,7 +7,8 @@ param (
     [Parameter(Mandatory = $true)]
     [string]$RomPath,
 
-    [switch]$Fullscreen = $true,
+    [switch]$Fullscreen,
+    [switch]$Windowed,
 
     [ValidateSet("auto", "igpu", "dgpu")]
     [string]$GpuMode = "auto"
@@ -16,6 +17,14 @@ param (
 $ErrorActionPreference = "Stop"
 $BaseDir = Split-Path -Parent $PSScriptRoot
 $BinDir  = Join-Path $BaseDir "bin"
+
+# Resolução de modo de tela: fullscreen ativo por padrão a menos que -Windowed seja acionado
+$IsFullscreen = $true
+if ($Windowed) {
+    $IsFullscreen = $false
+} elseif ($PSBoundParameters.ContainsKey('Fullscreen')) {
+    $IsFullscreen = [bool]$Fullscreen
+}
 
 if (-not (Test-Path $RomPath)) {
     Write-Error "Arquivo de ROM não encontrado: $RomPath"
@@ -57,12 +66,19 @@ switch ($Platform) {
             Write-Error "Core Libretro não encontrado em '$Core'. Abra o RetroArch e instale o core Snes9x via Core Updater."
         }
         $ArgList += @("-L", $Core, $ResolvedRom)
-        if ($Fullscreen) { $ArgList += "--fullscreen" }
+        if ($IsFullscreen) { $ArgList += "--fullscreen" }
     }
     "ps1" {
-        $Emulator = Join-Path $BinDir "duckstation\duckstation-qt.exe"
+        $DuckBin = Get-ChildItem -Path (Join-Path $BinDir "duckstation") -Filter "duckstation*.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notmatch "updater|setup|unins" } |
+            Select-Object -First 1
+        if (-not $DuckBin) {
+            $Emulator = Join-Path $BinDir "duckstation\duckstation-qt.exe"
+        } else {
+            $Emulator = $DuckBin.FullName
+        }
         $ArgList += @("-batch", $ResolvedRom)
-        if ($Fullscreen) { $ArgList += "-fullscreen" }
+        if ($IsFullscreen) { $ArgList += "-fullscreen" }
     }
     "ps2" {
         # Localiza executável Qt moderno (pcsx2-qt.exe ou pcsx2-qtx64.exe), ignorando updaters
@@ -75,23 +91,44 @@ switch ($Platform) {
             $Emulator = $Pcsx2Bin.FullName
         }
         $ArgList += @("-batch")
-        if ($Fullscreen) { $ArgList += "-fullscreen" }
+        if ($IsFullscreen) { $ArgList += "-fullscreen" }
         $ArgList += @("--", $ResolvedRom)
     }
     "psp" {
-        $Emulator = Join-Path $BinDir "ppsspp\PPSSPPWindows64.exe"
+        $PpssppBin = Get-ChildItem -Path (Join-Path $BinDir "ppsspp") -Filter "PPSSPP*.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notmatch "updater|setup|unins" } |
+            Select-Object -First 1
+        if (-not $PpssppBin) {
+            $Emulator = Join-Path $BinDir "ppsspp\PPSSPPWindows64.exe"
+        } else {
+            $Emulator = $PpssppBin.FullName
+        }
         $ArgList += $ResolvedRom
-        if ($Fullscreen) { $ArgList += "--fullscreen" }
+        if ($IsFullscreen) { $ArgList += "--fullscreen" }
     }
     "gc" {
-        $Emulator = Join-Path $BinDir "dolphin\Dolphin.exe"
+        $DolphinBin = Get-ChildItem -Path (Join-Path $BinDir "dolphin") -Filter "Dolphin*.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notmatch "updater|setup|unins" } |
+            Select-Object -First 1
+        if (-not $DolphinBin) {
+            $Emulator = Join-Path $BinDir "dolphin\Dolphin.exe"
+        } else {
+            $Emulator = $DolphinBin.FullName
+        }
         # Dolphin inicia fullscreen via configuração em Dolphin.ini; flag CLI -b encerra ao sair
         $ArgList += @("-b", "-e", $ResolvedRom)
     }
     "dc" {
-        $Emulator = Join-Path $BinDir "flycast\flycast.exe"
+        $FlycastBin = Get-ChildItem -Path (Join-Path $BinDir "flycast") -Filter "flycast*.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notmatch "updater|setup|unins" } |
+            Select-Object -First 1
+        if (-not $FlycastBin) {
+            $Emulator = Join-Path $BinDir "flycast\flycast.exe"
+        } else {
+            $Emulator = $FlycastBin.FullName
+        }
         $ArgList += $ResolvedRom
-        if ($Fullscreen) { $ArgList += "--fullscreen" }
+        if ($IsFullscreen) { $ArgList += "--fullscreen" }
     }
 }
 
