@@ -378,6 +378,9 @@ try {
     }
 
     $Process.WaitForExit()
+    if ($Process.ExitCode -ne 0) {
+        exit $Process.ExitCode
+    }
 }
 finally {
     Pop-Location
@@ -455,6 +458,10 @@ foreach ($File in $Candidates) {
 
     Write-Host ">>> Comprimindo ($Command): $($File.Name) -> $(Split-Path $OutFile -Leaf)" -ForegroundColor Cyan
     & $Chdman $Command -i $File.FullName -o $OutFile
+    if ($LASTEXITCODE -ne 0) {
+        if (Test-Path $OutFile) { Remove-Item $OutFile -Force }
+        Write-Error "Falha ao converter '$($File.Name)' para CHD via chdman (código de saída: $LASTEXITCODE)."
+    }
 }
 ```
 
@@ -577,13 +584,34 @@ O pacote canônico `src/retrogame_lab/` implementa a lógica central de governan
 2. **Higienização de Nomenclatura (`retrogame_lab.sanitizer`):**
    * Normalização idempotente de arquivos e diretórios em massa.
    * Suporte a simulação (*Dry Run*) antes de aplicar alterações reais no disco.
-   * Comando CLI: `uv run retrogame-lab sanitize [--apply] [--dir <pasta>]`.
+   * Comando CLI: `uv run retrogame-lab sanitize [--apply] [--path <pasta>]`.
 
 3. **Auditoria de Integridade da Biblioteca (`retrogame_lab.auditor`):**
    * Verificação de hashes SHA-256 de firmwares em `data/bios/`.
    * Detecção de arquivos soltos fora das pastas de plataforma.
    * Validação de formatos de disco recomendados e checagem anti-savestates (`*.state*`) em `data/saves/`.
-   * Comando CLI: `uv run retrogame-lab audit [--json] [--full]`.
+   * Comando CLI: `uv run retrogame-lab audit [--json] [--full] [--path <raiz>]`.
+
+---
+
+### 5.5 Orquestrador e CLI Unificada (`retrogame`)
+
+Para simplificar a operação do ecossistema, o projeto disponibiliza um ponto de entrada unificado que despacha de forma transparente para automações em PowerShell Core ou comandos da suíte analítica em Python:
+
+* **PowerShell:** `.\retrogame <subcomando> [opções...]`
+* **Prompt de Comando:** `retrogame.cmd <subcomando> [opções...]`
+* **Astral uv:** `uv run retrogame <subcomando> [opções...]`
+
+Principais subcomandos suportados:
+* `bootstrap`: Provisiona pastas, marcadores portáteis e ferramentas via winget (`[-SkipWinget]`).
+* `launch`: Inicializa jogos com detecção de GPU, P-cores e trava pré-voo (`-Platform <plat> -RomPath <rom> [-Windowed] [-GpuMode auto|igpu|dgpu]`).
+* `convert-chd`: Compacta imagens para CHD determinístico (`-SourceDirectory <pasta> [-MediaType auto|cd|dvd]`).
+* `android`: Provisiona o dispositivo Android conectado via ADB (`[-SkipDownload]`).
+* `audit`: Audita integridade de BIOS, ROMs e saves (`[--json] [--full]`).
+* `sanitize`: Higieniza nomes de ROMs e saves (`[--apply]`).
+* `import-rom`: Ingere e normaliza ROMs para a biblioteca canônica (`<arquivo> -p <plat> [--move]`).
+* `info`: Exibe a matriz de plataformas homologadas e formatos aceitos.
+* `version`: Exibe a versão do pacote instalada.
 
 ---
 
