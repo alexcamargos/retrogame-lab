@@ -28,6 +28,9 @@ switch ($Platform) {
     "snes" {
         $Emulator = Join-Path $BinDir "retroarch\retroarch.exe"
         $Core = Join-Path $BinDir "retroarch\cores\snes9x_libretro.dll"
+        if (-not (Test-Path $Core)) {
+            Write-Error "Core Libretro não encontrado em '$Core'. Abra o RetroArch e instale o core Snes9x via Core Updater."
+        }
         $ArgList += @("-L", $Core, $ResolvedRom)
         if ($Fullscreen) { $ArgList += "--fullscreen" }
     }
@@ -37,8 +40,10 @@ switch ($Platform) {
         if ($Fullscreen) { $ArgList += "-fullscreen" }
     }
     "ps2" {
-        # Localiza executável Qt moderno (pcsx2-qt.exe ou pcsx2-qtx64.exe)
-        $Pcsx2Bin = Get-ChildItem -Path (Join-Path $BinDir "pcsx2") -Filter "pcsx2*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+        # Localiza executável Qt moderno (pcsx2-qt.exe ou pcsx2-qtx64.exe), ignorando updaters
+        $Pcsx2Bin = Get-ChildItem -Path (Join-Path $BinDir "pcsx2") -Filter "pcsx2*.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notmatch "updater|setup|unins" } |
+            Select-Object -First 1
         if (-not $Pcsx2Bin) {
             $Emulator = Join-Path $BinDir "pcsx2\pcsx2-qt.exe"
         } else {
@@ -93,7 +98,17 @@ if (-not (Test-Path $Emulator)) {
 Push-Location (Split-Path $Emulator)
 try {
     Write-Host ">>> Executando $Platform [$RomPath]..." -ForegroundColor Cyan
-    $Process = Start-Process -FilePath $Emulator -ArgumentList $ArgList -PassThru
+
+    # Encapsula argumentos que contêm espaços para evitar fragmentação no Start-Process
+    $EscapedArgs = $ArgList | ForEach-Object {
+        if ($_ -match '\s' -and $_ -notmatch '^".*"$') {
+            "`"$_`""
+        } else {
+            $_
+        }
+    }
+
+    $Process = Start-Process -FilePath $Emulator -ArgumentList $EscapedArgs -PassThru
 
     # Aplicação segura de afinidade de P-cores se CPU híbrida for identificada
     if ($Platform -in @("ps2", "gc")) {
@@ -102,8 +117,12 @@ try {
             if (-not $Process.HasExited) {
                 $Cpu = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue
                 if ($Cpu.Name -match "12th|13th|14th|Core Ultra") {
-                    $Process.ProcessorAffinity = [IntPtr]0x00FF
-                    Write-Host ">>> Afinidade vinculada aos P-cores." -ForegroundColor Gray
+                    $CoreCount = [Environment]::ProcessorCount
+                    # Vincula aos P-cores (threads 0 a 7) se a topologia tiver threads suficientes
+                    if ($CoreCount -ge 8) {
+                        $Process.ProcessorAffinity = [IntPtr]0x00FF
+                        Write-Host ">>> Afinidade vinculada aos P-cores." -ForegroundColor Gray
+                    }
                 }
             }
         } catch {
