@@ -101,9 +101,9 @@ def sanitize_directory(target_dir: Path, dry_run: bool = True) -> list[tuple[Pat
         raise NotADirectoryError(f"O caminho especificado não é um diretório: {target_dir}")
 
     changes: list[tuple[Path, Path]] = []
-    # Ordena com arquivos mais profundos primeiro para segurança
+    # Ordena com arquivos mais profundos primeiro; ignora arquivos ocultos (ex: .stignore)
     all_files = sorted(
-        [f for f in target_dir.rglob("*") if f.is_file()],
+        [f for f in target_dir.rglob("*") if f.is_file() and not f.name.startswith(".")],
         key=lambda p: len(p.parts),
         reverse=True,
     )

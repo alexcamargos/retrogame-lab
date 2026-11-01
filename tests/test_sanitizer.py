@@ -156,3 +156,27 @@ def test_sanitize_directory_invalid_path(tmp_path: Path) -> None:
     regular_file.write_text("hello", encoding="utf-8")
     with pytest.raises(NotADirectoryError, match="não é um diretório"):
         sanitize_directory(regular_file)
+
+
+def test_sanitize_directory_ignores_dotfiles(tmp_path: Path) -> None:
+    """Verifica se arquivos de sistema ou ocultos iniciados por '.' não são renomeados.
+
+    Args:
+        tmp_path: Diretório temporário fornecido pelo pytest.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    stignore = tmp_path / ".stignore"
+    stignore.write_text("*.state*\n", encoding="utf-8")
+
+    gitkeep = tmp_path / ".gitkeep"
+    gitkeep.write_text("", encoding="utf-8")
+
+    changes = sanitize_directory(tmp_path, dry_run=False)
+    assert len(changes) == 0
+    assert stignore.exists()
+    assert gitkeep.exists()
