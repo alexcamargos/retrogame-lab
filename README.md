@@ -157,7 +157,9 @@ retrogame-lab/
 │   ├── config/                     # Templates de retroarch.cfg, DuckStation e PCSX2
 │   ├── controllers/                # Perfis XInput, DualSense e 8BitDo
 │   └── es-de/                      # Configurações de rotas do ES-DE
-├── tests/                          # Bateria de 46 testes unitários com pytest e pytest-mock
+├── tests/                          # Bateria de 55 testes unitários com pytest e pytest-mock
 ├── tools/                          # Utilitários portáteis (chdman, 7z, adb)
-└── AGENTS.md                       # Diretrizes e governança para agentes de IA
+├── AGENTS.md                       # Diretrizes e governança para agentes de IA
+├── retrogame.cmd                   # Ponto de entrada rápido para cmd/terminal
+└── retrogame.ps1                   # CLI unificada e orquestrador em PowerShell Core
 ```

@@ -150,10 +150,13 @@ retrogame-lab/
 │   ├── config/                     # Templates de retroarch.cfg, duckstation_settings.ini, PCSX2.ini
 │   ├── controllers/                # Mapeamentos XInput (Xbox), DualSense e 8BitDo
 │   └── es-de/                      # Configurações de rotas do ES-DE
-├── tests/                          # Bateria de 46 testes unitários com pytest e pytest-mock
-└── tools/                          # Utilitários de linha de comando
-    ├── chdman.exe                  # MAME CHD Manager
-    └── 7z.exe                      # Descompactação determinística
+├── tests/                          # Bateria de 55 testes unitários com pytest e pytest-mock
+├── tools/                          # Utilitários de linha de comando
+│   ├── chdman.exe                  # MAME CHD Manager
+│   └── 7z.exe                      # Descompactação determinística
+├── AGENTS.md                       # Diretrizes e governança para agentes de IA
+├── retrogame.cmd                   # Ponto de entrada rápido para cmd/terminal
+└── retrogame.ps1                   # CLI unificada e orquestrador em PowerShell Core
 ```
 
 ---
