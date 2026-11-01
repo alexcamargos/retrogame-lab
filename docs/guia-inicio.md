@@ -24,10 +24,13 @@ O ecossistema opera sob o principio de **Portabilidade Estatica (Zero-Install)**
 * **Permissoes:** Acesso de Administrador no terminal apenas para a instalacao inicial de runtimes de sistema (DirectX e Visual C++).
 
 ### 2.2 Execucao do Bootstrap Automatizado
-Abra o **PowerShell 7 (`pwsh`)** como Administrador na raiz do repositorio e execute:
+Abra o **PowerShell 7 (`pwsh`)** como Administrador na raiz do repositorio e execute o orquestrador unificado (ou o script direto):
 
 ```powershell
-# Instala runtimes de sistema, ferramentas CLI e prepara pastas e marcadores portateis
+# Provisionamento completo de runtimes (winget), pastas, templates e marcadores portateis
+.\retrogame bootstrap
+
+# Ou diretamente via script PowerShell:
 pwsh -NoProfile -File scripts\bootstrap.ps1
 ```
 
@@ -42,10 +45,13 @@ O script executara de forma idempotente:
 No mesmo terminal (ou em sessao comum sem elevacao):
 
 ```powershell
-# Instala dependencias locais e ferramentas de auditoria
+# Instala dependencias locais e ferramentas de auditoria via Astral uv
 uv sync
 
 # Valida a instalacao da CLI e visualiza as plataformas suportadas
+.\retrogame info
+
+# Ou diretamente via CLI Python:
 uv run retrogame-lab info
 ```
 
@@ -67,30 +73,30 @@ Deposite os firmwares oficiais nas pastas correspondentes em `data/bios/`:
 Utilize sempre o comando oficial de ingestao para adicionar jogos:
 
 ```powershell
-# Importa uma ROM individual sanitizando o nome e validando a extensao
-uv run retrogame-lab import-rom "C:\Downloads\Super Mario World.sfc" -p snes
+# Importa uma ROM individual sanitizando o nome e validando a extensao (modo copia)
+.\retrogame import-rom "data\temp\Super Mario World.sfc" -p snes
 
-# Importa compactando/movendo uma imagem de PS1
-uv run retrogame-lab import-rom "C:\Downloads\Gran Turismo 2.chd" -p ps1 --move
+# Importa movendo o arquivo original para data/roms/<plataforma>/
+.\retrogame import-rom "data\temp\Gran Turismo 2.chd" -p ps1 --move
 
 # Importa em lote uma pasta inteira de jogos
-uv run retrogame-lab import-rom "C:\Downloads\LotePS2\" -p ps2
+.\retrogame import-rom "data\temp\LotePS2\" -p ps2
 ```
 
 Caso voce tenha depositado arquivos manualmente:
 ```powershell
 # Simula a correcao dos nomes (Dry Run)
-uv run retrogame-lab sanitize
+.\retrogame sanitize
 
 # Aplica a correcao no disco (substitui espacos por '_' e remove caracteres especiais)
-uv run retrogame-lab sanitize --apply
+.\retrogame sanitize --apply
 ```
 
 ### 3.3 Compressao de Discos (CD/DVD)
 Para converter pastas contendo `.cue`/`.bin` ou `.iso` de PS1, PS2 e Dreamcast em arquivos compactados `.chd`:
 
 ```powershell
-pwsh -NoProfile -File scripts\convert_chd.ps1 -SourceDirectory data\roms\ps1
+.\retrogame convert-chd -SourceDirectory data\roms\ps1
 ```
 
 > [!NOTE]
@@ -112,6 +118,10 @@ pwsh -NoProfile -File scripts\convert_chd.ps1 -SourceDirectory data\roms\ps1
 No PC com PowerShell Core, execute:
 
 ```powershell
+# Provisiona diretorios, permissoes Scoped Storage e emuladores no Android via ADB
+.\retrogame android
+
+# Ou diretamente pelo script:
 pwsh -NoProfile -File scripts\setup_android_emulators.ps1
 ```
 
@@ -236,10 +246,11 @@ Para alternar entre jogar no computador e no dispositivo movel de forma segura e
 A qualquer momento, voce pode rodar a auditoria integrada para checar se ha arquivos corrompidos, savestates indevidos ou nomes com espacos:
 
 ```powershell
-# Execucao visual via PowerShell
-pwsh -NoProfile -File scripts\audit_library.ps1
+# Execucao visual via orquestrador unificado
+.\retrogame audit
 
-# Ou diretamente pelo CLI Python
+# Ou diretamente pelo script ou CLI Python
+pwsh -NoProfile -File scripts\audit_library.ps1
 uv run retrogame-lab audit
 ```
 
@@ -250,7 +261,7 @@ Se todos os modulos apresentarem `[OK]`, o seu ambiente esta em conformidade tot
 | Sintoma | Causa Provavel | Solucao Recomendada |
 | :--- | :--- | :--- |
 | **Arquivos `.sync-conflict` gerados na pasta de saves** | O jogo foi salvo em ambos os aparelhos quase simultaneamente ou o emulador permaneceu aberto em duas pontas. | Feche o emulador em ambos os aparelhos. Inspecione os dois arquivos gerados, mantenha o com a data/hora mais recente e apague o `.sync-conflict`. Sempre feche o emulador antes de trocar de dispositivo. |
-| **O save nao atualiza no Android** | O Syncthing foi suspenso pelo sistema operacional Android (Doze Mode). | Reexecute `pwsh -File scripts/setup_android_emulators.ps1` para reinserir o pacote na whitelist de bateria, ou acesse no Android: *Configuracoes -> Bateria -> Otimizacao de Bateria -> Syncthing -> Nao Otimizar*. |
+| **O save nao atualiza no Android** | O Syncthing foi suspenso pelo sistema operacional Android (Doze Mode). | Reexecute `.\retrogame android` para reinserir o pacote na whitelist de bateria, ou acesse no Android: *Configuracoes -> Bateria -> Otimizacao de Bateria -> Syncthing -> Nao Otimizar*. |
 | **Emulador no Android nao consegue gravar saves** | Falta da permissao `MANAGE_EXTERNAL_STORAGE` (Android 11+). | Reexecute o script de provisionamento ou conceda manualmente via ADB: `adb shell "appops set <pacote> MANAGE_EXTERNAL_STORAGE allow"`. |
 | **O auditor reporta erro de savestate em `data/saves/`** | Savestates foram salvos na pasta de saves em vez de `data/states/`. | Mova os arquivos `*.state*` para `data/states/` e confirme que o arquivo `data/saves/.stignore` existe. |
-| **Nomes de ROMs nao aparecem ou causam erro no launcher** | Nome do arquivo contem espacos ou aspas/caracteres especiais. | Execute `uv run retrogame-lab sanitize --apply` para renomear automaticamente. |
+| **Nomes de ROMs nao aparecem ou causam erro no launcher** | Nome do arquivo contem espacos ou aspas/caracteres especiais. | Execute `.\retrogame sanitize --apply` para renomear automaticamente. |
