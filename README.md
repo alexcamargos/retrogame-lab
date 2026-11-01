@@ -122,21 +122,27 @@ Valida o formato aceito para a plataforma, bloqueia extensões proibidas (ex.: `
 *Comandos alternativos diretos:*
 * `uv run retrogame-lab import-rom <origem> -p <plataforma> [--move]`
 
-### 4.1 Ingestão Interativa de ROMs Preservadas (No-Intro / Internet Archive)
+### 4.1 Ingestão Interativa de ROMs Preservadas (No-Intro / Redump / Internet Archive)
 
-Permite buscar, escolher e baixar títulos de Super Nintendo diretamente da coleção de preservação No-Intro no Internet Archive, integrando o arquivo automaticamente na esteira de sanitização de nomenclatura e ingestão física:
+Permite buscar, escolher e baixar títulos para todas as plataformas homologadas (SNES, PS1, PS2, PSP, GameCube, Dreamcast) diretamente de acervos de preservação digital oficiais, integrando o arquivo automaticamente na esteira de extração, sanitização de nomenclatura e ingestão física:
 
 ```powershell
-# Busca interativa de títulos catalogados
-.\retrogame fetch-snes
+# Busca e download interativo para qualquer plataforma
+.\retrogame fetch-roms -p ps1 -q "crash"
+.\retrogame fetch-roms -p ps2 -q "gran turismo"
+.\retrogame fetch-roms -p psp -q "god of war"
+.\retrogame fetch-roms -p gc  -q "metroid"
+.\retrogame fetch-roms -p dc  -q "sonic"
+.\retrogame fetch-roms -p snes -q "donkey kong"
 
-# Pré-filtrar busca inicial por nome
-.\retrogame fetch-snes -q "donkey kong"
+# Atalhos por plataforma
+.\retrogame fetch-snes -q "mario"
+.\retrogame fetch-ps1 -q "silent hill"
 ```
 
 *Comandos alternativos diretos:*
-* `pwsh -NoProfile -File scripts\fetch_snes.ps1 [-Query <termo>]`
-* `uv run retrogame-lab fetch-snes [--query <termo>]`
+* `pwsh -NoProfile -File scripts\fetch_roms.ps1 -Platform <plat> [-Query <termo>] [-Identifier <id>]`
+* `uv run retrogame-lab fetch-roms --platform <plat> [--query <termo>] [--identifier <id>]`
 
 ### 5. Lançamento Dinâmico de Jogos
 

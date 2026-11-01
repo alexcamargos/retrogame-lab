@@ -150,24 +150,33 @@ Caso voce tenha depositado arquivos manualmente:
 .\retrogame sanitize --apply
 ```
 
-### 3.3 Ingestao Direta de Cartuchos Preservados (No-Intro / Internet Archive)
-Para colecionadores que possuem os cartuchos fisicos mas nao possuem leitor de cartuchos USB no PC, o RetroGame Lab disponibiliza uma interface integrada que consulta o acervo digital de preservacao do **Internet Archive** (*No-Intro*), baixa a ROM correspondente e a submete diretamente ao fluxo de higienizacao e validacao canonica:
+### 3.3 Ingestao Direta de Jogos Preservados (No-Intro / Redump / Internet Archive)
+Para usuarios que possuem as midias fisicas originais mas nao dispoem de leitor optico ou gravador USB no momento, o RetroGame Lab disponibiliza uma interface integrada de busca e download conectada aos acervos oficiais de preservacao digital (*No-Intro* para cartuchos e *Redump* para midias opticas):
 
 ```powershell
-# Inicia a busca interativa de jogos de SNES
-.\retrogame fetch-snes
+# Busca e download interativo para qualquer plataforma homologada
+.\retrogame fetch-roms -p ps1 -q "crash"
+.\retrogame fetch-roms -p ps2 -q "gran turismo"
+.\retrogame fetch-roms -p psp -q "patapon"
+.\retrogame fetch-roms -p gc  -q "metroid"
+.\retrogame fetch-roms -p dc  -q "sonic"
+.\retrogame fetch-roms -p snes -q "mario"
 
-# Ou pre-filtrando por titulo
-.\retrogame fetch-snes -q mario
+# Ou utilizando os atalhos diretos por plataforma:
+.\retrogame fetch-ps1 -q "resident evil"
+.\retrogame fetch-snes -q "donkey kong"
+
+# Especificando uma colecao/identificador alternativo no Internet Archive:
+.\retrogame fetch-roms -p ps1 -i "minha-colecao-customizada"
 ```
 
 O fluxo:
-1. Consulta e armazena em cache local (`scratch/cache_nointro-snes_files.json`) a lista de titulos catalogados.
+1. Consulta e armazena em cache local (`scratch/cache_<identificador>_files.json`) a lista de titulos catalogados.
 2. Apresenta uma tabela interativa com numeracao, titulos e tamanho estimado.
-3. Permite selecionar um ou varios jogos simultaneamente (ex: `1` ou `1, 3, 5`).
-4. Baixa o pacote para a area contabilizada e contabilmente isolada em `scratch/downloads/`.
-5. Extrai a imagem limpa (`.sfc` / `.smc`).
-6. Aciona automaticamente o `import_rom` com sanitizacao de nome (substituindo espacos por `_`), validacao estrutural e destino canônico em `data/roms/snes/`.
+3. Permite selecionar um ou varios jogos simultaneamente (ex: `1` ou `1, 3, 5`), pesquisar novos termos (`/busca <termo>`) ou alternar colecoes (`/colecao <id>`).
+4. Baixa o arquivo para a area contabilmente isolada em `scratch/downloads/`.
+5. Extrai a imagem no formato homologado (ex.: `.chd` para PS1/DC, `.rvz` para GC, `.sfc` para SNES, `.cso` ou `.iso` para PSP).
+6. Aciona automaticamente a esteira de `import_rom` com sanitizacao de nome (substituindo espacos por `_`), validacao estrutural e destino canonico em `data/roms/<plataforma>/`.
 
 ### 3.4 Compressao de Discos (CD/DVD)
 Para converter pastas contendo `.cue`/`.bin` ou `.iso` de PS1, PS2 e Dreamcast em arquivos compactados `.chd`:
