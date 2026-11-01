@@ -84,6 +84,10 @@ Para evitar perdas por concorrência (quando dois aparelhos alteram o mesmo arqu
 | **GameCube** | Dolphin | Dolphin Android | Pastas de Região (USA, EUR, JAP) e GCI individuais | `gc/` |
 | **Dreamcast** | Flycast | Flycast Android | Arquivo VMU padrão (`vms0.bin`) | `dc/` |
 
+> [!IMPORTANT]
+> **Padronização de Nomenclatura Sem Espaços:**  
+> O Android Scoped Storage e o Syncthing têm alta sensibilidade a arquivos com espaços, aspas ou caracteres especiais (`'"~^!?\:;*<>|#`), especialmente ao operar sobre cartões microSD formatados em FAT32 ou exFAT. O pipeline de ingestão (`uv run retrogame-lab import-rom`) e o lançador (`scripts/launch.ps1`) garantem que todos os arquivos sejam previamente higienizados no PC antes do envio unidirecional para o dispositivo móvel.
+
 ---
 
 ## 4. Script de Provisionamento de Emuladores para Android (`setup_android_emulators.ps1`)
@@ -224,17 +228,18 @@ foreach ($Emu in $Emulators) {
     Write-Host "`n--- Processando: $($Emu.Name) ---" -ForegroundColor Yellow
 
     if (-not $SkipDownload -and $Emu.Url) {
-        if (-not (Test-Path $Emu.File)) {
+        if (-not (Test-Path $Emu.File) -or (Get-Item $Emu.File).Length -lt 1024) {
             Write-Host "Baixando pacote atualizado ($($Emu.Url))..." -ForegroundColor Gray
             try {
                 Invoke-WebRequest -Uri $Emu.Url -OutFile $Emu.File -MaximumRedirection 10 -UserAgent "Mozilla/5.0"
             } catch {
+                if (Test-Path $Emu.File) { Remove-Item $Emu.File -Force }
                 Write-Warning "Falha no download online de $($Emu.Name). Verifique a URL ou forneça o APK em tools\android_apks\"
             }
         }
     }
 
-    if (Test-Path $Emu.File) {
+    if ((Test-Path $Emu.File) -and (Get-Item $Emu.File).Length -ge 1024) {
         Write-Host "Instalando/Atualizando APK no dispositivo Android..." -ForegroundColor Green
         & adb @AdbArgs install -r -d -g $Emu.File
 
@@ -242,7 +247,7 @@ foreach ($Emu in $Emulators) {
         Write-Host "Concedendo permissão MANAGE_EXTERNAL_STORAGE..." -ForegroundColor Gray
         & adb @AdbArgs shell "appops set $($Emu.Package) MANAGE_EXTERNAL_STORAGE allow" 2>$null
     } else {
-        Write-Warning "APK para $($Emu.Name) não encontrado em $($Emu.File). Etapa ignorada."
+        Write-Warning "APK válido para $($Emu.Name) não encontrado em $($Emu.File). Etapa ignorada."
     }
 }
 
@@ -258,7 +263,14 @@ if (Test-Path $NetherApk) {
 
 # 7. Otimização do Syncthing contra Doze Mode (Economia de Bateria)
 Write-Host "`n>>> Inserindo Syncthing na whitelist de economia de bateria..." -ForegroundColor Cyan
-& adb @AdbArgs shell "dumpsys deviceidle whitelist +com.nutomic.syncthingcb" 2>$null
+$SyncthingPackages = @(
+    "com.nutomic.syncthingandroid",
+    "com.github.catfriend1.syncthingandroid",
+    "com.nutomic.syncthingcb"
+)
+foreach ($Pkg in $SyncthingPackages) {
+    & adb @AdbArgs shell "dumpsys deviceidle whitelist +$Pkg" 2>$null
+}
 
 Write-Host "`n=== Provisionamento Android Concluído com Sucesso! ===" -ForegroundColor Green
 ```
@@ -297,3 +309,4 @@ Write-Host "`n=== Provisionamento Android Concluído com Sucesso! ===" -Foregrou
 1. **Sempre salve pelo menu in-game:** Use save points ou memory card do jogo; nunca confie em savestate para troca de aparelhos.
 2. **Feche o aplicativo antes de trocar:** Os emuladores gravam em cache de memória e só descarregam as alterações no arquivo físico no momento do encerramento da sessão.
 3. **Aguarde a sincronização (2 a 5 segundos):** Na mesma rede Wi-Fi local, o Syncthing sincroniza o delta do arquivo de save quase instantaneamente antes de você abrir o jogo na outra ponta.
+4. **Preserve a nomenclatura higienizada:** Arquivos sem espaços garantem que os parsers dos emuladores Android (baseados em Linux/POSIX) e o sistema de arquivos FAT32/exFAT não gerem erros de I/O ou arquivos temporários não sincronizáveis.
