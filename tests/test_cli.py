@@ -553,3 +553,56 @@ def test_run_pwsh_script_missing(mock_repo_root: Path, monkeypatch: pytest.Monke
 
     with pytest.raises(FileNotFoundError, match="Script PowerShell não encontrado"):
         run_pwsh_script("inexistente.ps1", [])
+
+
+def test_cli_fetch_snes(
+    mocker: MockerFixture, mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verifica o acionamento do comando fetch-snes no CLI.
+
+    Args:
+        mocker: Fixture do pytest-mock.
+        mock_repo_root: Fixture de raiz mockada.
+        monkeypatch: Fixture do pytest.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    monkeypatch.chdir(mock_repo_root)
+    mock_interactive = mocker.patch("retrogame_lab.cli.run_interactive_snes_fetcher")
+
+    res = runner.invoke(app, ["fetch-snes", "--query", "mario"])
+    assert res.exit_code == 0
+    mock_interactive.assert_called_once()
+    _, kwargs = mock_interactive.call_args
+    assert kwargs["query"] == "mario"
+
+
+def test_cli_fetch_roms_generic(
+    mocker: MockerFixture, mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verifica o acionamento do comando fetch-roms especificando plataforma.
+
+    Args:
+        mocker: Fixture do pytest-mock.
+        mock_repo_root: Fixture de raiz mockada.
+        monkeypatch: Fixture do pytest.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    monkeypatch.chdir(mock_repo_root)
+    mock_fetcher = mocker.patch("retrogame_lab.cli.run_interactive_fetcher")
+
+    res = runner.invoke(app, ["fetch-roms", "-p", "ps1", "-q", "crash"])
+    assert res.exit_code == 0
+    mock_fetcher.assert_called_once()
+    _, kwargs = mock_fetcher.call_args
+    assert kwargs["platform_code"] == "ps1"
+    assert kwargs["query"] == "crash"

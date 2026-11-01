@@ -275,8 +275,8 @@ def test_download_and_extract_rom_zip_no_rom(
 
     mocker.patch("urllib.request.urlopen", return_value=mock_resp)
 
-    with pytest.raises(RuntimeError, match="não contém ROMs .sfc ou .smc"):
-        download_and_extract_rom(entry, tmp_path)
+    with pytest.raises(RuntimeError, match="não contém arquivos"):
+        download_and_extract_rom(entry, tmp_path, platform_code="snes")
 
 
 def test_fetch_and_ingest_rom(
@@ -358,3 +358,60 @@ def test_run_interactive_snes_fetcher_flow(
 
     assert len(imported) == 1
     assert imported[0] == dummy_dest
+
+
+def test_fetch_and_ingest_ps1_chd(
+    mock_repo_root: Path,
+    mocker: MockerFixture,
+) -> None:
+    """Verifica download e ingestão canônica direta de imagem .chd de PlayStation 1.
+
+    Args:
+        mock_repo_root: Fixture de raiz mockada.
+        mocker: Fixture do pytest-mock.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    entry = ArchiveRomEntry(
+        filename="Crash Bandicoot (USA).chd",
+        title="Crash Bandicoot (USA)",
+        size_bytes=100,
+        download_url="https://archive.org/download/test/crash.chd",
+    )
+
+    fake_bytes = b"MOCK_CHD_FILE"
+    mock_resp = mocker.MagicMock()
+    mock_resp.read.side_effect = [fake_bytes, b""]
+    mock_resp.headers = {"Content-Length": str(len(fake_bytes))}
+    mock_resp.__enter__.return_value = mock_resp
+    mock_resp.__exit__.return_value = None
+
+    mocker.patch("urllib.request.urlopen", return_value=mock_resp)
+
+    final_path = fetch_and_ingest_rom(entry, platform_code="ps1", repo_root=mock_repo_root)
+
+    assert final_path.exists()
+    assert final_path.name == "Crash_Bandicoot_(USA).chd"
+    assert final_path.parent == mock_repo_root / "data" / "roms" / "ps1"
+
+
+def test_run_interactive_fetcher_invalid_platform(mock_repo_root: Path) -> None:
+    """Verifica se ValueError é levantado quando a plataforma for desconhecida.
+
+    Args:
+        mock_repo_root: Fixture de raiz mockada.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    from retrogame_lab.fetcher import run_interactive_fetcher
+
+    with pytest.raises(ValueError, match="Plataforma 'xbox' inválida"):
+        run_interactive_fetcher(platform_code="xbox", repo_root=mock_repo_root)
