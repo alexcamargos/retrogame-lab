@@ -18,19 +18,19 @@ Inspirado na arquitetura e filosofia de isolamento do projeto [akitaonrails/dist
 
 A documentação de arquitetura e decisões de engenharia está estruturada no diretório `docs/`:
 
-* **[Guia de Início e Integração Multiplataforma (docs/guia-inicio.md)](file:///c:/WorkspaceHub/retrogame-lab/docs/guia-inicio.md)**
+* **[Guia de Início e Integração Multiplataforma](docs/guia-inicio.md)**
   * Passo a passo para novos usuários: do zero à sincronização perfeita Windows 11 $\leftrightarrow$ Android ARM64.
   * Configuração detalhada do Syncthing (pastas `retrogames-saves`, `retrogames-bios`, `retrogames-roms`).
   * Calibração de memory cards individuais (*Title-specific*) por emulador e rotina de cross-save sem erros.
-* **[Guia Operacional para Agentes (AGENTS.md)](file:///c:/WorkspaceHub/retrogame-lab/AGENTS.md)**
+* **[Guia Operacional para Agentes](AGENTS.md)**
   * Protocolos de automação, convenções de ferramentas e pacotes via `winget`.
   * Boas práticas de retrogaming, anti-conflito de saves e regras de perfilamento dinâmico de hardware.
-* **[Especificação Técnica: Pipeline Windows 11](file:///c:/WorkspaceHub/retrogame-lab/docs/specs-windows.md)**
+* **[Especificação Técnica: Pipeline Windows 11](docs/specs-windows.md)**
   * Arquitetura de portabilidade estática por diretório (*Zero-Install*).
   * Perfilamento dinâmico de CPU (P-cores) e GPU (dGPU vs iGPU).
   * Scripts de automação: `launch.ps1` (com perfilamento e isolamento de CWD), `convert_chd.ps1` e `bootstrap.ps1`.
   * Integração opcional com o frontend visual **ES-DE Portable**.
-* **[Especificação Técnica: Sincronização e Pareamento Android](file:///c:/WorkspaceHub/retrogame-lab/docs/specs-android.md)**
+* **[Especificação Técnica: Sincronização e Pareamento Android](docs/specs-android.md)**
   * Topologia Syncthing: saves bidirecionais com versionamento simples, BIOS e ROMs *send-only*.
   * Matriz de formatos unificados e estratégia anti-conflito de saves (*Per-Game Memory Cards*).
   * Script de provisionamento total via ADB: `setup_android_emulators.ps1` (Scoped Storage e detecção dinâmica de ABI).
