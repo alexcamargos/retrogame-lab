@@ -421,6 +421,10 @@ O **ES-DE (EmulationStation Desktop Edition) Portable** opera como frontend de c
 * Mapeamento relativo em `es_systems.xml` conectando `data/roms/` aos executáveis em `bin/`.
 * Independência de resolução do display, ajustando-se automaticamente da tela do notebook a TVs 4K externas.
 
+> [!IMPORTANT]
+> **Seleção da Pasta de ROMs no Assistente do ES-DE:**  
+> Ao iniciar o ES-DE pela primeira vez (ou ao configurar *Settings -> ROM Directory*), selecione a **raiz do repositório (`retrogame-lab/`)** como diretório principal de ROMs, e não a subpasta `data/roms/`. Isso garante que as rotas relativas `%ROMPATH%/data/roms/<plataforma>` e o comando `%ROMPATH%\scripts\launch.ps1` definidos em `templates/es-de/es_systems.xml` sejam resolvidos sem erros.
+
 ---
 
 ## 7. Critérios de Homologação

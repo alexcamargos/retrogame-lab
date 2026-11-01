@@ -1,5 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <systemList>
+  <!--
+    CONFIGURACAO DE ROTAS DO FRONTEND ES-DE (EmulationStation Desktop Edition)
+    ==========================================================================
+    DIRETRIZ OBRIGATORIA DE SELECAO DA PASTA DE ROMS:
+    No assistente de primeiro inicio do ES-DE (ou no menu Settings > ROM Directory),
+    aponte o diretorio de ROMs estritamente para a RAIZ DO REPOSITORIO (retrogame-lab),
+    e NUNCA para a subpasta "data/roms".
+    Isso permite que as macros "%ROMPATH%/data/roms/<plataforma>" e o script
+    "%ROMPATH%\scripts\launch.ps1" sejam localizados de forma estatica e portatil.
+  -->
+
   <!-- Super Nintendo Entertainment System -->
   <system>
     <name>snes</name>
