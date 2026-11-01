@@ -13,6 +13,9 @@ try {
     } else {
         uv run python -m retrogame_lab.cli audit
     }
+    if ($LASTEXITCODE -ne $null -and $LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+    }
 }
 finally {
     Pop-Location

@@ -193,6 +193,9 @@ try {
     }
 
     $Process.WaitForExit()
+    if ($Process.ExitCode -ne 0) {
+        exit $Process.ExitCode
+    }
 }
 finally {
     Pop-Location
