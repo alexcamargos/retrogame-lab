@@ -306,6 +306,20 @@ def audit_roms(roms_dir: Path) -> AuditSummary:
                 )
             )
 
+        # Regra 4: Nomenclatura sem espaços e sem caracteres especiais ('"` etc.)
+        if re.search(r"[\s'\"`]", rom_file.name):
+            summary.issues.append(
+                AuditIssue(
+                    category="ROMs",
+                    severity=Severity.WARNING,
+                    message=(
+                        f"Nomenclatura fora do padrão (espaços/especiais): '{rom_file.name}'. "
+                        "Execute 'retrogame-lab sanitize --apply' para normalizar com '_'."
+                    ),
+                    file_path=rom_file,
+                )
+            )
+
     return summary
 
 
@@ -398,6 +412,20 @@ def audit_saves(saves_dir: Path) -> AuditSummary:
                     message=(
                         f"Memory Card global compartilhado detectado: '{save_file.name}'. "
                         "Configure o modo 'Title-specific Card' (cartão individual por jogo)."
+                    ),
+                    file_path=save_file,
+                )
+            )
+
+        # 4. Nomenclatura sem espaços e sem caracteres especiais ('"` etc.)
+        if re.search(r"[\s'\"`]", save_file.name):
+            summary.issues.append(
+                AuditIssue(
+                    category="Saves",
+                    severity=Severity.WARNING,
+                    message=(
+                        f"Nome de save fora do padrão (espaços/especiais): '{save_file.name}'. "
+                        "Execute 'retrogame-lab sanitize --apply' para normalizar com '_'."
                     ),
                     file_path=save_file,
                 )
