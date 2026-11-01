@@ -35,8 +35,12 @@ if (-not $DeviceId) {
 $AdbArgs = @("-s", $DeviceId)
 
 # Identificação Dinâmica da Arquitetura
-$DeviceModel = (& adb @AdbArgs shell "getprop ro.product.model").Trim()
-$DeviceAbi   = (& adb @AdbArgs shell "getprop ro.product.cpu.abi").Trim()
+& adb @AdbArgs start-server 2>$null | Out-Null
+$DeviceModelRaw = (& adb @AdbArgs shell "getprop ro.product.model") | Out-String
+$DeviceAbiRaw   = (& adb @AdbArgs shell "getprop ro.product.cpu.abi") | Out-String
+
+$DeviceModel = ($DeviceModelRaw.Trim() -split "`r?`n")[-1].Trim()
+$DeviceAbi   = ($DeviceAbiRaw.Trim() -split "`r?`n")[-1].Trim()
 Write-Host ">>> Dispositivo Alvo: $DeviceModel (ABI: $DeviceAbi)" -ForegroundColor Green
 
 if ($DeviceAbi -notmatch "arm64") {
@@ -127,17 +131,18 @@ foreach ($Emu in $Emulators) {
     Write-Host "`n--- Processando: $($Emu.Name) ---" -ForegroundColor Yellow
 
     if (-not $SkipDownload -and $Emu.Url) {
-        if (-not (Test-Path $Emu.File)) {
+        if (-not (Test-Path $Emu.File) -or (Get-Item $Emu.File).Length -lt 1024) {
             Write-Host "Baixando pacote atualizado ($($Emu.Url))..." -ForegroundColor Gray
             try {
                 Invoke-WebRequest -Uri $Emu.Url -OutFile $Emu.File -MaximumRedirection 10 -UserAgent "Mozilla/5.0"
             } catch {
+                if (Test-Path $Emu.File) { Remove-Item $Emu.File -Force }
                 Write-Warning "Falha no download online de $($Emu.Name). Verifique a URL ou forneça o APK em tools\android_apks\"
             }
         }
     }
 
-    if (Test-Path $Emu.File) {
+    if ((Test-Path $Emu.File) -and (Get-Item $Emu.File).Length -ge 1024) {
         Write-Host "Instalando/Atualizando APK no dispositivo Android..." -ForegroundColor Green
         & adb @AdbArgs install -r -d -g $Emu.File
 
@@ -145,7 +150,7 @@ foreach ($Emu in $Emulators) {
         Write-Host "Concedendo permissão MANAGE_EXTERNAL_STORAGE..." -ForegroundColor Gray
         & adb @AdbArgs shell "appops set $($Emu.Package) MANAGE_EXTERNAL_STORAGE allow" 2>$null
     } else {
-        Write-Warning "APK para $($Emu.Name) não encontrado em $($Emu.File). Etapa ignorada."
+        Write-Warning "APK válido para $($Emu.Name) não encontrado em $($Emu.File). Etapa ignorada."
     }
 }
 
@@ -161,6 +166,13 @@ if (Test-Path $NetherApk) {
 
 # 7. Otimização do Syncthing contra Doze Mode (Economia de Bateria)
 Write-Host "`n>>> Inserindo Syncthing na whitelist de economia de bateria..." -ForegroundColor Cyan
-& adb @AdbArgs shell "dumpsys deviceidle whitelist +com.nutomic.syncthingcb" 2>$null
+$SyncthingPackages = @(
+    "com.nutomic.syncthingandroid",
+    "com.github.catfriend1.syncthingandroid",
+    "com.nutomic.syncthingcb"
+)
+foreach ($Pkg in $SyncthingPackages) {
+    & adb @AdbArgs shell "dumpsys deviceidle whitelist +$Pkg" 2>$null
+}
 
 Write-Host "`n=== Provisionamento Android Concluído com Sucesso! ===" -ForegroundColor Green
