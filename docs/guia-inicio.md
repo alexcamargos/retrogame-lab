@@ -145,7 +145,7 @@ Configure exatamente as tres pastas abaixo para manter o isolamento e evitar per
 
 #### Pasta 1: `retrogames-saves` (A mais importante - Bidirecional)
 * **Rotulo / ID da Pasta:** `retrogames-saves`
-* **Caminho no Windows:** `c:\WorkspaceHub\retrogame-lab\data\saves` (ou caminho correspondente)
+* **Caminho no Windows:** `<pasta_do_projeto>\data\saves` (ex.: `C:\retrogame-lab\data\saves`)
 * **Caminho no Android:** `/storage/emulated/0/RetroGames/saves`
 * **Tipo de Pasta no Windows:** **Envio e Recebimento (Send & Receive)**
 * **Tipo de Pasta no Android:** **Envio e Recebimento (Send & Receive)**
@@ -156,7 +156,7 @@ Configure exatamente as tres pastas abaixo para manter o isolamento e evitar per
 
 #### Pasta 2: `retrogames-bios` (Unidirecional PC -> Android)
 * **Rotulo / ID da Pasta:** `retrogames-bios`
-* **Caminho no Windows:** `c:\WorkspaceHub\retrogame-lab\data\bios`
+* **Caminho no Windows:** `<pasta_do_projeto>\data\bios` (ex.: `C:\retrogame-lab\data\bios`)
 * **Caminho no Android:** `/storage/emulated/0/RetroGames/bios`
 * **Tipo de Pasta no Windows:** **Apenas Envio (Send Only)**
 * **Tipo de Pasta no Android:** **Apenas Recebimento (Receive Only)**
@@ -164,7 +164,7 @@ Configure exatamente as tres pastas abaixo para manter o isolamento e evitar per
 
 #### Pasta 3: `retrogames-roms` (Unidirecional PC -> Android)
 * **Rotulo / ID da Pasta:** `retrogames-roms`
-* **Caminho no Windows:** `c:\WorkspaceHub\retrogame-lab\data\roms`
+* **Caminho no Windows:** `<pasta_do_projeto>\data\roms` (ex.: `C:\retrogame-lab\data\roms`)
 * **Caminho no Android:** `/storage/emulated/0/RetroGames/roms`
 * **Tipo de Pasta no Windows:** **Apenas Envio (Send Only)**
 * **Tipo de Pasta no Android:** **Apenas Recebimento (Receive Only)**

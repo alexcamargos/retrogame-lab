@@ -289,7 +289,7 @@ Write-Host "`n=== Provisionamento Android Concluído com Sucesso! ===" -Foregrou
 ## 5. Procedimento de Configuração Operacional
 
 > [!TIP]
-> Para um passo a passo detalhado voltado a novos usuários, consulte o [Guia de Início e Integração Multiplataforma](file:///c:/WorkspaceHub/retrogame-lab/docs/guia-inicio.md).
+> Para um passo a passo detalhado voltado a novos usuários, consulte o [Guia de Início e Integração Multiplataforma](guia-inicio.md).
 
 1. **Inicialização do Syncthing:**
    * **No Windows:** Instale via Winget (`winget install Syncthing.Syncthing`) e inicie o serviço. Acesse `http://127.0.0.1:8384`.
