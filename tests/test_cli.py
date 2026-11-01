@@ -109,3 +109,51 @@ def test_cli_audit_error_exit_code(mock_repo_root: Path) -> None:
     result = runner.invoke(app, ["audit", "--path", str(mock_repo_root)])
     assert result.exit_code == 1
     assert "Auditoria concluída com erros críticos" in result.stdout
+
+
+def test_cli_sanitize_dry_run_and_apply(tmp_path: Path) -> None:
+    """Verifica a execução do comando sanitize em modo dry-run e apply.
+
+    Args:
+        tmp_path: Diretório temporário fornecido pelo pytest.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    roms_dir = tmp_path / "roms"
+    roms_dir.mkdir()
+    dirty_rom = roms_dir / "Super Mario World (USA).sfc"
+    dirty_rom.write_text("dummy", encoding="utf-8")
+
+    # 1. Simulação (--dry-run)
+    res_dry = runner.invoke(app, ["sanitize", "--path", str(tmp_path), "--dry-run"])
+    assert res_dry.exit_code == 0
+    assert "Super Mario World (USA).sfc" in res_dry.stdout
+    assert "Super_Mario_World_(USA).sfc" in res_dry.stdout
+    assert dirty_rom.exists()
+
+    # 2. Aplicação real (--apply)
+    res_apply = runner.invoke(app, ["sanitize", "--path", str(tmp_path), "--apply"])
+    assert res_apply.exit_code == 0
+    assert not dirty_rom.exists()
+    assert (roms_dir / "Super_Mario_World_(USA).sfc").exists()
+
+
+def test_cli_sanitize_missing_directory(tmp_path: Path) -> None:
+    """Verifica se o comando sanitize encerra com código 1 quando a pasta não existe.
+
+    Args:
+        tmp_path: Diretório temporário.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    res = runner.invoke(app, ["sanitize", "--path", str(tmp_path / "missing")])
+    assert res.exit_code == 1
+    assert "não encontrado" in res.stdout
