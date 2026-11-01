@@ -10,14 +10,8 @@
     .\retrogame sanitize --apply
     .\retrogame launch snes data/roms/snes/Super_Mario_World.sfc
 #>
-[CmdletBinding(PositionalBinding = $false)]
-param (
-    [Parameter(Position = 0, Mandatory = $false)]
-    [string]$Command = "help",
-
-    [Parameter(ValueFromRemainingArguments = $true)]
-    [string[]]$RemainingArgs
-)
+$Command = if ($args.Count -gt 0) { $args[0] } else { "help" }
+$RemainingArgs = if ($args.Count -gt 1) { $args[1..($args.Count - 1)] } else { @() }
 
 $ErrorActionPreference = "Stop"
 $ScriptDir = $PSScriptRoot
