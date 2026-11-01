@@ -58,7 +58,7 @@ function Flatten-SingleDirectory {
 
     $Items = Get-ChildItem -Path $DirectoryPath -Force
     # Ignora arquivos de controle de portabilidade já criados pelo bootstrap
-    $FilteredItems = $Items | Where-Object { $_.Name -notin @("portable.txt", "settings.ini", "PCSX2.ini", "inis", "memstick") }
+    $FilteredItems = $Items | Where-Object { $_.Name -notin @("portable.txt", "settings.ini", "PCSX2.ini", "inis", "memstick", "cores") }
 
     if ($FilteredItems.Count -eq 1 -and $FilteredItems[0].PSIsContainer) {
         $SubDir = $FilteredItems[0].FullName
@@ -70,6 +70,39 @@ function Flatten-SingleDirectory {
             Move-Item -Path $_.FullName -Destination $DirectoryPath -Force
         }
         Remove-Item -Path $SubDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Install-RetroArchCores {
+    param (
+        [string]$RetroArchFolder,
+        [string[]]$CoreNames = @("snes9x")
+    )
+
+    $CoreDir = Join-Path $RetroArchFolder "cores"
+    if (-not (Test-Path $CoreDir)) {
+        New-Item -ItemType Directory -Path $CoreDir -Force | Out-Null
+    }
+
+    foreach ($Core in $CoreNames) {
+        $CoreDll = Join-Path $CoreDir "${Core}_libretro.dll"
+        if ((Test-Path $CoreDll) -and -not $Force) {
+            Write-Host "Core Libretro '${Core}' já presente em '$CoreDll'." -ForegroundColor Gray
+            continue
+        }
+
+        Write-Host "Baixando e instalando Core Libretro oficial: ${Core}..." -ForegroundColor Yellow
+        $CoreUrl = "https://buildbot.libretro.com/nightly/windows/x86_64/latest/${Core}_libretro.dll.zip"
+        $ZipPath = Join-Path $TempDir "${Core}_libretro.dll.zip"
+
+        try {
+            Invoke-WebRequest -Uri $CoreUrl -OutFile $ZipPath -MaximumRedirection 10 -UserAgent "Mozilla/5.0"
+            Expand-ArchivePortable -ArchiveFile $ZipPath -DestinationPath $CoreDir
+            if (Test-Path $ZipPath) { Remove-Item $ZipPath -Force -ErrorAction SilentlyContinue }
+            Write-Host ">>> Core '${Core}' instalado com sucesso em '$CoreDir'!" -ForegroundColor Green
+        } catch {
+            Write-Warning "Falha ao baixar core '${Core}': $($_.Exception.Message)"
+        }
     }
 }
 
@@ -105,6 +138,10 @@ foreach ($Emu in $Emulators) {
 
     if ($ExistingExe -and -not $Force) {
         Write-Host "Emulador já presente em '$($ExistingExe.FullName)' (Use -Force para reinstalar)." -ForegroundColor Gray
+        if ($EmuName -eq "retroarch") {
+            # Garante que os cores Libretro homologados estejam presentes mesmo se o RetroArch já existir
+            Install-RetroArchCores -RetroArchFolder $TargetFolder
+        }
         continue
     }
 
@@ -201,15 +238,8 @@ foreach ($Emu in $Emulators) {
                 Expand-ArchivePortable -ArchiveFile $ArchiveFile -DestinationPath $TargetFolder
                 Flatten-SingleDirectory -DirectoryPath $TargetFolder
 
-                # Download do Core SNES9x Libretro essencial
-                $CoreDir = Join-Path $TargetFolder "cores"
-                if (-not (Test-Path $CoreDir)) {
-                    New-Item -ItemType Directory -Path $CoreDir -Force | Out-Null
-                }
-                $SnesCoreZip = Join-Path $TempDir "snes9x_libretro.dll.zip"
-                Write-Host "Baixando Core Snes9x Libretro..." -ForegroundColor Gray
-                Invoke-WebRequest -Uri "https://buildbot.libretro.com/nightly/windows/x86_64/latest/snes9x_libretro.dll.zip" -OutFile $SnesCoreZip -MaximumRedirection 10 -UserAgent "Mozilla/5.0"
-                Expand-ArchivePortable -ArchiveFile $SnesCoreZip -DestinationPath $CoreDir
+                # Download automatizado de Cores Libretro homologados (SNES, etc.)
+                Install-RetroArchCores -RetroArchFolder $TargetFolder
             }
 
             default {
@@ -235,7 +265,16 @@ foreach ($Emu in @("retroarch", "duckstation", "pcsx2", "ppsspp", "dolphin", "fl
         Select-Object -First 1
 
     if ($Exe) {
-        Write-Host "  [OK] $Emu -> $($Exe.Name)" -ForegroundColor Green
+        if ($Emu -eq "retroarch") {
+            $Core = Join-Path $Folder "cores\snes9x_libretro.dll"
+            if (Test-Path $Core) {
+                Write-Host "  [OK] $Emu -> $($Exe.Name) (Core snes9x: OK)" -ForegroundColor Green
+            } else {
+                Write-Host "  [AVISO] $Emu -> $($Exe.Name) (Core snes9x ausente em cores/)" -ForegroundColor Yellow
+            }
+        } else {
+            Write-Host "  [OK] $Emu -> $($Exe.Name)" -ForegroundColor Green
+        }
     } else {
         Write-Host "  [PENDENTE] $Emu -> Nenhum executável encontrado em '$Folder'" -ForegroundColor Yellow
     }

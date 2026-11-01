@@ -61,9 +61,21 @@ $ArgList = @()
 switch ($Platform) {
     "snes" {
         $Emulator = Join-Path $BinDir "retroarch\retroarch.exe"
-        $Core = Join-Path $BinDir "retroarch\cores\snes9x_libretro.dll"
+        $CoreDir = Join-Path $BinDir "retroarch\cores"
+        $Core = Join-Path $CoreDir "snes9x_libretro.dll"
         if (-not (Test-Path $Core)) {
-            Write-Error "Core Libretro não encontrado em '$Core'. Abra o RetroArch e instale o core Snes9x via Core Updater."
+            Write-Host ">>> [AUTO-PROVISIONAMENTO] Core Libretro ausente ('$Core')." -ForegroundColor Yellow
+            Write-Host ">>> Baixando 'snes9x_libretro.dll' automaticamente do Buildbot oficial..." -ForegroundColor Cyan
+            if (-not (Test-Path $CoreDir)) { New-Item -ItemType Directory -Path $CoreDir -Force | Out-Null }
+            $TempZip = Join-Path $env:TEMP "snes9x_libretro.dll.zip"
+            try {
+                Invoke-WebRequest -Uri "https://buildbot.libretro.com/nightly/windows/x86_64/latest/snes9x_libretro.dll.zip" -OutFile $TempZip -MaximumRedirection 10 -UserAgent "Mozilla/5.0"
+                Expand-Archive -Path $TempZip -DestinationPath $CoreDir -Force
+                if (Test-Path $TempZip) { Remove-Item $TempZip -Force -ErrorAction SilentlyContinue }
+                Write-Host ">>> Core snes9x instalado com sucesso em '$Core'!" -ForegroundColor Green
+            } catch {
+                Write-Error "Falha ao provisionar core Libretro snes9x automaticamente: $($_.Exception.Message)"
+            }
         }
         $ArgList += @("-L", $Core, $ResolvedRom)
         if ($IsFullscreen) { $ArgList += "--fullscreen" }
