@@ -87,3 +87,7 @@ switch -Regex ($Command.ToLower()) {
         & uv run retrogame-lab $Command @RemainingArgs
     }
 }
+
+if ($LASTEXITCODE -ne $null -and $LASTEXITCODE -ne 0) {
+    exit $LASTEXITCODE
+}
