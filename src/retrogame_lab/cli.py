@@ -451,11 +451,20 @@ def bootstrap(
             help="Cria pastas e marcadores de portabilidade sem instalar ferramentas via winget.",
         ),
     ] = False,
+    download_emulators: Annotated[
+        bool,
+        typer.Option(
+            "--download-emulators",
+            "-d",
+            help="Baixa e provisiona automaticamente as versões portáteis oficiais em bin/.",
+        ),
+    ] = False,
 ) -> None:
     """Executa o provisionamento de diretórios, templates e runtimes via PowerShell.
 
     Args:
         skip_winget: Se True, omite a etapa de verificação e instalação de pacotes winget.
+        download_emulators: Se True, executa o download automático dos emuladores em bin/.
 
     Returns:
         None.
@@ -466,9 +475,57 @@ def bootstrap(
     pwsh_args = []
     if skip_winget:
         pwsh_args.append("-SkipWinget")
+    if download_emulators:
+        pwsh_args.append("-DownloadEmulators")
 
     try:
         code = run_pwsh_script("bootstrap.ps1", pwsh_args)
+        if code != 0:
+            raise typer.Exit(code=code)
+    except FileNotFoundError as err:
+        console.print(f"[bold red]Erro:[/bold red] {err}")
+        raise typer.Exit(code=1) from err
+
+
+@app.command(name="download-emulators")
+def download_emulators_cmd(
+    emulators: Annotated[
+        Optional[str],
+        typer.Option(
+            "--emulators",
+            "-e",
+            help="Lista de emuladores separados por vírgula (ex: 'pcsx2,duckstation').",
+        ),
+    ] = None,
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force",
+            "-f",
+            help="Força o re-download mesmo se os emuladores já estiverem presentes.",
+        ),
+    ] = False,
+) -> None:
+    """Baixa e extrai versões portáteis oficiais de emuladores para a pasta bin/.
+
+    Args:
+        emulators: Lista opcional de emuladores específicos.
+        force: Flag para forçar sobrescrita/re-download.
+
+    Returns:
+        None.
+
+    Raises:
+        typer.Exit: Se o script de download retornar código de erro.
+    """
+    pwsh_args = []
+    if emulators:
+        pwsh_args.extend(["-Emulators", emulators])
+    if force:
+        pwsh_args.append("-Force")
+
+    try:
+        code = run_pwsh_script("download_emulators.ps1", pwsh_args)
         if code != 0:
             raise typer.Exit(code=code)
     except FileNotFoundError as err:

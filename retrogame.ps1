@@ -22,10 +22,12 @@ function Show-Help {
     Write-Host "Uso: .\retrogame <subcomando> [opções...]`n" -ForegroundColor Cyan
 
     Write-Host "Comandos de Automação do Sistema (PowerShell):" -ForegroundColor Yellow
-    Write-Host "  bootstrap       Cria diretórios, templates e instala ferramentas via winget"
-    Write-Host "                  Ex.: .\retrogame bootstrap [-SkipWinget]"
-    Write-Host "  launch          Inicializa jogos com seleção dinâmica de GPU e afinidade de CPU"
-    Write-Host "                  Ex.: .\retrogame launch -Platform ps1 -RomPath data\roms\ps1\jogo.chd"
+    Write-Host "  bootstrap          Cria diretórios, templates e instala ferramentas via winget"
+    Write-Host "                     Ex.: .\retrogame bootstrap [-SkipWinget]"
+    Write-Host "  download-emulators Baixa e extrai versões portáteis oficiais dos emuladores em bin/"
+    Write-Host "                     Ex.: .\retrogame download-emulators [-Force] [-Emulators pcsx2,duckstation]"
+    Write-Host "  launch             Inicializa jogos com seleção dinâmica de GPU e afinidade de CPU"
+    Write-Host "                     Ex.: .\retrogame launch -Platform ps1 -RomPath data\roms\ps1\jogo.chd"
     Write-Host "  convert-chd     Compacta imagens de disco em lote para formato CHD determinístico"
     Write-Host "                  Ex.: .\retrogame convert-chd -SourceDirectory c:\temp\jogos"
     Write-Host "  android         Provisiona diretórios, permissões e APKs no Android via ADB"
@@ -51,6 +53,9 @@ switch -Regex ($Command.ToLower()) {
     }
     "^bootstrap$" {
         & pwsh -NoProfile -File "$ScriptsDir\bootstrap.ps1" @RemainingArgs
+    }
+    "^(download-emulators|download_emulators|install-emulators|install_emulators|emulators)$" {
+        & pwsh -NoProfile -File "$ScriptsDir\download_emulators.ps1" @RemainingArgs
     }
     "^(audit|audit_library|audit-library)$" {
         & uv run retrogame-lab audit @RemainingArgs
