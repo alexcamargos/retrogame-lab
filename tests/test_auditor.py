@@ -261,21 +261,74 @@ def test_audit_saves_violations(tmp_path: Path) -> None:
 
     # 1. Savestate proibido -> ERROR
     (ps1_saves / "crash_bandicoot.state").write_text("state", encoding="utf-8")
+    (ps1_saves / "metal_gear.s01").write_text("state", encoding="utf-8")
     # 2. Arquivo de lock -> WARNING
     (ps1_saves / "duckstation.lock").write_text("lock", encoding="utf-8")
     # 3. Memory Card global compartilhado -> ERROR
     (ps1_saves / "shared_card_1.mcd").write_text("card", encoding="utf-8")
-    # 4. Save válido por título -> Válido
+    (ps1_saves / "mcd002.ps2").write_text("card", encoding="utf-8")
+    # 4. Saves válidos por título (incluindo nomes com .s0 no meio) -> Válido
     (ps1_saves / "Tekken_3_SCUS-94238.mcd").write_text("valid", encoding="utf-8")
+    (ps1_saves / "megaman_s01.srm").write_text("valid", encoding="utf-8")
 
     summary = audit_saves(saves_dir)
-    assert summary.total_scanned == 4
+    assert summary.total_scanned == 7
 
     errors = [i for i in summary.issues if i.severity == Severity.ERROR]
     warnings = [i for i in summary.issues if i.severity == Severity.WARNING]
 
-    assert len(errors) == 2  # savestate e shared_card_1
+    # crash_bandicoot.state, metal_gear.s01, shared_card_1.mcd, mcd002.ps2
+    assert len(errors) == 4
     assert len(warnings) == 1  # lock
+
+
+def test_audit_roms_loose_file_in_root(tmp_path: Path) -> None:
+    """Verifica aviso para arquivo de ROM colocado solto na raiz de data/roms/.
+
+    Args:
+        tmp_path: Diretório temporário.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    roms_dir = tmp_path / "roms"
+    roms_dir.mkdir()
+
+    (roms_dir / "loose_game.sfc").write_text("dummy", encoding="utf-8")
+
+    summary = audit_roms(roms_dir)
+    assert summary.total_scanned == 1
+    assert len(summary.issues) == 1
+    assert summary.issues[0].severity == Severity.WARNING
+    assert "Arquivo solto na raiz" in summary.issues[0].message
+
+
+def test_audit_roms_dreamcast_gdi_and_cdi(tmp_path: Path) -> None:
+    """Verifica recomendações de conversão para mídias desmembradas de Dreamcast.
+
+    Args:
+        tmp_path: Diretório temporário.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    dc_dir = tmp_path / "roms" / "dc"
+    dc_dir.mkdir(parents=True)
+
+    (dc_dir / "sonic_adventure.gdi").write_text("dummy", encoding="utf-8")
+    (dc_dir / "crazy_taxi.cdi").write_text("dummy", encoding="utf-8")
+
+    summary = audit_roms(tmp_path / "roms")
+    assert summary.total_scanned == 2
+
+    warnings = [i for i in summary.issues if i.severity == Severity.WARNING]
+    assert len(warnings) == 2
 
 
 def test_run_full_audit(mock_repo_root: Path) -> None:

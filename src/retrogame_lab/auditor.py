@@ -5,6 +5,7 @@ SHA-256 e detecção de violações das regras de salvamento multiplataforma.
 """
 
 import hashlib
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -90,9 +91,11 @@ class AuditReport:
 
 # Banco de dados referencial de somas SHA-256 de firmwares canônicos
 KNOWN_BIOS_HASHES: dict[str, str] = {
-    # Sony PlayStation 1 (NTSC-U v4.1 / v4.5)
+    # Sony PlayStation 1 (NTSC-U / PAL v4.1 / v4.5)
+    "scph1001.bin": "42e4124be7623e2e28b1db0d8d426539646faee49d74b71166d8ba5bd7c472ed",
     "scph5501.bin": "8dd7d5296a650fac7319bce665a6a53c8b45ff033a20d4f13fb1457a3e74be88",
     "scph7001.bin": "1e260a1f764f66a3079109279a615e0203216c69f2e322b7dcf57960309995be",
+    "scph7502.bin": "5e84a94818cf5282f4217591fefd88be36b9b174b3cc7cb0bcd75199beb450f1",
     # Sony PlayStation 2 (NTSC-U SCPH-39001 v1.60)
     "scph39001.bin": "8b9ff6923b3793e79e6e89f81f185c7cc68e1abfef1972b95b8bc6b5539fa73f",
     # Sega Dreamcast
@@ -226,8 +229,23 @@ def audit_roms(roms_dir: Path) -> AuditSummary:
     for rom_file in files:
         ext = rom_file.suffix.lower()
         rel_parts = rom_file.relative_to(roms_dir).parts
-        platform_code = rel_parts[0].lower() if rel_parts else ""
 
+        # Detecção de arquivos soltos diretamente na raiz de data/roms/
+        if len(rel_parts) <= 1:
+            summary.issues.append(
+                AuditIssue(
+                    category="ROMs",
+                    severity=Severity.WARNING,
+                    message=(
+                        f"Arquivo solto na raiz de roms/: '{rom_file.name}'. "
+                        "Mova para a subpasta da plataforma correspondente (ex: data/roms/snes/)."
+                    ),
+                    file_path=rom_file,
+                )
+            )
+            continue
+
+        platform_code = rel_parts[0].lower()
         platform = SUPPORTED_PLATFORMS.get(platform_code)
         if not platform:
             continue
@@ -259,9 +277,9 @@ def audit_roms(roms_dir: Path) -> AuditSummary:
                     )
                 )
 
-        # Regra 2: PS1 e Dreamcast exigem CHD em vez de CUE/BIN desmembrado
+        # Regra 2: PS1 e Dreamcast exigem CHD em vez de CUE/BIN/GDI/CDI desmembrado
         if platform_code in ("ps1", "dc"):
-            if ext in (".cue", ".bin", ".iso"):
+            if ext in (".cue", ".bin", ".iso", ".gdi", ".cdi"):
                 summary.issues.append(
                     AuditIssue(
                         category="ROMs",
@@ -322,15 +340,23 @@ def audit_saves(saves_dir: Path) -> AuditSummary:
     all_files = [f for f in saves_dir.rglob("*") if f.is_file()]
     summary.total_scanned = len(all_files)
 
-    prohibited_state_patterns = [".state", ".s0", ".s1", ".s2", ".s3", ".s4", ".nvram.bak"]
     lock_extensions = [".tmp", ".lock", ".lck", ".wal", ".shm"]
-    prohibited_shared_cards = ["shared_card_1.mcd", "mcd001.ps2", "mcd002.ps2", "memcard1.mcd"]
+    prohibited_card_patterns = [
+        re.compile(r"^mcd\d+\.ps2$"),
+        re.compile(r"^shared_card_\d+\.mcd$"),
+        re.compile(r"^memcard\d+\.mcd$"),
+    ]
 
     for save_file in all_files:
         name_lower = save_file.name.lower()
 
-        # 1. Detecção de Savestates no diretório de saves
-        if any(pat in name_lower for pat in prohibited_state_patterns):
+        # 1. Detecção de Savestates proibidos na sincronização via regex precisa
+        is_state = bool(
+            re.search(r"\.state.*$", name_lower)
+            or re.search(r"\.s\d{2}$", name_lower)
+            or name_lower.endswith(".nvram.bak")
+        )
+        if is_state:
             summary.issues.append(
                 AuditIssue(
                     category="Saves",
@@ -358,7 +384,13 @@ def audit_saves(saves_dir: Path) -> AuditSummary:
             )
 
         # 3. Detecção de Memory Cards compartilhados globais em PS1/PS2
-        if name_lower in prohibited_shared_cards:
+        is_shared_card = name_lower in (
+            "shared_card_1.mcd",
+            "mcd001.ps2",
+            "mcd002.ps2",
+            "memcard1.mcd",
+        ) or any(pat.match(name_lower) for pat in prohibited_card_patterns)
+        if is_shared_card:
             summary.issues.append(
                 AuditIssue(
                     category="Saves",
