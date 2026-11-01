@@ -61,7 +61,17 @@ pwsh -NoProfile -File scripts\audit_library.ps1 -Json
 uv run retrogame-lab audit
 ```
 
-### 3. Lançamento Dinâmico de Jogos
+### 3. Higienização e Padronização de Nomenclatura (Sem Espaços)
+
+```powershell
+# Simulação prévia das renomeações necessárias (Dry Run)
+uv run retrogame-lab sanitize
+
+# Aplicação real da padronização (converte espaços em '_' e remove aspas/especiais)
+uv run retrogame-lab sanitize --apply
+```
+
+### 4. Lançamento Dinâmico de Jogos
 
 ```powershell
 # Lançamento com detecção automática de GPU e afinidade de P-cores
