@@ -142,17 +142,17 @@ retrogame-lab/
 │   └── sprints.md                  # Matriz de implementação e homologação E2E
 ├── scripts/                        # Automação em PowerShell Core (pwsh)
 │   ├── bootstrap.ps1               # Instalação automatizada do host Windows
-│   ├── launch.ps1                  # Lançador dinâmico com perfilamento de GPU/CPU
-│   ├── convert_chd.ps1             # Conversor inteligente CD vs DVD
+│   ├── launch.ps1                  # Lançador dinâmico com trava pré-voo e perfilamento de GPU/CPU
+│   ├── convert_chd.ps1             # Conversor inteligente CD vs DVD com higienização de saída
 │   ├── setup_android_emulators.ps1 # Provisionamento de APKs e pastas via ADB
 │   └── audit_library.ps1           # Auditoria de integridade e hashes
 ├── src/
-│   └── retrogame_lab/              # Pacote Python canônico (CLI, Auditor, Config)
+│   └── retrogame_lab/              # Pacote Python canônico (CLI, Ingestão, Sanitizer, Auditor, Config)
 ├── templates/                      # Mapeamentos pré-calibrados de controle e ES-DE
 │   ├── config/                     # Templates de retroarch.cfg, DuckStation e PCSX2
 │   ├── controllers/                # Perfis XInput, DualSense e 8BitDo
 │   └── es-de/                      # Configurações de rotas do ES-DE
-├── tests/                          # Bateria de testes unitários com pytest
+├── tests/                          # Bateria de 43 testes unitários com pytest e pytest-mock
 ├── tools/                          # Utilitários portáteis (chdman, 7z, adb)
 └── AGENTS.md                       # Diretrizes e governança para agentes de IA
 ```
