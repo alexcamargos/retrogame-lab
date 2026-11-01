@@ -65,14 +65,15 @@ O script automatiza:
 * Consulta as releases mais recentes via GitHub API e buildbots oficiais.
 * Baixa os arquivos compactados (`.zip` e `.7z`) e extrai diretamente em `bin/<emulador>/`.
 * Garante a criacao dos arquivos de portabilidade (`portable.txt`) e preserva os templates injetados.
-* Baixa o core Libretro `snes9x_libretro.dll` na pasta `bin/retroarch/cores/`.
+* Baixa e instala automaticamente o core Libretro `snes9x_libretro.dll` em `bin/retroarch/cores/` (sem necessidade de navegacao em menus).
+* Caso um jogo de SNES seja iniciado pelo lancador sem o core presente, o proprio `launch.ps1` realiza o auto-provisionamento em tempo de execucao.
 
 #### Opcao B: Download e Extracao Manual
 Caso prefira baixar manualmente, faca o download das versoes portateis oficiais (Windows x64) e extraia o conteudo de cada pacote diretamente dentro da subpasta indicada em `bin/`:
 
 | Plataforma / Sistema | Pasta de Destino | Executavel Esperado | Pacote Portatil Oficial Homologado |
 | :--- | :--- | :--- | :--- |
-| **SNES / 2D** (RetroArch) | `bin/retroarch/` | `retroarch.exe` | [RetroArch Windows x86_64 (.7z)](https://www.retroarch.com/?page=platforms)<br>*(Baixe tambem o core Snes9x via menu: Online Updater -> Core Downloader)* |
+| **SNES / 2D** (RetroArch) | `bin/retroarch/` | `retroarch.exe` | [RetroArch Windows x86_64 (.7z)](https://www.retroarch.com/?page=platforms)<br>*(O core Snes9x e baixado automaticamente ao executar `.\retrogame download-emulators` ou ao iniciar um jogo)* |
 | **PlayStation 1** (DuckStation) | `bin/duckstation/` | `duckstation-qt.exe` | [DuckStation Releases](https://github.com/stenzek/duckstation/releases) (`duckstation-windows-x64-release.zip`) |
 | **PlayStation 2** (PCSX2) | `bin/pcsx2/` | `pcsx2-qt.exe` | [PCSX2 Releases](https://pcsx2.net/downloads) (`pcsx2-v...-windows-x64-Qt.7z`) |
 | **PSP** (PPSSPP) | `bin/ppsspp/` | `PPSSPPWindows64.exe` | [PPSSPP Download](https://www.ppsspp.org/download/) (`PPSSPP Windows zip` portatil) |
