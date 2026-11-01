@@ -71,7 +71,22 @@ uv run retrogame-lab sanitize
 uv run retrogame-lab sanitize --apply
 ```
 
-### 4. Lançamento Dinâmico de Jogos
+### 4. Ingestão Segura de ROMs (Validação e Roteamento)
+
+```powershell
+# Importação de arquivo único validando plataforma e higienizando nome (cópia)
+uv run retrogame-lab import-rom "C:\Downloads\Super Mario World.sfc" -p snes
+
+# Importação movendo o arquivo original para o diretório canônico data/roms/<platform>/
+uv run retrogame-lab import-rom "C:\Downloads\Gran Turismo 2.chd" -p ps1 --move
+
+# Ingestão em lote de uma pasta com múltiplas ROMs
+uv run retrogame-lab import-rom "C:\Downloads\LotePS2\" -p ps2
+```
+
+### 5. Lançamento Dinâmico de Jogos
+
+O script `launch.ps1` conta com uma **trava de segurança pré-voo (Pre-flight Gate)**: caso uma ROM adicionada manualmente contenha espaços ou caracteres especiais, ela é automaticamente higienizada no disco antes da inicialização do emulador.
 
 ```powershell
 # Lançamento com detecção automática de GPU e afinidade de P-cores
@@ -81,21 +96,21 @@ pwsh -NoProfile -File scripts\launch.ps1 -Platform ps1 -RomPath data\roms\ps1\me
 pwsh -NoProfile -File scripts\launch.ps1 -Platform ps2 -RomPath data\roms\ps2\jogo.chd -GpuMode dgpu
 ```
 
-### 4. Conversão Determinística de Mídias para CHD
+### 6. Conversão Determinística de Mídias para CHD
 
 ```powershell
 # Comprimir mídias de CD (PS1/DC) e DVD (PS2) preservando setores limpos
 pwsh -NoProfile -File scripts\convert_chd.ps1 -SourceDirectory data\roms\ps1
 ```
 
-### 5. Provisionamento do Dispositivo Android via ADB
+### 7. Provisionamento do Dispositivo Android via ADB
 
 ```powershell
 # Cria pastas remotas, concede permissão Scoped Storage e injeta .stignore
 pwsh -NoProfile -File scripts\setup_android_emulators.ps1
 ```
 
-### 6. Execução da Suíte de Testes e Qualidade de Código
+### 8. Execução da Suíte de Testes e Qualidade de Código
 
 ```powershell
 # Execução da bateria completa de testes com cobertura
