@@ -15,7 +15,7 @@ Esta skill capacita agentes a executar, diagnosticar, auditar e provisionar o ec
 Para lançar uma ROM de qualquer plataforma suportada com perfilamento de hardware automático:
 
 ```powershell
-pwsh -NoProfile -File scripts/launch.ps1 -Platform <snes|ps1|ps2|psp|gc|dc> -RomPath <caminho_da_rom> [-Fullscreen] [-GpuMode auto|igpu|dgpu]
+pwsh -NoProfile -File scripts/launch.ps1 -Platform <snes|ps1|ps2|psp|gc|dc> -RomPath <caminho_da_rom> [-Fullscreen | -Windowed] [-GpuMode auto|igpu|dgpu]
 ```
 
 * **Comportamento Automático:**
@@ -37,7 +37,7 @@ pwsh -NoProfile -File scripts/audit_library.ps1
 pwsh -NoProfile -File scripts/audit_library.ps1 -Json
 
 # Execução direta via CLI Python
-uv run retrogame-lab audit [--json] [--full]
+uv run retrogame-lab audit [--json-output]
 ```
 
 * **Itens Verificados:**
