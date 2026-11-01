@@ -80,7 +80,7 @@ A raiz do projeto é totalmente autocontida e portável entre diretórios ou vol
 
 ```text
 retrogame-lab/
-├── .agy/
+├── .agents/
 │   └── skills/
 │       └── emulator-pipeline/      # Skill com orquestração do Agente Antigravity
 ├── bin/                            # Emuladores e Frontends Portáteis (Zero-Install)

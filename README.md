@@ -125,7 +125,7 @@ uv run ruff format --check .
 
 ```text
 retrogame-lab/
-├── .agy/
+├── .agents/
 │   └── skills/
 │       └── emulator-pipeline/      # Skill com orquestração do Agente Antigravity
 ├── bin/                            # Emuladores Portáteis (Zero-Install)
