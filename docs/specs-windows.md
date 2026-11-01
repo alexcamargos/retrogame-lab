@@ -134,6 +134,7 @@ retrogame-lab/
 │   └── specs-android.md            # Especificação de sincronização com Android
 ├── scripts/
 │   ├── bootstrap.ps1               # Download idempotente via winget, junção PPSSPP e setup de templates
+│   ├── download_emulators.ps1      # Download e extração automatizada de emuladores portáteis para bin/
 │   ├── launch.ps1                  # Lançador dinâmico com trava pré-voo, perfilamento de GPU/CPU e CWD isolado
 │   ├── convert_chd.ps1             # Conversor inteligente CD vs DVD com higienização de nomes e fallback no PATH
 │   ├── setup_android_emulators.ps1 # Provisionamento de pastas, permissões e APKs no Android via ADB
@@ -603,7 +604,8 @@ Para simplificar a operação do ecossistema, o projeto disponibiliza um ponto d
 * **Astral uv:** `uv run retrogame <subcomando> [opções...]`
 
 Principais subcomandos suportados:
-* `bootstrap`: Provisiona pastas, marcadores portáteis e ferramentas via winget (`[-SkipWinget]`).
+* `bootstrap`: Provisiona pastas, marcadores portáteis e ferramentas via winget (`[-SkipWinget] [-DownloadEmulators]`).
+* `download-emulators`: Baixa e extrai versões portáteis oficiais de 64 bits para `bin/` (`[-Force] [-Emulators <lista>]`).
 * `launch`: Inicializa jogos com detecção de GPU, P-cores e trava pré-voo (`-Platform <plat> -RomPath <rom> [-Windowed] [-GpuMode auto|igpu|dgpu]`).
 * `convert-chd`: Compacta imagens para CHD determinístico (`-SourceDirectory <pasta> [-MediaType auto|cd|dvd]`).
 * `android`: Provisiona o dispositivo Android conectado via ADB (`[-SkipDownload]`).

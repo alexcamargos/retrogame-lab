@@ -41,7 +41,50 @@ O script executara de forma idempotente:
 4. Vinculacao da pasta `bin/ppsspp/memstick/PSP/SAVEDATA` a `data/saves/psp/SAVEDATA/` via juncao NTFS.
 5. Injecao dos templates pre-configurados de `templates/config/` (direcionando saves e BIOS para caminhos relativos de `data/`).
 
-### 2.3 Ativacao do Ambiente Python do Repositorio
+### 2.3 Download e Instalacao dos Emuladores Portateis no Windows 11
+
+O RetroGame Lab adota a filosofia de **Portabilidade Estatica (Zero-Install)**: os emuladores nao sao instalados no sistema operacional via instaladores `.exe`/`.msi` nem gravam no registro do Windows ou `%APPDATA%`. Eles operam de forma autocontida a partir de subpastas em `bin/`.
+
+Voce pode provisionar os emuladores de forma automatizada (recomendado) ou manual:
+
+#### Opcao A: Download Automatizado (Recomendado)
+Execute o comando unificado para baixar e descompactar as builds portateis oficiais de 64 bits para cada plataforma:
+
+```powershell
+# Baixa e configura todos os emuladores homologados em bin/
+.\retrogame download-emulators
+
+# Ou durante o bootstrap inicial:
+.\retrogame bootstrap -DownloadEmulators
+
+# Para baixar apenas emuladores especificos:
+.\retrogame download-emulators -Emulators pcsx2,duckstation
+```
+
+O script automatiza:
+* Consulta as releases mais recentes via GitHub API e buildbots oficiais.
+* Baixa os arquivos compactados (`.zip` e `.7z`) e extrai diretamente em `bin/<emulador>/`.
+* Garante a criacao dos arquivos de portabilidade (`portable.txt`) e preserva os templates injetados.
+* Baixa o core Libretro `snes9x_libretro.dll` na pasta `bin/retroarch/cores/`.
+
+#### Opcao B: Download e Extracao Manual
+Caso prefira baixar manualmente, faca o download das versoes portateis oficiais (Windows x64) e extraia o conteudo de cada pacote diretamente dentro da subpasta indicada em `bin/`:
+
+| Plataforma / Sistema | Pasta de Destino | Executavel Esperado | Pacote Portatil Oficial Homologado |
+| :--- | :--- | :--- | :--- |
+| **SNES / 2D** (RetroArch) | `bin/retroarch/` | `retroarch.exe` | [RetroArch Windows x86_64 (.7z)](https://www.retroarch.com/?page=platforms)<br>*(Baixe tambem o core Snes9x via menu: Online Updater -> Core Downloader)* |
+| **PlayStation 1** (DuckStation) | `bin/duckstation/` | `duckstation-qt.exe` | [DuckStation Releases](https://github.com/stenzek/duckstation/releases) (`duckstation-windows-x64-release.zip`) |
+| **PlayStation 2** (PCSX2) | `bin/pcsx2/` | `pcsx2-qt.exe` | [PCSX2 Releases](https://pcsx2.net/downloads) (`pcsx2-v...-windows-x64-Qt.7z`) |
+| **PSP** (PPSSPP) | `bin/ppsspp/` | `PPSSPPWindows64.exe` | [PPSSPP Download](https://www.ppsspp.org/download/) (`PPSSPP Windows zip` portatil) |
+| **GameCube / Wii** (Dolphin) | `bin/dolphin/` | `Dolphin.exe` | [Dolphin Emulator](https://dolphin-emu.org/download/) (`Windows x64 7z` portatil) |
+| **Dreamcast** (Flycast) | `bin/flycast/` | `flycast.exe` | [Flycast Releases](https://github.com/flyinghead/flycast/releases) (`flycast-win64.zip`) |
+| **Frontend** (ES-DE Opcional) | `bin/es-de/` | `ES-DE.exe` | [ES-DE Frontend](https://es-de.org/) (`Portable Release .zip`) |
+
+> [!IMPORTANT]
+> **Marcador de Portabilidade:**  
+> Apos extrair manualmente, certifique-se de que o arquivo vazio `portable.txt` continue presente dentro de `bin/duckstation/`, `bin/pcsx2/` e `bin/dolphin/` para forcar o armazenamento local de configuracoes.
+
+### 2.4 Ativacao do Ambiente Python do Repositorio
 No mesmo terminal (ou em sessao comum sem elevacao):
 
 ```powershell
