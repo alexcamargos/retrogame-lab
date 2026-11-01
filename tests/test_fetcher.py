@@ -344,8 +344,8 @@ def test_run_interactive_snes_fetcher_flow(
     ]
     mocker.patch("retrogame_lab.fetcher.get_archive_catalog", return_value=catalog)
 
-    # Simula o usuário digitando "1" (seleciona jogo 1) e depois "n" (não continuar pesquisando)
-    mocker.patch("rich.prompt.Prompt.ask", side_effect=["1", "n"])
+    # Simula seleção "1", confirmação "s", enter "", e saída "q"
+    mocker.patch("rich.prompt.Prompt.ask", side_effect=["1", "s", "", "q"])
 
     dummy_dest = mock_repo_root / "data" / "roms" / "snes" / "Super_Mario_World_(USA).sfc"
     dummy_dest.parent.mkdir(parents=True, exist_ok=True)
@@ -415,3 +415,91 @@ def test_run_interactive_fetcher_invalid_platform(mock_repo_root: Path) -> None:
 
     with pytest.raises(ValueError, match="Plataforma 'xbox' inválida"):
         run_interactive_fetcher(platform_code="xbox", repo_root=mock_repo_root)
+
+
+def test_parse_title_metadata() -> None:
+    """Verifica a extração de título limpo, tag de região e informações adicionais.
+
+    Args:
+        None.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    from retrogame_lab.fetcher import parse_title_metadata
+
+    title1, reg1, extra1 = parse_title_metadata("Resident Evil 2 (USA) (Disc 1) (Rev 1)")
+    assert title1 == "Resident Evil 2"
+    assert reg1 == "USA"
+    assert "Disc 1" in extra1
+
+    title2, reg2, _ = parse_title_metadata("Sonic Adventure (Japan)")
+    assert title2 == "Sonic Adventure"
+    assert reg2 == "JPN"
+
+    title3, reg3, _ = parse_title_metadata("Top Gear 2 (Brazil)")
+    assert title3 == "Top Gear 2"
+    assert reg3 == "BRA"
+
+
+def test_format_helpers() -> None:
+    """Verifica renderizadores auxiliares de badges e tamanhos de arquivos.
+
+    Args:
+        None.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    from retrogame_lab.fetcher import format_file_size, format_region_badge
+
+    assert "USA" in format_region_badge("USA")
+    assert "EUR" in format_region_badge("EUR")
+    assert "JPN" in format_region_badge("JPN")
+    assert "BRA" in format_region_badge("BRA")
+    assert "Global" in format_region_badge("Outro")
+
+    assert "MB" in format_file_size(15 * 1024 * 1024)
+    assert "GB" in format_file_size(2 * 1024 * 1024 * 1024)
+    assert "KB" in format_file_size(500 * 1024)
+    assert "-" in format_file_size(0)
+
+
+def test_run_interactive_fetcher_pagination_and_search(
+    mock_repo_root: Path,
+    mocker: MockerFixture,
+) -> None:
+    """Verifica navegação por páginas (n/p) e busca textual direta.
+
+    Args:
+        mock_repo_root: Fixture de raiz mockada.
+        mocker: Fixture do pytest-mock.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    from retrogame_lab.fetcher import run_interactive_fetcher
+
+    catalog = [
+        ArchiveRomEntry(f"Game_{i} (USA).zip", f"Game {i} (USA)", 100, f"url{i}")
+        for i in range(35)
+    ]
+    mocker.patch("retrogame_lab.fetcher.get_archive_catalog", return_value=catalog)
+
+    # Simula: vai para próxima página 'n', volta para anterior 'p', busca 'Game 10', sai 'q'
+    mocker.patch("rich.prompt.Prompt.ask", side_effect=["n", "p", "Game 10", "q"])
+
+    console = Console(record=True)
+    res = run_interactive_fetcher(
+        platform_code="snes", repo_root=mock_repo_root, console=console
+    )
+    assert res == []
