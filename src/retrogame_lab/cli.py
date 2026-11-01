@@ -5,6 +5,7 @@ inspeção de configurações do sistema e diagnóstico de salvamentos.
 """
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 from typing import Annotated, Optional
@@ -414,6 +415,274 @@ def import_rom_cmd(
             )
     except (ValueError, FileExistsError, FileNotFoundError, IsADirectoryError) as err:
         console.print(f"[bold red]Erro de Ingestão:[/bold red] {err}")
+        raise typer.Exit(code=1) from err
+
+
+def run_pwsh_script(script_name: str, args: list[str]) -> int:
+    """Executa um script PowerShell Core (pwsh) localizado no diretório scripts/.
+
+    Args:
+        script_name: Nome do arquivo de script (ex.: 'bootstrap.ps1').
+        args: Lista de argumentos adicionais repassados ao script.
+
+    Returns:
+        Código de retorno (exit code) da execução do processo.
+
+    Raises:
+        FileNotFoundError: Se a raiz do projeto ou o script especificado não existirem.
+    """
+    root = find_repo_root()
+    script_path = root / "scripts" / script_name
+    if not script_path.exists():
+        raise FileNotFoundError(f"Script PowerShell não encontrado: {script_path}")
+
+    cmd = ["pwsh", "-NoProfile", "-File", str(script_path)] + args
+    result = subprocess.run(cmd, check=False)
+    return result.returncode
+
+
+@app.command()
+def bootstrap(
+    skip_winget: Annotated[
+        bool,
+        typer.Option(
+            "--skip-winget",
+            "-s",
+            help="Cria pastas e marcadores de portabilidade sem instalar ferramentas via winget.",
+        ),
+    ] = False,
+) -> None:
+    """Executa o provisionamento de diretórios, templates e runtimes via PowerShell.
+
+    Args:
+        skip_winget: Se True, omite a etapa de verificação e instalação de pacotes winget.
+
+    Returns:
+        None.
+
+    Raises:
+        typer.Exit: Se o processo pwsh retornar código de erro ou falhar na execução.
+    """
+    pwsh_args = []
+    if skip_winget:
+        pwsh_args.append("-SkipWinget")
+
+    try:
+        code = run_pwsh_script("bootstrap.ps1", pwsh_args)
+        if code != 0:
+            raise typer.Exit(code=code)
+    except FileNotFoundError as err:
+        console.print(f"[bold red]Erro:[/bold red] {err}")
+        raise typer.Exit(code=1) from err
+
+
+@app.command(name="audit-library", hidden=True)
+def audit_library_alias(
+    repo_path: Annotated[
+        Optional[Path],
+        typer.Option(
+            "--path",
+            "-p",
+            help="Caminho raiz do repositório para a auditoria. Padrão: auto-detectado.",
+        ),
+    ] = None,
+    json_output: Annotated[
+        bool,
+        typer.Option(
+            "--json-output",
+            "--json",
+            "-j",
+            help="Retorna o relatório em formato JSON estruturado.",
+        ),
+    ] = False,
+    full: Annotated[
+        bool,
+        typer.Option(
+            "--full",
+            help="Executa auditoria completa de todos os subsistemas.",
+        ),
+    ] = True,
+) -> None:
+    """Alias para o comando de auditoria 'audit'.
+
+    Args:
+        repo_path: Caminho opcional para a raiz do repositório.
+        json_output: Se True, formata a saída como documento JSON.
+        full: Se True, realiza a auditoria completa de todos os subsistemas.
+
+    Returns:
+        None.
+
+    Raises:
+        typer.Exit: Se a auditoria detectar erros críticos.
+    """
+    audit(repo_path=repo_path, json_output=json_output, full=full)
+
+
+@app.command()
+def launch(
+    platform: Annotated[
+        str,
+        typer.Argument(
+            help="Código da plataforma suportada (snes, ps1, ps2, psp, gc, dc).",
+        ),
+    ],
+    rom_path: Annotated[
+        Path,
+        typer.Argument(
+            help="Caminho do arquivo de ROM a ser inicializado.",
+        ),
+    ],
+    fullscreen: Annotated[
+        bool,
+        typer.Option(
+            "--fullscreen/--windowed",
+            help="Inicia o emulador em tela cheia (padrão) ou modo janela.",
+        ),
+    ] = True,
+    gpu_mode: Annotated[
+        str,
+        typer.Option(
+            "--gpu-mode",
+            "-g",
+            help="Modo de seleção de GPU ('auto', 'igpu', 'dgpu'). Padrão: 'auto'.",
+        ),
+    ] = "auto",
+) -> None:
+    """Inicializa um jogo emulando a plataforma com calibração dinâmica de hardware.
+
+    Args:
+        platform: Plataforma do jogo.
+        rom_path: Caminho da ROM.
+        fullscreen: Flag para tela cheia ou janela.
+        gpu_mode: Modo de preferência de GPU.
+
+    Returns:
+        None.
+
+    Raises:
+        typer.Exit: Se a execução do emulador falhar.
+    """
+    pwsh_args = [
+        "-Platform",
+        platform,
+        "-RomPath",
+        str(rom_path),
+        "-GpuMode",
+        gpu_mode,
+    ]
+    if fullscreen:
+        pwsh_args.append("-Fullscreen")
+    else:
+        pwsh_args.append("-Windowed")
+
+    try:
+        code = run_pwsh_script("launch.ps1", pwsh_args)
+        if code != 0:
+            raise typer.Exit(code=code)
+    except FileNotFoundError as err:
+        console.print(f"[bold red]Erro:[/bold red] {err}")
+        raise typer.Exit(code=1) from err
+
+
+@app.command(name="convert-chd")
+def convert_chd(
+    source_dir: Annotated[
+        Path,
+        typer.Argument(
+            help="Diretório contendo imagens bin/cue/iso para compactação determinística.",
+        ),
+    ],
+    media_type: Annotated[
+        str,
+        typer.Option(
+            "--media-type",
+            "-m",
+            help="Tipo de mídia ('cd', 'dvd', 'auto'). Padrão: 'auto'.",
+        ),
+    ] = "auto",
+) -> None:
+    """Converte imagens de disco para o formato CHD preservando integridade de setores.
+
+    Args:
+        source_dir: Diretório de origem das mídias.
+        media_type: Tipo de mídia ('cd', 'dvd', 'auto').
+
+    Returns:
+        None.
+
+    Raises:
+        typer.Exit: Se a conversão falhar.
+    """
+    pwsh_args = [
+        "-SourceDirectory",
+        str(source_dir),
+        "-MediaType",
+        media_type,
+    ]
+    try:
+        code = run_pwsh_script("convert_chd.ps1", pwsh_args)
+        if code != 0:
+            raise typer.Exit(code=code)
+    except FileNotFoundError as err:
+        console.print(f"[bold red]Erro:[/bold red] {err}")
+        raise typer.Exit(code=1) from err
+
+
+@app.command(name="setup-android")
+def setup_android(
+    device_id: Annotated[
+        str,
+        typer.Option(
+            "--device-id",
+            "-d",
+            help="Identificador ADB do dispositivo móvel (opcional).",
+        ),
+    ] = "",
+    target_path: Annotated[
+        str,
+        typer.Option(
+            "--target-path",
+            "-t",
+            help="Caminho base no armazenamento Android. Padrão: /storage/emulated/0/RetroGames.",
+        ),
+    ] = "/storage/emulated/0/RetroGames",
+    skip_download: Annotated[
+        bool,
+        typer.Option(
+            "--skip-download",
+            help="Pula o download de APKs mantendo o provisionamento de pastas e permissões.",
+        ),
+    ] = False,
+) -> None:
+    """Provisiona o ambiente de emulação e permissões no Android via ADB.
+
+    Args:
+        device_id: ID do dispositivo ADB.
+        target_path: Caminho alvo no Android.
+        skip_download: Pula download dos emuladores se True.
+
+    Returns:
+        None.
+
+    Raises:
+        typer.Exit: Se a automação ADB falhar.
+    """
+    pwsh_args = [
+        "-TargetDevicePath",
+        target_path,
+    ]
+    if device_id:
+        pwsh_args.extend(["-DeviceId", device_id])
+    if skip_download:
+        pwsh_args.append("-SkipDownload")
+
+    try:
+        code = run_pwsh_script("setup_android_emulators.ps1", pwsh_args)
+        if code != 0:
+            raise typer.Exit(code=code)
+    except FileNotFoundError as err:
+        console.print(f"[bold red]Erro:[/bold red] {err}")
         raise typer.Exit(code=1) from err
 
 

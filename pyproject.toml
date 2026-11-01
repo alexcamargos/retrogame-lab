@@ -13,6 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
+retrogame = "retrogame_lab.cli:app"
 retrogame-lab = "retrogame_lab.cli:app"
 
 [build-system]
