@@ -1,9 +1,9 @@
 """Módulo de busca, download e ingestão de ROMs a partir de acervos de preservação digital.
 
 Permite consultar catálogos remotos (como acervos No-Intro e Redump no Internet Archive)
-para todas as plataformas homologadas (SNES, PS1, PS2, PSP, GC, DC), filtrar títulos
-interativamente, realizar o download para a área volátil (scratch/) e iniciar
-automaticamente o pipeline de ingestão e higienização canônica do RetroGame Lab.
+para todas as plataformas homologadas (SNES, PS1, PS2, PSP, GC, DC), navegar com interface
+moderna em terminal (paginação, metadados, filtros dinâmicos e seleção em lote),
+realizar o download para a área volátil (scratch/) e acionar a ingestão canônica.
 """
 
 from __future__ import annotations
@@ -17,11 +17,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from rich import box
 from rich.console import Console
+from rich.panel import Panel
 from rich.progress import (
     BarColumn,
     DownloadColumn,
     Progress,
+    SpinnerColumn,
     TextColumn,
     TimeRemainingColumn,
     TransferSpeedColumn,
@@ -33,7 +36,7 @@ from retrogame_lab.config import SUPPORTED_PLATFORMS, find_repo_root
 from retrogame_lab.ingestion import import_rom
 
 USER_AGENT = "RetroGameLab-Fetcher/1.0 (Digital Preservation Tool)"
-DEFAULT_CACHE_TTL_HOURS = 24
+DEFAULT_PAGE_SIZE = 15
 
 
 @dataclass(frozen=True)
@@ -103,12 +106,112 @@ class ArchiveRomEntry:
         title: Nome limpo para exibição (sem extensão de arquivo).
         size_bytes: Tamanho do arquivo em bytes.
         download_url: URL direta para download do arquivo.
+        clean_title: Título principal do jogo sem tags de região.
+        region_tag: Tag de região detectada (ex.: 'USA', 'EUR', 'JPN', 'BRA').
+        extra_info: Informações adicionais como disco, revisão ou tradução.
+        extension: Extensão original do arquivo (ex.: '.chd', '.rvz', '.zip').
     """
 
     filename: str
     title: str
     size_bytes: int
     download_url: str
+    clean_title: str = ""
+    region_tag: str = "Global"
+    extra_info: str = ""
+    extension: str = ""
+
+
+def parse_title_metadata(raw_title: str) -> tuple[str, str, str]:
+    """Extrai o título limpo, região normalizada e informações extras da ROM.
+
+    Args:
+        raw_title: Título original do arquivo sem extensão.
+
+    Returns:
+        Tupla contendo (titulo_limpo, tag_regiao, detalhes_extras).
+
+    Raises:
+        None.
+    """
+    tags = re.findall(r"\((.*?)\)|\[(.*?)\]", raw_title)
+    flat_tags = [item.strip() for sub in tags for item in sub if item.strip()]
+
+    clean_title = re.sub(r"\(.*?\)|\[.*?\]", "", raw_title).strip()
+    clean_title = re.sub(r"\s+", " ", clean_title)
+    if not clean_title:
+        clean_title = raw_title
+
+    region = "Global"
+    extra_parts: list[str] = []
+
+    for tag in flat_tags:
+        lower = tag.lower()
+        if any(r in lower for r in ("usa", "america")):
+            region = "USA"
+        elif any(r in lower for r in ("europe", "eur", "pal")):
+            region = "EUR"
+        elif any(r in lower for r in ("japan", "jpn", "ja")):
+            region = "JPN"
+        elif any(r in lower for r in ("brazil", "brz", "bra", "pt")):
+            region = "BRA"
+        elif any(r in lower for r in ("world", "wld")):
+            region = "WLD"
+        else:
+            extra_parts.append(tag)
+
+    return clean_title, region, ", ".join(extra_parts)
+
+
+def format_region_badge(region: str) -> str:
+    """Formata o rótulo de região com cores temáticas no Rich.
+
+    Args:
+        region: Código de região ('USA', 'EUR', 'JPN', 'BRA', 'WLD', 'Global').
+
+    Returns:
+        String formatada para renderização no Rich.
+
+    Raises:
+        None.
+    """
+    match region:
+        case "USA":
+            return "[bold blue]USA[/bold blue]"
+        case "EUR":
+            return "[bold cyan]EUR[/bold cyan]"
+        case "JPN":
+            return "[bold magenta]JPN[/bold magenta]"
+        case "BRA":
+            return "[bold green]BRA[/bold green]"
+        case "WLD":
+            return "[bold yellow]WLD[/bold yellow]"
+        case _:
+            return "[dim white]Global[/dim white]"
+
+
+def format_file_size(size_bytes: int) -> str:
+    """Formata o tamanho em bytes para representação legível (KB, MB, GB).
+
+    Args:
+        size_bytes: Tamanho em bytes.
+
+    Returns:
+        Texto formatado com cores indicativas.
+
+    Raises:
+        None.
+    """
+    if size_bytes <= 0:
+        return "[dim]-[/dim]"
+    if size_bytes < 1024 * 1024:
+        kb = size_bytes / 1024
+        return f"[dim cyan]{kb:.1f} KB[/dim cyan]"
+    mb = size_bytes / (1024 * 1024)
+    if mb >= 1024:
+        gb = mb / 1024
+        return f"[bold yellow]{gb:.2f} GB[/bold yellow]"
+    return f"[green]{mb:.1f} MB[/green]"
 
 
 def get_archive_catalog(
@@ -175,7 +278,6 @@ def get_archive_catalog(
     entries: list[ArchiveRomEntry] = []
     base_download_url = f"https://archive.org/download/{identifier}"
 
-    # Extensões válidas para esta plataforma
     config = PLATFORM_ARCHIVE_CONFIGS.get(plat_key)
     valid_extensions = (
         config.accepted_extensions
@@ -191,18 +293,25 @@ def get_archive_catalog(
             continue
 
         size = int(item.get("size", 0)) if str(item.get("size", "0")).isdigit() else 0
-        clean_title = re.sub(
+        clean_full_title = re.sub(
             r"\.(zip|sfc|smc|chd|iso|cso|rvz|7z)$", "", name, flags=re.IGNORECASE
         )
+        base_name, region, extra = parse_title_metadata(clean_full_title)
+        ext = Path(name).suffix.lower()
+
         encoded_name = urllib.parse.quote(name)
         download_url = f"{base_download_url}/{encoded_name}"
 
         entries.append(
             ArchiveRomEntry(
                 filename=name,
-                title=clean_title,
+                title=clean_full_title,
                 size_bytes=size,
                 download_url=download_url,
+                clean_title=base_name,
+                region_tag=region,
+                extra_info=extra,
+                extension=ext,
             )
         )
 
@@ -269,14 +378,15 @@ def download_and_extract_rom(
 
             if console:
                 with Progress(
+                    SpinnerColumn(),
                     TextColumn("[bold cyan]{task.description}"),
-                    BarColumn(),
+                    BarColumn(bar_width=30),
                     DownloadColumn(),
                     TransferSpeedColumn(),
                     TimeRemainingColumn(),
                     console=console,
                 ) as progress:
-                    task = progress.add_task(f"Baixando: {entry.title}", total=total_size)
+                    task = progress.add_task(f"Baixando: {entry.clean_title}", total=total_size)
                     with open(temp_archive_path, "wb") as f:
                         while True:
                             chunk = resp.read(65536)
@@ -389,6 +499,81 @@ def fetch_and_ingest_rom(
             extracted_rom.unlink(missing_ok=True)
 
 
+def render_header_panel(
+    platform_code: str,
+    identifier: str,
+    total_items: int,
+    description: str,
+) -> Panel:
+    """Renderiza o painel superior de cabeçalho estilizado com seletor visual de plataformas.
+
+    Args:
+        platform_code: Código da plataforma em exibição.
+        identifier: Identificador da coleção remota.
+        total_items: Quantidade total de itens na coleção.
+        description: Descrição da iniciativa de preservação.
+
+    Returns:
+        Instância de Panel estilizada com Rich.
+
+    Raises:
+        None.
+    """
+    plat_pills = []
+    for code in SUPPORTED_PLATFORMS:
+        if code == platform_code:
+            plat_pills.append(f"[bold black on cyan] {code.upper()} [/bold black on cyan]")
+        else:
+            plat_pills.append(f"[dim white] {code.upper()} [/dim white]")
+
+    pills_row = "  ".join(plat_pills)
+    plat_info = SUPPORTED_PLATFORMS[platform_code]
+
+    body = (
+        f"[bold white]{plat_info.name}[/bold white] • [yellow]{plat_info.emulator_name}[/yellow]\n"
+        f"Coleção: [cyan]{identifier}[/cyan] ({total_items} títulos disponíveis)\n"
+        f"Iniciativa: [dim]{description}[/dim]\n\n"
+        f"Plataformas: {pills_row}"
+    )
+
+    return Panel(
+        body,
+        title="[bold green]RetroGame Lab • Central de Ingestão e Preservação Digital[/bold green]",
+        box=box.ROUNDED,
+        border_style="cyan",
+        padding=(0, 2),
+    )
+
+
+def render_controls_panel() -> Panel:
+    """Renderiza a barra inferior de navegação e comandos rápidos.
+
+    Args:
+        None.
+
+    Returns:
+        Instância de Panel com instruções organizadas.
+
+    Raises:
+        None.
+    """
+    text = (
+        "[bold cyan][1-N][/bold cyan] Baixar seleção (ex: [cyan]2[/cyan] ou [cyan]1, 3[/cyan])  •  "
+        "[bold yellow][n / p][/bold yellow] Próxima / Anterior  •  "
+        "[bold green]<texto>[/bold green] Filtrar título\n"
+        "[bold magenta]/plat <snes|ps1|ps2|psp|gc|dc>[/bold magenta] Trocar plataforma  •  "
+        "[bold cyan]/colecao <id>[/bold cyan] Trocar acervo  •  "
+        "[bold red]sair (q)[/bold red] Fechar"
+    )
+    return Panel(
+        text,
+        title="[dim]Navegação e Comandos[/dim]",
+        box=box.ROUNDED,
+        border_style="dim",
+        padding=(0, 1),
+    )
+
+
 def run_interactive_fetcher(
     platform_code: str = "snes",
     query: str | None = None,
@@ -396,7 +581,7 @@ def run_interactive_fetcher(
     repo_root: Path | None = None,
     console: Console | None = None,
 ) -> list[Path]:
-    """Executa a interface interativa de busca, seleção e download de jogos por plataforma.
+    """Executa a interface interativa e moderna de busca, navegação e download de ROMs.
 
     Args:
         platform_code: Código da plataforma (snes, ps1, ps2, psp, gc, dc).
@@ -419,158 +604,252 @@ def run_interactive_fetcher(
     c = console or Console(highlight=False)
     root = repo_root or find_repo_root()
 
-    plat_info = SUPPORTED_PLATFORMS[plat_key]
-    preset_config = PLATFORM_ARCHIVE_CONFIGS.get(plat_key)
-
+    active_plat = plat_key
+    preset_config = PLATFORM_ARCHIVE_CONFIGS.get(active_plat)
     active_identifier = (
         identifier
         or (preset_config.default_identifier if preset_config else "nointro-snes")
     )
 
-    c.print(
-        "\n[bold green]=== RetroGame Lab: Central de Ingestão de ROMs "
-        f"({plat_info.name}) ===[/bold green]"
-    )
-    c.print(f"[white]Coleção Ativa:[/white] [cyan]{active_identifier}[/cyan]")
-    if preset_config:
-        c.print(f"[white]Iniciativa:[/white] [yellow]{preset_config.description}[/yellow]")
-    c.print("[white]Consultando catálogo de preservação digital...[/white]")
-
+    c.print(f"\n[cyan]Carregando acervo de preservação ({active_identifier})...[/cyan]")
     try:
         catalog = get_archive_catalog(
-            identifier=active_identifier, platform_code=plat_key, repo_root=root
+            identifier=active_identifier, platform_code=active_plat, repo_root=root
         )
     except Exception as err:
         c.print(f"[bold red]Erro ao carregar catálogo:[/bold red] {err}")
         return []
 
-    c.print(f"[bold cyan]Total de títulos catalogados:[/bold cyan] {len(catalog)} itens.\n")
-
     current_query = query or ""
+    current_page = 0
     imported_paths: list[Path] = []
 
     while True:
-        results = search_catalog(catalog, current_query, limit=25)
+        preset_config = PLATFORM_ARCHIVE_CONFIGS.get(active_plat)
+        desc = preset_config.description if preset_config else "Preservação Comunitária"
 
-        if not results:
-            c.print(
-                "[bold yellow]Nenhum jogo encontrado para o termo "
-                f"'{current_query}'.[/bold yellow]\n"
+        # Filtra os itens do catálogo
+        if current_query.strip():
+            tokens = [t.lower() for t in current_query.strip().split() if t.strip()]
+            matched_items = [
+                item
+                for item in catalog
+                if all(tok in item.title.lower() for tok in tokens)
+            ]
+        else:
+            matched_items = catalog
+
+        total_matches = len(matched_items)
+        total_pages = max(1, (total_matches + DEFAULT_PAGE_SIZE - 1) // DEFAULT_PAGE_SIZE)
+        if current_page >= total_pages:
+            current_page = max(0, total_pages - 1)
+
+        start_idx = current_page * DEFAULT_PAGE_SIZE
+        end_idx = min(start_idx + DEFAULT_PAGE_SIZE, total_matches)
+        page_items = matched_items[start_idx:end_idx]
+
+        # Renderização visual moderna
+        c.clear()
+        c.print(render_header_panel(active_plat, active_identifier, len(catalog), desc))
+
+        f_status = (
+            f"[bold green]'{current_query}'[/bold green]"
+            if current_query
+            else "[dim]* (Todos)[/dim]"
+        )
+        title_str = (
+            f"Resultados • Filtro: {f_status} • "
+            f"Página [bold cyan]{current_page + 1}/{total_pages}[/bold cyan] "
+            f"({total_matches} jogos)"
+        )
+
+        table = Table(
+            title=title_str,
+            box=box.ROUNDED,
+            border_style="dim",
+            header_style="bold cyan",
+            expand=True,
+        )
+        table.add_column("#", style="bold cyan", width=4, justify="right")
+        table.add_column("Título do Jogo", style="white", ratio=4)
+        table.add_column("Região", width=8, justify="center")
+        table.add_column("Detalhes", style="dim", ratio=2)
+        table.add_column("Formato", style="yellow", width=8, justify="center")
+        table.add_column("Tamanho", justify="right", width=12)
+
+        if not page_items:
+            table.add_row(
+                "-",
+                "[yellow]Nenhum jogo localizado com o filtro atual.[/yellow]",
+                "-",
+                "-",
+                "-",
+                "-",
             )
         else:
-            filt_desc = current_query or "*"
-            tbl_title = f"Resultados ({plat_info.name} - Filtro: '{filt_desc}')"
-            table = Table(
-                title=tbl_title,
-                header_style="bold magenta",
-            )
-            table.add_column("#", style="cyan", width=4, justify="right")
-            table.add_column("Título do Jogo / Versão Preservada", style="white")
-            table.add_column("Tamanho Estimado", style="green", width=16, justify="right")
+            for idx, item in enumerate(page_items, start=1):
+                badge = format_region_badge(item.region_tag)
+                size_str = format_file_size(item.size_bytes)
+                details = item.extra_info if item.extra_info else "[dim]-[/dim]"
+                table.add_row(
+                    str(idx),
+                    f"[bold white]{item.clean_title}[/bold white]",
+                    badge,
+                    details,
+                    item.extension or "-",
+                    size_str,
+                )
 
-            for idx, item in enumerate(results, start=1):
-                size_mb = f"{item.size_bytes / (1024 * 1024):.2f} MB" if item.size_bytes else "-"
-                table.add_row(str(idx), item.title, size_mb)
+        c.print(table)
+        c.print(render_controls_panel())
 
-            c.print(table)
-            c.print()
+        user_input = Prompt.ask("\n[bold cyan]retrogame-lab[/bold cyan] >", default="").strip()
 
-        c.print("[cyan]Opções disponíveis:[/cyan]")
-        c.print(
-            " • Digite os números para baixar (ex: [bold green]1[/bold green] "
-            "ou [bold green]1, 3, 5[/bold green])"
-        )
-        c.print(
-            " • Digite [bold yellow]/busca <termo>[/bold yellow] para pesquisar "
-            "(ex: [yellow]/busca mario[/yellow])"
-        )
-        c.print(
-            " • Digite [bold cyan]/colecao <id>[/bold cyan] para trocar a coleção "
-            "(ex: [cyan]/colecao outra-colecao[/cyan])"
-        )
-        c.print(" • Digite [bold red]sair[/bold red] (ou 'q') para encerrar a sessão.")
-
-        choice = Prompt.ask("\n[bold white]Sua escolha[/bold white]", default="sair").strip()
-
-        if choice.lower() in ("sair", "q", "exit"):
+        if user_input.lower() in ("sair", "q", "exit"):
             break
 
-        if choice.lower().startswith("/colecao ") or choice.lower().startswith("colecao "):
-            parts = choice.split(maxsplit=1)
-            new_id = parts[1].strip() if len(parts) > 1 else ""
-            if new_id:
-                active_identifier = new_id
-                c.print(f"\n[cyan]Carregando catálogo da coleção '{active_identifier}'...[/cyan]")
-                try:
-                    catalog = get_archive_catalog(
-                        identifier=active_identifier,
-                        platform_code=plat_key,
-                        repo_root=root,
-                    )
-                    c.print(
-                        f"[bold green]Catálogo atualizado:[/bold green] {len(catalog)} itens.\n"
-                    )
+        # Paginação: próxima página
+        if user_input.lower() in ("n", "next", "proximo", "proxima", ">"):
+            if current_page < total_pages - 1:
+                current_page += 1
+            else:
+                c.print("[yellow]Você já está na última página.[/yellow]")
+            continue
+
+        # Paginação: página anterior
+        if user_input.lower() in ("p", "prev", "anterior", "<"):
+            if current_page > 0:
+                current_page -= 1
+            continue
+
+        # Comandos iniciados por '/'
+        if user_input.startswith("/"):
+            cmd_parts = user_input[1:].split(maxsplit=1)
+            action = cmd_parts[0].lower()
+            arg = cmd_parts[1].strip() if len(cmd_parts) > 1 else ""
+
+            # Troca dinâmica de plataforma
+            if action in ("plat", "plataforma") or action in SUPPORTED_PLATFORMS:
+                target_plat = action if action in SUPPORTED_PLATFORMS else arg.lower()
+                if target_plat in SUPPORTED_PLATFORMS:
+                    active_plat = target_plat
+                    cfg = PLATFORM_ARCHIVE_CONFIGS.get(active_plat)
+                    active_identifier = cfg.default_identifier if cfg else "nointro-snes"
                     current_query = ""
-                except Exception as err:
-                    c.print(f"[bold red]Erro ao trocar coleção:[/bold red] {err}\n")
-            continue
+                    current_page = 0
+                    c.print(
+                        f"\n[cyan]Carregando acervo de {target_plat.upper()} "
+                        f"({active_identifier})...[/cyan]"
+                    )
+                    try:
+                        catalog = get_archive_catalog(
+                            identifier=active_identifier, platform_code=active_plat, repo_root=root
+                        )
+                    except Exception as err:
+                        c.print(f"[bold red]Falha ao carregar catálogo:[/bold red] {err}")
+                else:
+                    valid_str = ", ".join(SUPPORTED_PLATFORMS.keys())
+                    c.print(f"[bold red]Plataforma inválida.[/bold red] Opções: {valid_str}")
+                continue
 
-        if choice.lower().startswith("/busca ") or choice.lower().startswith("busca "):
-            parts = choice.split(maxsplit=1)
-            current_query = parts[1] if len(parts) > 1 else ""
-            continue
+            # Troca de coleção remota
+            if action in ("colecao", "collection"):
+                if arg:
+                    active_identifier = arg
+                    current_query = ""
+                    current_page = 0
+                    c.print(
+                        f"\n[cyan]Carregando coleção personalizada '{active_identifier}'...[/cyan]"
+                    )
+                    try:
+                        catalog = get_archive_catalog(
+                            identifier=active_identifier, platform_code=active_plat, repo_root=root
+                        )
+                    except Exception as err:
+                        c.print(f"[bold red]Erro ao consultar coleção:[/bold red] {err}")
+                continue
 
-        # Interpretação dos números selecionados
-        indices: list[int] = []
-        for part in choice.replace(";", ",").split(","):
+            # Limpar filtro
+            if action in ("limpar", "clear", "todos"):
+                current_query = ""
+                current_page = 0
+                continue
+
+            # Comando de busca explícito
+            if action in ("busca", "search"):
+                current_query = arg
+                current_page = 0
+                continue
+
+        # Interpretação de números de seleção para download
+        is_numeric_selection = False
+        selected_numbers: list[int] = []
+
+        raw_parts = user_input.replace(";", ",").split(",")
+        for part in raw_parts:
             part_str = part.strip()
             if part_str.isdigit():
-                val = int(part_str)
-                if 1 <= val <= len(results):
-                    indices.append(val - 1)
+                num = int(part_str)
+                if 1 <= num <= len(page_items):
+                    selected_numbers.append(num)
+                    is_numeric_selection = True
 
-        if not indices:
-            c.print("[bold red]Entrada não reconhecida. Tente novamente.[/bold red]\n")
+        if is_numeric_selection and selected_numbers:
+            target_entries = [page_items[n - 1] for n in selected_numbers]
+            total_dl_bytes = sum(e.size_bytes for e in target_entries)
+            total_dl_str = format_file_size(total_dl_bytes)
+
+            c.print(
+                f"\n[bold green]Preparando download de {len(target_entries)} "
+                f"jogo(s) (~{total_dl_str}):[/bold green]"
+            )
+            for e in target_entries:
+                c.print(f" • [white]{e.title}[/white] ({format_file_size(e.size_bytes)})")
+
+            confirm = Prompt.ask(
+                "\nConfirmar download e ingestão?", choices=["s", "n"], default="s"
+            )
+            if confirm.lower() == "s":
+                for entry in target_entries:
+                    try:
+                        c.print(
+                            f"\n[cyan]Processando:[/cyan] [bold white]{entry.title}[/bold white]"
+                        )
+                        final_p = fetch_and_ingest_rom(
+                            entry=entry,
+                            platform_code=active_plat,
+                            repo_root=root,
+                            console=c,
+                        )
+                        rel_path = (
+                            str(final_p.relative_to(root))
+                            if final_p.is_relative_to(root)
+                            else str(final_p)
+                        )
+                        c.print(
+                            "[bold green][✓] Ingestão Concluída:[/bold green] "
+                            f"ROM disponível em [white]{rel_path}[/white]"
+                        )
+                        imported_paths.append(final_p)
+                    except Exception as err:
+                        c.print(f"[bold red]Falha ao importar '{entry.title}':[/bold red] {err}")
+
+                Prompt.ask(
+                    "\nPressione [bold white]Enter[/bold white] para continuar...", default=""
+                )
             continue
 
-        c.print(
-            f"\n[bold green]Iniciando download e ingestão de {len(indices)} "
-            "jogo(s)...[/bold green]\n"
-        )
-
-        for idx in indices:
-            selected_entry = results[idx]
-            try:
-                c.print(
-                    f"\n[cyan]Processando:[/cyan] [bold white]{selected_entry.title}[/bold white]"
-                )
-                final_path = fetch_and_ingest_rom(
-                    entry=selected_entry,
-                    platform_code=plat_key,
-                    repo_root=root,
-                    console=c,
-                )
-                rel_path = (
-                    str(final_path.relative_to(root))
-                    if final_path.is_relative_to(root)
-                    else str(final_path)
-                )
-                c.print(
-                    "[bold green][OK] Ingestão Concluída:[/bold green] "
-                    f"ROM higienizada em [white]{rel_path}[/white]"
-                )
-                imported_paths.append(final_path)
-            except Exception as err:
-                c.print(f"[bold red]Falha ao importar '{selected_entry.title}':[/bold red] {err}")
-
-        c.print("\n[bold cyan]Deseja buscar outros jogos ou baixar mais títulos?[/bold cyan]")
-        again = Prompt.ask("Continuar pesquisando?", choices=["s", "n"], default="s")
-        if again.lower() != "s":
-            break
+        # Caso contrário, qualquer texto digitado funciona diretamente como filtro de busca
+        if user_input:
+            current_query = user_input
+            current_page = 0
+        else:
+            current_query = ""
+            current_page = 0
 
     c.print(
         f"\n[bold green]Sessão finalizada![/bold green] Total de {len(imported_paths)} "
-        f"jogo(s) de {plat_info.name} adicionado(s) à biblioteca.\n"
+        "jogo(s) adicionado(s) à biblioteca local.\n"
     )
     return imported_paths
 
