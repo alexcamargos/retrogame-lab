@@ -307,9 +307,33 @@ def test_cli_bootstrap(
     monkeypatch.chdir(mock_repo_root)
     mock_run = mocker.patch("retrogame_lab.cli.run_pwsh_script", return_value=0)
 
-    res = runner.invoke(app, ["bootstrap", "--skip-winget"])
+    res = runner.invoke(app, ["bootstrap", "--skip-winget", "--download-emulators"])
     assert res.exit_code == 0
-    mock_run.assert_called_once_with("bootstrap.ps1", ["-SkipWinget"])
+    mock_run.assert_called_once_with("bootstrap.ps1", ["-SkipWinget", "-DownloadEmulators"])
+
+
+def test_cli_download_emulators(
+    mocker: MockerFixture, mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verifica se o comando download-emulators despacha para o script PowerShell.
+
+    Args:
+        mocker: Fixture do pytest-mock.
+        mock_repo_root: Fixture de raiz mockada.
+        monkeypatch: Fixture do pytest.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    monkeypatch.chdir(mock_repo_root)
+    mock_run = mocker.patch("retrogame_lab.cli.run_pwsh_script", return_value=0)
+
+    res = runner.invoke(app, ["download-emulators", "-e", "pcsx2,duckstation", "--force"])
+    assert res.exit_code == 0
+    mock_run.assert_called_once_with("download_emulators.ps1", ["-Emulators", "pcsx2,duckstation", "-Force"])
 
 
 def test_cli_bootstrap_failure(
