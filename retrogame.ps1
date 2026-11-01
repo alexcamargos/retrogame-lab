@@ -11,7 +11,7 @@
     .\retrogame launch snes data/roms/snes/Super_Mario_World.sfc
 #>
 $Command = if ($args.Count -gt 0) { $args[0] } else { "help" }
-$RemainingArgs = if ($args.Count -gt 1) { $args[1..($args.Count - 1)] } else { @() }
+[string[]]$RemainingArgs = if ($args.Count -gt 1) { @($args[1..($args.Count - 1)]) } else { @() }
 
 $ErrorActionPreference = "Stop"
 $ScriptDir = $PSScriptRoot
