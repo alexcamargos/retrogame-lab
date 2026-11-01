@@ -336,6 +336,54 @@ def test_cli_download_emulators(
     mock_run.assert_called_once_with("download_emulators.ps1", ["-Emulators", "pcsx2,duckstation", "-Force"])
 
 
+def test_cli_check_updates(
+    mocker: MockerFixture, mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verifica se o comando check-updates despacha com a flag -CheckOnly.
+
+    Args:
+        mocker: Fixture do pytest-mock.
+        mock_repo_root: Fixture de raiz mockada.
+        monkeypatch: Fixture do pytest.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    monkeypatch.chdir(mock_repo_root)
+    mock_run = mocker.patch("retrogame_lab.cli.run_pwsh_script", return_value=0)
+
+    res = runner.invoke(app, ["check-updates"])
+    assert res.exit_code == 0
+    mock_run.assert_called_once_with("download_emulators.ps1", ["-CheckOnly"])
+
+
+def test_cli_update_emulators(
+    mocker: MockerFixture, mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verifica se o comando update-emulators despacha com a flag -Update.
+
+    Args:
+        mocker: Fixture do pytest-mock.
+        mock_repo_root: Fixture de raiz mockada.
+        monkeypatch: Fixture do pytest.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    monkeypatch.chdir(mock_repo_root)
+    mock_run = mocker.patch("retrogame_lab.cli.run_pwsh_script", return_value=0)
+
+    res = runner.invoke(app, ["update-emulators", "-e", "pcsx2"])
+    assert res.exit_code == 0
+    mock_run.assert_called_once_with("download_emulators.ps1", ["-Emulators", "pcsx2", "-Update"])
+
+
 def test_cli_bootstrap_failure(
     mocker: MockerFixture, mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
