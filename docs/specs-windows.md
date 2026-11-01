@@ -82,9 +82,8 @@ A raiz do projeto é totalmente autocontida e portável entre diretórios ou vol
 retrogame-lab/
 ├── .agy/
 │   └── skills/
-│       ├── emulator-pipeline/      # Skill com orquestração do Agente
-│       └── retro-builder/          # Automação de compilação C++/Raylib portátil
-├── bin/                            # Emuladores e Frontends Portáteis
+│       └── emulator-pipeline/      # Skill com orquestração do Agente Antigravity
+├── bin/                            # Emuladores e Frontends Portáteis (Zero-Install)
 │   ├── es-de/                      # Frontend EmulationStation Desktop Edition
 │   │   ├── ES-DE.exe
 │   │   └── es_systems.xml          # Configuração de sistemas apontando para data/
@@ -93,13 +92,15 @@ retrogame-lab/
 │   │   └── retroarch.cfg           # Configuração portátil local (sem portable.ini)
 │   ├── duckstation/                # PS1
 │   │   ├── duckstation-qt.exe
-│   │   └── portable.txt            # Gatilho de portabilidade oficial
+│   │   ├── portable.txt            # Gatilho de portabilidade oficial
+│   │   └── settings.ini            # Title-specific Memory Card ativo
 │   ├── pcsx2/                      # PS2 (v2.x Qt)
 │   │   ├── pcsx2-qt.exe
-│   │   └── portable.txt            # Gatilho de portabilidade oficial (v2.0+)
+│   │   ├── portable.txt            # Gatilho de portabilidade oficial (v2.0+)
+│   │   └── inis/PCSX2.ini          # Title-specific Memory Card ativo
 │   ├── ppsspp/                     # PSP
 │   │   ├── PPSSPPWindows64.exe
-│   │   └── memstick/               # Armazenamento local
+│   │   └── memstick/               # Armazenamento local (SAVEDATA linkado via junção)
 │   ├── dolphin/                    # GameCube / Wii
 │   │   ├── Dolphin.exe
 │   │   └── portable.txt            # Gatilho de portabilidade oficial
@@ -111,33 +112,45 @@ retrogame-lab/
 │   │   ├── ps1/
 │   │   ├── ps2/
 │   │   └── dc/
-│   ├── roms/                       # Imagens de jogos (Sincronizado via Syncthing Send-Only)
-│   │   ├── snes/
+│   ├── roms/                       # Imagens de jogos padronizadas sem espaços (Send-Only)
+│   │   ├── snes/                   # Formato .sfc / .smc
 │   │   ├── ps1/                    # Formato .chd (CD)
 │   │   ├── ps2/                    # Formato .chd (DVD) / .iso
 │   │   ├── psp/                    # Formato .cso / .iso
 │   │   ├── gc/                     # Formato .rvz (Dolphin)
 │   │   └── dc/                     # Formato .chd (CD)
-│   ├── saves/                      # Saves de Memory Card / Bateria (Sincronizado Bidirecional)
+│   ├── saves/                      # Saves in-game (.srm, .mcd, .ps2, .gci, .bin) (Send-Receive)
+│   │   ├── .stignore               # Filtro anti-savestate (*.state*) e anti-locks
 │   │   ├── snes/                   # Arquivos .srm por jogo
 │   │   ├── ps1/                    # Cartão por jogo (.mcd)
 │   │   ├── ps2/                    # Cartão por jogo (.ps2)
-│   │   ├── psp/                    # Pastas SAVEDATA nativas
+│   │   ├── psp/SAVEDATA/           # Pastas SAVEDATA nativas
 │   │   ├── gc/                     # Cartões GCI / Pastas por Região (USA, EUR, JAP)
 │   │   └── dc/                     # Arquivos VMU (.bin)
 │   └── states/                     # Savestates locais (NÃO sincronizados, isolados via .stignore)
 ├── docs/                           # Documentação técnica e de engenharia
 │   ├── specs-windows.md            # Esta especificação
-│   └── specs-android.md            # Especificação de sincronização com Android
+│   ├── specs-android.md            # Especificação de sincronização com Android
+│   └── sprints.md                  # Matriz de sprints e homologação E2E
 ├── scripts/
-│   ├── bootstrap.ps1               # Download idempotente via winget e setup de templates
-│   ├── launch.ps1                  # Lançador dinâmico com perfilamento de hardware e isolamento de CWD
-│   ├── convert_chd.ps1             # Conversor inteligente de mídias (CD vs DVD)
-│   └── audit_library.ps1           # Verificador de integridade de ROMs, BIOS e hashes
+│   ├── bootstrap.ps1               # Download idempotente via winget, junção PPSSPP e setup de templates
+│   ├── launch.ps1                  # Lançador dinâmico com trava pré-voo, perfilamento de GPU/CPU e CWD isolado
+│   ├── convert_chd.ps1             # Conversor inteligente CD vs DVD com higienização de nomes e fallback no PATH
+│   ├── setup_android_emulators.ps1 # Provisionamento de pastas, permissões e APKs no Android via ADB
+│   └── audit_library.ps1           # Wrapper PowerShell para auditoria da biblioteca
+├── src/
+│   └── retrogame_lab/              # Pacote Python modular (CLI, Auditor, Ingestão, Higienização)
+│       ├── __init__.py
+│       ├── config.py               # Resolução canônica de caminhos e metadados
+│       ├── auditor.py              # Auditoria SHA-256, formatos de disco e regras de saves
+│       ├── sanitizer.py            # Higienização de nomenclatura (sem espaços e caracteres especiais)
+│       ├── ingestion.py            # Pipeline de ingestão segura de ROMs (validação e cópia/movimentação)
+│       └── cli.py                  # CLI Typer com rich tables (info, audit, sanitize, import-rom)
 ├── templates/                      # Configurações pré-definidas injetadas no bootstrap
-│   ├── config/                     # Templates de retroarch.cfg, DuckStation settings.ini, PCSX2.ini
+│   ├── config/                     # Templates de retroarch.cfg, duckstation_settings.ini, PCSX2.ini
 │   ├── controllers/                # Mapeamentos XInput (Xbox), DualSense e 8BitDo
 │   └── es-de/                      # Configurações de rotas do ES-DE
+├── tests/                          # Bateria de 43 testes unitários com pytest e pytest-mock
 └── tools/                          # Utilitários de linha de comando
     ├── chdman.exe                  # MAME CHD Manager
     └── 7z.exe                      # Descompactação determinística
@@ -164,7 +177,7 @@ A resolução interna e os aprimoramentos visuais são parametrizados com base n
 
 ### 5.1 Script Lançador Agnóstico (`scripts/launch.ps1`)
 
-O lançador realiza inspeção dinâmica de GPU e afinidade de CPU em vez de aplicar valores hardcoded:
+O lançador realiza auto-higienização de nomenclatura (trava pré-voo), inspeção dinâmica de GPU e afinidade de CPU para P-cores em topologias híbridas:
 
 ```powershell
 [CmdletBinding()]
@@ -186,9 +199,33 @@ $ErrorActionPreference = "Stop"
 $BaseDir = Split-Path -Parent $PSScriptRoot
 $BinDir  = Join-Path $BaseDir "bin"
 
-$ResolvedRom = (Resolve-Path $RomPath).Path
-if (-not (Test-Path $ResolvedRom)) {
+if (-not (Test-Path $RomPath)) {
     Write-Error "Arquivo de ROM não encontrado: $RomPath"
+}
+$ResolvedRom = (Resolve-Path $RomPath).Path
+
+# 0. Trava de Pré-Voo e Segurança Ativa: Normalização mandatória de nomenclatura
+$RomItem = Get-Item $ResolvedRom
+$RomLeaf = $RomItem.Name
+if ($RomLeaf -match "[\s'""`~^!?\:;*<>|#]") {
+    $Stem = [System.IO.Path]::GetFileNameWithoutExtension($RomLeaf)
+    $Ext = [System.IO.Path]::GetExtension($RomLeaf)
+
+    $CleanStem = $Stem -replace "['""`~^!?\:;*<>|#]", ""
+    $CleanStem = $CleanStem -replace "\s+", "_"
+    $CleanStem = $CleanStem -replace "_+", "_"
+    $CleanStem = $CleanStem.Trim("_")
+
+    $NewLeaf = "$CleanStem$Ext"
+    $NewRomPath = Join-Path $RomItem.DirectoryName $NewLeaf
+
+    Write-Host ">>> [SEGURANÇA ATIVA] Nome fora do padrão detectado ('$RomLeaf')." -ForegroundColor Yellow
+    Write-Host ">>> Normalizando automaticamente para: '$NewLeaf'..." -ForegroundColor Cyan
+
+    if (-not (Test-Path $NewRomPath)) {
+        Rename-Item -Path $ResolvedRom -NewName $NewLeaf -Force
+    }
+    $ResolvedRom = (Resolve-Path $NewRomPath).Path
 }
 
 # 1. Resolução Dinâmica de Executáveis e Montagem de Argumentos
@@ -197,6 +234,9 @@ switch ($Platform) {
     "snes" {
         $Emulator = Join-Path $BinDir "retroarch\retroarch.exe"
         $Core = Join-Path $BinDir "retroarch\cores\snes9x_libretro.dll"
+        if (-not (Test-Path $Core)) {
+            Write-Error "Core Libretro não encontrado em '$Core'. Instale via RetroArch Core Updater."
+        }
         $ArgList += @("-L", $Core, $ResolvedRom)
         if ($Fullscreen) { $ArgList += "--fullscreen" }
     }
@@ -206,10 +246,10 @@ switch ($Platform) {
         if ($Fullscreen) { $ArgList += "-fullscreen" }
     }
     "ps2" {
-        # Localiza executável Qt moderno (pcsx2-qt.exe ou pcsx2-qtx64.exe)
-        $Pcsx2Bin = Get-ChildItem -Path (Join-Path $BinDir "pcsx2") -Filter "pcsx2*.exe" | Select-Object -First 1
-        if (-not $Pcsx2Bin) { Write-Error "Executável do PCSX2 não encontrado em bin\pcsx2\" }
-        $Emulator = $Pcsx2Bin.FullName
+        $Pcsx2Bin = Get-ChildItem -Path (Join-Path $BinDir "pcsx2") -Filter "pcsx2*.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notmatch "updater|setup|unins" } |
+            Select-Object -First 1
+        $Emulator = if ($Pcsx2Bin) { $Pcsx2Bin.FullName } else { Join-Path $BinDir "pcsx2\pcsx2-qt.exe" }
         $ArgList += @("-batch")
         if ($Fullscreen) { $ArgList += "-fullscreen" }
         $ArgList += @("--", $ResolvedRom)
@@ -221,7 +261,6 @@ switch ($Platform) {
     }
     "gc" {
         $Emulator = Join-Path $BinDir "dolphin\Dolphin.exe"
-        # Dolphin inicia fullscreen via configuração em Dolphin.ini; flag CLI -b encerra ao sair
         $ArgList += @("-b", "-e", $ResolvedRom)
     }
     "dc" {
@@ -246,31 +285,38 @@ if ($GpuMode -eq "dgpu") {
     }
 }
 
-if ($ApplyDgpu) {
+if ($ApplyDgpu -and (Test-Path $Emulator)) {
     Set-ItemProperty -Path "HKCU:\Software\Microsoft\DirectX\UserGpuPreferences" -Name (Resolve-Path $Emulator).Path -Value "GpuPreference=2;" -ErrorAction SilentlyContinue
     Write-Host ">>> GPU de Alto Desempenho (dGPU) ativada para o processo." -ForegroundColor Gray
 }
 
 # 3. Execução com Isolamento de CWD e Afinidade Protegida de CPU
+if (-not (Test-Path $Emulator)) {
+    Write-Error "Executável do emulador não encontrado: $Emulator. Execute scripts\bootstrap.ps1 primeiro."
+}
+
 Push-Location (Split-Path $Emulator)
 try {
     Write-Host ">>> Executando $Platform [$RomPath]..." -ForegroundColor Cyan
-    $Process = Start-Process -FilePath $Emulator -ArgumentList $ArgList -PassThru
 
-    # Aplicação segura de afinidade de P-cores se CPU híbrida for identificada
+    $EscapedArgs = $ArgList | ForEach-Object {
+        if ($_ -match '\s' -and $_ -notmatch '^".*"$') { "`"$_`"" } else { $_ }
+    }
+    $Process = Start-Process -FilePath $Emulator -ArgumentList $EscapedArgs -PassThru
+
     if ($Platform -in @("ps2", "gc")) {
         try {
             Start-Sleep -Milliseconds 150
             if (-not $Process.HasExited) {
                 $Cpu = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue
                 if ($Cpu.Name -match "12th|13th|14th|Core Ultra") {
-                    $Process.ProcessorAffinity = [IntPtr]0x00FF
-                    Write-Host ">>> Afinidade vinculada aos P-cores." -ForegroundColor Gray
+                    if ([Environment]::ProcessorCount -ge 8) {
+                        $Process.ProcessorAffinity = [IntPtr]0x00FF
+                        Write-Host ">>> Afinidade vinculada aos P-cores." -ForegroundColor Gray
+                    }
                 }
             }
-        } catch {
-            # Não interrompe a execução caso o processo recuse ajuste de afinidade
-        }
+        } catch { }
     }
 
     $Process.WaitForExit()
@@ -284,7 +330,7 @@ finally {
 
 ### 5.2 Script de Conversão Automática para CHD (`scripts/convert_chd.ps1`)
 
-Diferencia mídias de CD (2352 bytes/setor) de mídias de DVD (2048 bytes/setor) e ignora GameCube/Wii (que utilizam `.rvz` nativo):
+Diferencia mídias de CD (2352 bytes/setor) de mídias de DVD (2048 bytes/setor), ignora GameCube/Wii (`.rvz`), filtra faixas `.bin` para evitar CHDs órfãos e higieniza os nomes de saída:
 
 ```powershell
 [CmdletBinding()]
@@ -297,33 +343,60 @@ param (
 )
 
 $ErrorActionPreference = "Stop"
-$Chdman = Join-Path (Split-Path -Parent $PSScriptRoot) "tools\chdman.exe"
+$BaseDir = Split-Path -Parent $PSScriptRoot
+$Chdman = Join-Path $BaseDir "tools\chdman.exe"
 
 if (-not (Test-Path $Chdman)) {
-    Write-Error "chdman.exe não encontrado em tools\. Execute o bootstrap primeiro."
+    $ChdmanCmd = Get-Command "chdman.exe" -ErrorAction SilentlyContinue
+    if (-not $ChdmanCmd) { $ChdmanCmd = Get-Command "chdman" -ErrorAction SilentlyContinue }
+    if ($ChdmanCmd) {
+        $Chdman = $ChdmanCmd.Source
+    } else {
+        Write-Error "chdman.exe não encontrado em tools\ nem no PATH do sistema."
+    }
 }
 
-Get-ChildItem -Path $SourceDirectory -Include *.cue, *.iso, *.bin -Recurse | ForEach-Object {
-    $OutFile = [System.IO.Path]::ChangeExtension($_.FullName, ".chd")
-    if (Test-Path $OutFile) {
-        return
-    }
+if (-not (Test-Path $SourceDirectory)) {
+    Write-Error "Diretório de origem não encontrado: $SourceDirectory"
+}
 
+$Candidates = Get-ChildItem -Path $SourceDirectory -Include *.cue, *.gdi, *.iso, *.bin -Recurse | Where-Object {
     $Ext = $_.Extension.ToLower()
+    $Dir = $_.DirectoryName
 
-    # Mídias de GameCube e Wii devem utilizar RVZ via Dolphin, não CHD
-    if ($_.DirectoryName -match "\\gc" -or $_.DirectoryName -match "\\wii") {
-        Write-Warning "Ignorando $($_.Name): Mídias de GameCube/Wii devem ser convertidas para .rvz via Dolphin, não .chd."
-        return
+    if ($Dir -match "[\\/](gc|wii)($|[\\/])") {
+        Write-Warning "Ignorando $($_.Name): Mídias de GameCube/Wii devem ser convertidas para .rvz via Dolphin."
+        return $false
     }
 
+    if ($Ext -eq ".bin") {
+        $HasDescriptor = Get-ChildItem -Path $Dir -Filter "*.cue" -ErrorAction SilentlyContinue | Select-Object -First 1
+        if (-not $HasDescriptor) {
+            $HasDescriptor = Get-ChildItem -Path $Dir -Filter "*.gdi" -ErrorAction SilentlyContinue | Select-Object -First 1
+        }
+        if ($HasDescriptor) { return $false }
+    }
+    return $true
+}
+
+foreach ($File in $Candidates) {
+    $BaseName = [System.IO.Path]::GetFileNameWithoutExtension($File.FullName)
+    $SanitizedBase = $BaseName -replace "['""`~^!?\:;*<>|#]", ""
+    $SanitizedBase = $SanitizedBase -replace "\s+", "_"
+    $SanitizedBase = $SanitizedBase -replace "_+", "_"
+    $SanitizedBase = $SanitizedBase.Trim("_")
+    $OutFile = Join-Path $File.DirectoryName "$SanitizedBase.chd"
+
+    if (Test-Path $OutFile) { continue }
+
+    $Ext = $File.Extension.ToLower()
     $Command = "createcd"
-    if ($MediaType -eq "dvd" -or ($MediaType -eq "auto" -and $Ext -eq ".iso" -and $_.DirectoryName -match "\\ps2")) {
+    if ($MediaType -eq "dvd" -or ($MediaType -eq "auto" -and $Ext -eq ".iso" -and $File.DirectoryName -match "\\ps2")) {
         $Command = "createdvd"
     }
 
-    Write-Host ">>> Comprimindo ($Command): $($_.Name) -> $(Split-Path $OutFile -Leaf)" -ForegroundColor Cyan
-    & $Chdman $Command -i $_.FullName -o $OutFile
+    Write-Host ">>> Comprimindo ($Command): $($File.Name) -> $(Split-Path $OutFile -Leaf)" -ForegroundColor Cyan
+    & $Chdman $Command -i $File.FullName -o $OutFile
 }
 ```
 
@@ -331,7 +404,7 @@ Get-ChildItem -Path $SourceDirectory -Include *.cue, *.iso, *.bin -Recurse | For
 
 ### 5.3 Script de Instalação e Provisionamento (`scripts/bootstrap.ps1`)
 
-Automatiza a instalação de runtimes essenciais e ferramentas de suporte via **`winget`**, cria a estrutura de diretórios, ativa marcadores de portabilidade e injeta templates de configuração para garantir que todos os emuladores salvem em `data/saves/`:
+Automatiza a instalação de runtimes essenciais via **`winget`**, cria a estrutura de diretórios, ativa marcadores de portabilidade, cria junção de saves do PPSSPP para `data/saves/psp` e injeta templates de configuração:
 
 ```powershell
 [CmdletBinding()]
@@ -351,24 +424,10 @@ Write-Host "=== Provisionamento do Pipeline Retrogaming no Windows 11 ===" -Fore
 # 1. Instalação de Runtimes e Ferramentas via Winget
 if (-not $SkipWinget) {
     Write-Host "`n>>> Verificando Runtimes e Ferramentas via winget..." -ForegroundColor Cyan
-    
-    # Runtimes que exigem elevação (avisa se não for Administrador)
-    $IsAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-    if (-not $IsAdmin) {
-        Write-Warning "Aviso: Para instalar os runtimes de sistema (VCRedist e DirectX), execute este script como Administrador caso ainda não estejam presentes."
-    }
-
     $Packages = @(
-        "Microsoft.VCRedist.2015+.x64",
-        "Microsoft.DirectX",
-        "Microsoft.PowerShell",
-        "Git.Git",
-        "7zip.7zip",
-        "Google.PlatformTools",
-        "Syncthing.Syncthing",
-        "Astral-sh.uv"
+        "Microsoft.VCRedist.2015+.x64", "Microsoft.DirectX", "Microsoft.PowerShell",
+        "Git.Git", "7zip.7zip", "Google.PlatformTools", "Syncthing.Syncthing", "Astral-sh.uv"
     )
-
     foreach ($Pkg in $Packages) {
         Write-Host "Verificando/Instalando: $Pkg..." -ForegroundColor Gray
         winget install --id $Pkg -e --source winget --silent --accept-package-agreements --accept-source-agreements 2>$null
@@ -376,7 +435,6 @@ if (-not $SkipWinget) {
 }
 
 # 2. Criação da Estrutura de Diretórios
-Write-Host "`n>>> Criando estrutura hierárquica..." -ForegroundColor Cyan
 $Folders = @(
     "$DataDir\bios\ps1", "$DataDir\bios\ps2", "$DataDir\bios\dc",
     "$DataDir\roms\snes", "$DataDir\roms\ps1", "$DataDir\roms\ps2", "$DataDir\roms\psp", "$DataDir\roms\gc", "$DataDir\roms\dc",
@@ -386,20 +444,27 @@ $Folders = @(
     $ToolsDir
 )
 foreach ($Folder in $Folders) {
-    if (-not (Test-Path $Folder)) {
-        New-Item -ItemType Directory -Path $Folder -Force | Out-Null
-    }
+    if (-not (Test-Path $Folder)) { New-Item -ItemType Directory -Path $Folder -Force | Out-Null }
 }
 
-# 3. Criação dos Marcadores de Portabilidade Oficiais
+# 3. Criação dos Marcadores de Portabilidade e Junção PPSSPP
 New-Item -ItemType File -Path (Join-Path $BinDir "duckstation\portable.txt") -Force | Out-Null
 New-Item -ItemType File -Path (Join-Path $BinDir "pcsx2\portable.txt") -Force | Out-Null
 New-Item -ItemType File -Path (Join-Path $BinDir "dolphin\portable.txt") -Force | Out-Null
-New-Item -ItemType Directory -Path (Join-Path $BinDir "ppsspp\memstick") -Force | Out-Null
+$PpssppMemstick = Join-Path $BinDir "ppsspp\memstick"
+New-Item -ItemType Directory -Path $PpssppMemstick -Force | Out-Null
 
-# 4. Injeção de Templates de Configuração Inicial (Cold Start Protection)
+$PpssppPsp = Join-Path $PpssppMemstick "PSP"
+$PpssppSaveData = Join-Path $PpssppPsp "SAVEDATA"
+$TargetPspSave = Join-Path $DataDir "saves\psp\SAVEDATA"
+if (-not (Test-Path $TargetPspSave)) { New-Item -ItemType Directory -Path $TargetPspSave -Force | Out-Null }
+if (-not (Test-Path $PpssppPsp)) { New-Item -ItemType Directory -Path $PpssppPsp -Force | Out-Null }
+if (-not (Test-Path $PpssppSaveData)) {
+    cmd /c mklink /J "$PpssppSaveData" "$TargetPspSave" 2>$null | Out-Null
+}
+
+# 4. Injeção de Templates de Configuração
 if (Test-Path $TplDir) {
-    Write-Host "`n>>> Injetando templates de configuração de saves e BIOS..." -ForegroundColor Cyan
     if (Test-Path "$TplDir\retroarch.cfg") { Copy-Item "$TplDir\retroarch.cfg" "$BinDir\retroarch\" -Force }
     if (Test-Path "$TplDir\duckstation_settings.ini") { Copy-Item "$TplDir\duckstation_settings.ini" "$BinDir\duckstation\settings.ini" -Force }
     if (Test-Path "$TplDir\PCSX2.ini") { 
@@ -408,9 +473,31 @@ if (Test-Path $TplDir) {
         Copy-Item "$TplDir\PCSX2.ini" "$Pcsx2Inis\PCSX2.ini" -Force 
     }
 }
-
 Write-Host "`n=== Provisionamento Concluído com Sucesso! ===" -ForegroundColor Green
 ```
+
+---
+
+### 5.4 Módulo Python de Ingestão, Higienização e Auditoria (`retrogame-lab` CLI)
+
+O pacote canônico `src/retrogame_lab/` implementa a lógica central de governança de dados:
+
+1. **Ingestão Segura (`retrogame_lab.ingestion`):**
+   * Validação de extensões aceitas e proibidas por plataforma (ex.: proíbe `.chd` em GameCube, exigindo `.rvz`; proíbe `.gdi` solto em Dreamcast).
+   * Higienização automática do nome do arquivo (remoção de caracteres especiais e conversão de espaços para `_`).
+   * Roteamento determinístico para `data/roms/<plataforma>/`, suportando modo cópia ou movimentação (`--move`).
+   * Comando CLI: `uv run retrogame-lab import-rom <arquivo|pasta> --platform <plataforma> [--move]`.
+
+2. **Higienização de Nomenclatura (`retrogame_lab.sanitizer`):**
+   * Normalização idempotente de arquivos e diretórios em massa.
+   * Suporte a simulação (*Dry Run*) antes de aplicar alterações reais no disco.
+   * Comando CLI: `uv run retrogame-lab sanitize [--apply] [--dir <pasta>]`.
+
+3. **Auditoria de Integridade da Biblioteca (`retrogame_lab.auditor`):**
+   * Verificação de hashes SHA-256 de firmwares em `data/bios/`.
+   * Detecção de arquivos soltos fora das pastas de plataforma.
+   * Validação de formatos de disco recomendados e checagem anti-savestates (`*.state*`) em `data/saves/`.
+   * Comando CLI: `uv run retrogame-lab audit [--json] [--full]`.
 
 ---
 
