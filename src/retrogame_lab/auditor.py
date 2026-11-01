@@ -11,6 +11,7 @@ from enum import Enum
 from pathlib import Path
 
 from retrogame_lab.config import (
+    INVALID_FILENAME_CHARS_PATTERN,
     SUPPORTED_PLATFORMS,
     get_bios_dir,
     get_roms_dir,
@@ -307,7 +308,7 @@ def audit_roms(roms_dir: Path) -> AuditSummary:
             )
 
         # Regra 4: Nomenclatura sem espaços e sem caracteres especiais ('"` etc.)
-        if re.search(r"[\s'\"`]", rom_file.name):
+        if re.search(INVALID_FILENAME_CHARS_PATTERN, rom_file.name):
             summary.issues.append(
                 AuditIssue(
                     category="ROMs",
@@ -319,6 +320,39 @@ def audit_roms(roms_dir: Path) -> AuditSummary:
                     file_path=rom_file,
                 )
             )
+
+        # Regra 5: Extensões não suportadas ou não homologadas para a plataforma
+        already_reported = any(
+            issue.file_path == rom_file and issue.severity in (Severity.ERROR, Severity.WARNING)
+            for issue in summary.issues
+        )
+        if not already_reported and ext not in platform.accepted_extensions:
+            if ext in platform.prohibited_extensions:
+                summary.issues.append(
+                    AuditIssue(
+                        category="ROMs",
+                        severity=Severity.ERROR,
+                        message=(
+                            f"Extensão proibida '{ext}' para '{platform.name}': '{rom_file.name}'. "
+                            f"Formato canônico homologado: {platform.canonical_format}."
+                        ),
+                        file_path=rom_file,
+                    )
+                )
+            else:
+                accepted_str = ", ".join(platform.accepted_extensions)
+                summary.issues.append(
+                    AuditIssue(
+                        category="ROMs",
+                        severity=Severity.WARNING,
+                        message=(
+                            f"Extensão não suportada '{ext}' para "
+                            f"'{platform.name}': '{rom_file.name}'. "
+                            f"Extensões homologadas: {accepted_str}."
+                        ),
+                        file_path=rom_file,
+                    )
+                )
 
     return summary
 
@@ -418,7 +452,7 @@ def audit_saves(saves_dir: Path) -> AuditSummary:
             )
 
         # 4. Nomenclatura sem espaços e sem caracteres especiais ('"` etc.)
-        if re.search(r"[\s'\"`]", save_file.name):
+        if re.search(INVALID_FILENAME_CHARS_PATTERN, save_file.name):
             summary.issues.append(
                 AuditIssue(
                     category="Saves",

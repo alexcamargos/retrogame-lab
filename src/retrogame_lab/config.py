@@ -7,6 +7,9 @@ suportadas, extensões válidas e diretrizes de salvamento.
 from dataclasses import dataclass
 from pathlib import Path
 
+# Padrão de expressão regular para detecção de caracteres inválidos em nomes de arquivos
+INVALID_FILENAME_CHARS_PATTERN: str = r"[\s'\"`\~\^\!\?\:\;\*\<\>\|\#]"
+
 
 @dataclass(frozen=True)
 class PlatformInfo:

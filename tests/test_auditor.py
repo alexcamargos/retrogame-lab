@@ -331,6 +331,63 @@ def test_audit_roms_dreamcast_gdi_and_cdi(tmp_path: Path) -> None:
     assert len(warnings) == 2
 
 
+def test_audit_roms_special_characters_and_unsupported_extensions(tmp_path: Path) -> None:
+    """Verifica detecção de caracteres especiais e extensões não homologadas ou proibidas.
+
+    Args:
+        tmp_path: Diretório temporário fornecido pelo pytest.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    roms_dir = tmp_path / "roms"
+    snes_dir = roms_dir / "snes"
+    ps1_dir = roms_dir / "ps1"
+    snes_dir.mkdir(parents=True)
+    ps1_dir.mkdir(parents=True)
+
+    # 1. SNES com ponto de exclamação no nome -> WARNING de nomenclatura
+    (snes_dir / "mario_[!].sfc").write_text("dummy", encoding="utf-8")
+    # 2. SNES com .state -> ERROR de extensão proibida
+    (snes_dir / "mario.state").write_text("dummy", encoding="utf-8")
+    # 3. PS1 com .zip -> WARNING de extensão não suportada
+    (ps1_dir / "crash.zip").write_text("dummy", encoding="utf-8")
+
+    summary = audit_roms(roms_dir)
+    errors = [i for i in summary.issues if i.severity == Severity.ERROR]
+    warnings = [i for i in summary.issues if i.severity == Severity.WARNING]
+
+    assert any("Extensão proibida '.state'" in i.message for i in errors)
+    assert any("Nomenclatura fora do padrão" in i.message for i in warnings)
+    assert any("Extensão não suportada '.zip'" in i.message for i in warnings)
+
+
+def test_audit_saves_special_characters(tmp_path: Path) -> None:
+    """Verifica detecção de caracteres especiais em nomes de saves.
+
+    Args:
+        tmp_path: Diretório temporário fornecido pelo pytest.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    saves_dir = tmp_path / "saves"
+    snes_saves = saves_dir / "snes"
+    snes_saves.mkdir(parents=True)
+
+    (snes_saves / "mario_save_#1.srm").write_text("dummy", encoding="utf-8")
+    summary = audit_saves(saves_dir)
+
+    warnings = [i for i in summary.issues if i.severity == Severity.WARNING]
+    assert any("Nome de save fora do padrão" in i.message for i in warnings)
+
+
 def test_run_full_audit(mock_repo_root: Path) -> None:
     """Verifica a execução integrada do relatório de auditoria completa.
 
