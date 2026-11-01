@@ -1,8 +1,9 @@
 """Módulo de busca, download e ingestão de ROMs a partir de acervos de preservação digital.
 
-Permite consultar catálogos remotos (como coleções No-Intro no Internet Archive),
-filtrar títulos interativamente, realizar o download para a área volátil (scratch/)
-e iniciar automaticamente o pipeline de ingestão e higienização canônica do RetroGame Lab.
+Permite consultar catálogos remotos (como acervos No-Intro e Redump no Internet Archive)
+para todas as plataformas homologadas (SNES, PS1, PS2, PSP, GC, DC), filtrar títulos
+interativamente, realizar o download para a área volátil (scratch/) e iniciar
+automaticamente o pipeline de ingestão e higienização canônica do RetroGame Lab.
 """
 
 from __future__ import annotations
@@ -28,12 +29,69 @@ from rich.progress import (
 from rich.prompt import Prompt
 from rich.table import Table
 
-from retrogame_lab.config import find_repo_root
+from retrogame_lab.config import SUPPORTED_PLATFORMS, find_repo_root
 from retrogame_lab.ingestion import import_rom
 
 USER_AGENT = "RetroGameLab-Fetcher/1.0 (Digital Preservation Tool)"
-DEFAULT_SNES_IDENTIFIER = "nointro-snes"
 DEFAULT_CACHE_TTL_HOURS = 24
+
+
+@dataclass(frozen=True)
+class PlatformArchiveConfig:
+    """Configuração de fontes de preservação digital para uma plataforma.
+
+    Attributes:
+        platform_code: Código interno da plataforma (ex.: 'snes', 'ps1').
+        default_identifier: Identificador padrão da coleção no Internet Archive.
+        accepted_extensions: Extensões de arquivos no acervo que representam mídias válidas.
+        description: Descrição legível da iniciativa de preservação de referência.
+    """
+
+    platform_code: str
+    default_identifier: str
+    accepted_extensions: tuple[str, ...]
+    description: str
+
+
+# Catálogo de coleções canônicas de preservação (No-Intro e Redump) por plataforma
+PLATFORM_ARCHIVE_CONFIGS: dict[str, PlatformArchiveConfig] = {
+    "snes": PlatformArchiveConfig(
+        platform_code="snes",
+        default_identifier="nointro-snes",
+        accepted_extensions=(".sfc", ".smc", ".zip"),
+        description="No-Intro Super Nintendo Entertainment System",
+    ),
+    "ps1": PlatformArchiveConfig(
+        platform_code="ps1",
+        default_identifier="ps1-psx-roms",
+        accepted_extensions=(".chd", ".zip"),
+        description="Redump Sony PlayStation 1 (CHD Collection)",
+    ),
+    "ps2": PlatformArchiveConfig(
+        platform_code="ps2",
+        default_identifier="sony-playstation-2-j-redump-collection",
+        accepted_extensions=(".chd", ".iso", ".zip"),
+        description="Redump Sony PlayStation 2 (CHD/ISO Collection)",
+    ),
+    "psp": PlatformArchiveConfig(
+        platform_code="psp",
+        default_identifier="sony-playstation-portable-redump",
+        accepted_extensions=(".cso", ".chd", ".iso", ".zip"),
+        description="Redump Sony PlayStation Portable (ISO/CSO/CHD Collection)",
+    ),
+    "gc": PlatformArchiveConfig(
+        platform_code="gc",
+        default_identifier="first-party-dolphin-rvz",
+        accepted_extensions=(".rvz", ".zip"),
+        description="Redump Nintendo GameCube (RVZ Collection)",
+    ),
+    "dc": PlatformArchiveConfig(
+        platform_code="dc",
+        default_identifier="karous-eng",
+        accepted_extensions=(".chd", ".zip"),
+        description="Redump Sega Dreamcast 1G1R (CHD Collection)",
+    ),
+}
 
 
 @dataclass
@@ -54,7 +112,8 @@ class ArchiveRomEntry:
 
 
 def get_archive_catalog(
-    identifier: str = DEFAULT_SNES_IDENTIFIER,
+    identifier: str = "nointro-snes",
+    platform_code: str = "snes",
     repo_root: Path | None = None,
     force_refresh: bool = False,
 ) -> list[ArchiveRomEntry]:
@@ -65,6 +124,7 @@ def get_archive_catalog(
 
     Args:
         identifier: Identificador da coleção no Internet Archive.
+        platform_code: Código da plataforma para validar extensões aceitas.
         repo_root: Caminho raiz opcional do repositório.
         force_refresh: Se True, ignora o cache local e faz nova requisição remota.
 
@@ -72,8 +132,14 @@ def get_archive_catalog(
         Lista de objetos ArchiveRomEntry com os títulos compatíveis encontrados.
 
     Raises:
+        ValueError: Se a plataforma informada for desconhecida.
         RuntimeError: Se houver falha de comunicação com a API remota e não houver cache.
     """
+    plat_key = platform_code.lower().strip()
+    if plat_key not in SUPPORTED_PLATFORMS:
+        valid = ", ".join(SUPPORTED_PLATFORMS.keys())
+        raise ValueError(f"Plataforma '{platform_code}' desconhecida. Opções: {valid}.")
+
     root = repo_root or find_repo_root()
     cache_dir = root / "scratch"
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -109,16 +175,25 @@ def get_archive_catalog(
     entries: list[ArchiveRomEntry] = []
     base_download_url = f"https://archive.org/download/{identifier}"
 
+    # Extensões válidas para esta plataforma
+    config = PLATFORM_ARCHIVE_CONFIGS.get(plat_key)
+    valid_extensions = (
+        config.accepted_extensions
+        if config
+        else (".zip", ".chd", ".iso", ".cso", ".rvz", ".sfc", ".smc")
+    )
+
     for item in files_data:
         name = item.get("name", "")
-        # Filtra apenas mídias relevantes (.zip, .sfc, .smc, .7z) e ignora metadados xml/sqlite
-        if not name.lower().endswith((".zip", ".sfc", ".smc", ".7z")):
+        if not name.lower().endswith(valid_extensions):
             continue
-        if name.startswith((".", "_")) or "xml" in name.lower():
+        if name.startswith((".", "_")) or "xml" in name.lower() or "sqlite" in name.lower():
             continue
 
         size = int(item.get("size", 0)) if str(item.get("size", "0")).isdigit() else 0
-        clean_title = re.sub(r"\.(zip|sfc|smc|7z)$", "", name, flags=re.IGNORECASE)
+        clean_title = re.sub(
+            r"\.(zip|sfc|smc|chd|iso|cso|rvz|7z)$", "", name, flags=re.IGNORECASE
+        )
         encoded_name = urllib.parse.quote(name)
         download_url = f"{base_download_url}/{encoded_name}"
 
@@ -131,7 +206,6 @@ def get_archive_catalog(
             )
         )
 
-    # Ordena alfabeticamente pelo título
     entries.sort(key=lambda x: x.title.lower())
     return entries
 
@@ -167,6 +241,7 @@ def search_catalog(
 def download_and_extract_rom(
     entry: ArchiveRomEntry,
     target_dir: Path,
+    platform_code: str = "snes",
     console: Console | None = None,
 ) -> Path:
     """Faz o download do arquivo do acervo e extrai a imagem da ROM se for compactada.
@@ -174,10 +249,11 @@ def download_and_extract_rom(
     Args:
         entry: Entrada do catálogo a ser baixada.
         target_dir: Diretório temporário de destino para gravação e extração.
+        platform_code: Plataforma alvo para validar o arquivo extraído.
         console: Instância opcional do Console do Rich para renderizar progresso.
 
     Returns:
-        Caminho Path da ROM extraída (.sfc ou .smc).
+        Caminho Path da ROM extraída compatível com a plataforma.
 
     Raises:
         RuntimeError: Se o download falhar ou se o arquivo compactado não contiver uma ROM válida.
@@ -220,22 +296,32 @@ def download_and_extract_rom(
             temp_archive_path.unlink(missing_ok=True)
         raise RuntimeError(f"Falha durante o download de '{entry.title}': {err}") from err
 
-    # Se já for um arquivo .sfc ou .smc descompactado
-    if temp_archive_path.suffix.lower() in (".sfc", ".smc"):
-        return temp_archive_path
+    plat_info = SUPPORTED_PLATFORMS.get(platform_code.lower())
+    accepted_exts = (
+        plat_info.accepted_extensions if plat_info else (".sfc", ".smc", ".chd", ".iso")
+    )
+    inner_target_exts = tuple(ext for ext in accepted_exts if ext != ".zip") or (
+        ".sfc",
+        ".smc",
+        ".chd",
+        ".rvz",
+        ".iso",
+        ".cso",
+    )
 
-    # Se for arquivo zip, extrai a ROM
+    # Se for arquivo zip, extrai a imagem compatível interna
     if temp_archive_path.suffix.lower() == ".zip":
         try:
             with zipfile.ZipFile(temp_archive_path, "r") as zf:
                 rom_members = [
                     m
                     for m in zf.namelist()
-                    if m.lower().endswith((".sfc", ".smc")) and not m.startswith("__MACOSX")
+                    if m.lower().endswith(inner_target_exts) and not m.startswith("__MACOSX")
                 ]
                 if not rom_members:
+                    acc_str = ", ".join(inner_target_exts)
                     raise RuntimeError(
-                        f"O arquivo compactado '{entry.filename}' não contém ROMs .sfc ou .smc."
+                        f"O arquivo compactado '{entry.filename}' não contém arquivos ({acc_str})."
                     )
                 extracted_name = rom_members[0]
                 extracted_path = target_dir / Path(extracted_name).name
@@ -250,6 +336,10 @@ def download_and_extract_rom(
         except zipfile.BadZipFile as err:
             temp_archive_path.unlink(missing_ok=True)
             raise RuntimeError(f"Arquivo zip corrompido: {err}") from err
+
+    # Se já for um arquivo descompactado no formato aceito (ex: .chd, .rvz, .sfc, .iso)
+    if temp_archive_path.suffix.lower() in accepted_exts:
+        return temp_archive_path
 
     raise RuntimeError(
         f"Formato compactado não suportado para extração: {temp_archive_path.suffix}"
@@ -266,7 +356,7 @@ def fetch_and_ingest_rom(
 
     Args:
         entry: Entrada do catálogo selecionada.
-        platform_code: Código da plataforma alvo (padrão: 'snes').
+        platform_code: Código da plataforma alvo (snes, ps1, ps2, psp, gc, dc).
         repo_root: Raiz opcional do repositório.
         console: Instância do Console para mensagens de feedback.
 
@@ -281,7 +371,9 @@ def fetch_and_ingest_rom(
     temp_dir = root / "scratch" / "downloads"
     temp_dir.mkdir(parents=True, exist_ok=True)
 
-    extracted_rom = download_and_extract_rom(entry, temp_dir, console=console)
+    extracted_rom = download_and_extract_rom(
+        entry, temp_dir, platform_code=platform_code, console=console
+    )
 
     try:
         final_path = import_rom(
@@ -297,15 +389,19 @@ def fetch_and_ingest_rom(
             extracted_rom.unlink(missing_ok=True)
 
 
-def run_interactive_snes_fetcher(
+def run_interactive_fetcher(
+    platform_code: str = "snes",
     query: str | None = None,
+    identifier: str | None = None,
     repo_root: Path | None = None,
     console: Console | None = None,
 ) -> list[Path]:
-    """Executa a interface interativa de busca, seleção e download de jogos SNES.
+    """Executa a interface interativa de busca, seleção e download de jogos por plataforma.
 
     Args:
+        platform_code: Código da plataforma (snes, ps1, ps2, psp, gc, dc).
         query: Termo inicial opcional de pesquisa.
+        identifier: Identificador personalizado opcional no Internet Archive.
         repo_root: Raiz opcional do repositório.
         console: Instância do Console para renderização de telas e tabelas.
 
@@ -313,21 +409,42 @@ def run_interactive_snes_fetcher(
         Lista de caminhos de ROMs importadas com sucesso nesta sessão.
 
     Raises:
-        None.
+        ValueError: Se a plataforma for inválida.
     """
+    plat_key = platform_code.lower().strip()
+    if plat_key not in SUPPORTED_PLATFORMS:
+        valid = ", ".join(SUPPORTED_PLATFORMS.keys())
+        raise ValueError(f"Plataforma '{platform_code}' inválida. Escolha entre: {valid}.")
+
     c = console or Console(highlight=False)
     root = repo_root or find_repo_root()
 
-    c.print("\n[bold green]=== RetroGame Lab: Central de Ingestão No-Intro (SNES) ===[/bold green]")
-    c.print("[white]Consultando catálogo de preservação digital (nointro-snes)...[/white]")
+    plat_info = SUPPORTED_PLATFORMS[plat_key]
+    preset_config = PLATFORM_ARCHIVE_CONFIGS.get(plat_key)
+
+    active_identifier = (
+        identifier
+        or (preset_config.default_identifier if preset_config else "nointro-snes")
+    )
+
+    c.print(
+        "\n[bold green]=== RetroGame Lab: Central de Ingestão de ROMs "
+        f"({plat_info.name}) ===[/bold green]"
+    )
+    c.print(f"[white]Coleção Ativa:[/white] [cyan]{active_identifier}[/cyan]")
+    if preset_config:
+        c.print(f"[white]Iniciativa:[/white] [yellow]{preset_config.description}[/yellow]")
+    c.print("[white]Consultando catálogo de preservação digital...[/white]")
 
     try:
-        catalog = get_archive_catalog(DEFAULT_SNES_IDENTIFIER, repo_root=root)
+        catalog = get_archive_catalog(
+            identifier=active_identifier, platform_code=plat_key, repo_root=root
+        )
     except Exception as err:
         c.print(f"[bold red]Erro ao carregar catálogo:[/bold red] {err}")
         return []
 
-    c.print(f"[bold cyan]Total de títulos catalogados:[/bold cyan] {len(catalog)} jogos.\n")
+    c.print(f"[bold cyan]Total de títulos catalogados:[/bold cyan] {len(catalog)} itens.\n")
 
     current_query = query or ""
     imported_paths: list[Path] = []
@@ -342,8 +459,9 @@ def run_interactive_snes_fetcher(
             )
         else:
             filt_desc = current_query or "*"
+            tbl_title = f"Resultados ({plat_info.name} - Filtro: '{filt_desc}')"
             table = Table(
-                title=f"Resultados da Busca (Filtro: '{filt_desc}' - {len(results)} exibidos)",
+                title=tbl_title,
                 header_style="bold magenta",
             )
             table.add_column("#", style="cyan", width=4, justify="right")
@@ -366,12 +484,36 @@ def run_interactive_snes_fetcher(
             " • Digite [bold yellow]/busca <termo>[/bold yellow] para pesquisar "
             "(ex: [yellow]/busca mario[/yellow])"
         )
+        c.print(
+            " • Digite [bold cyan]/colecao <id>[/bold cyan] para trocar a coleção "
+            "(ex: [cyan]/colecao outra-colecao[/cyan])"
+        )
         c.print(" • Digite [bold red]sair[/bold red] (ou 'q') para encerrar a sessão.")
 
         choice = Prompt.ask("\n[bold white]Sua escolha[/bold white]", default="sair").strip()
 
         if choice.lower() in ("sair", "q", "exit"):
             break
+
+        if choice.lower().startswith("/colecao ") or choice.lower().startswith("colecao "):
+            parts = choice.split(maxsplit=1)
+            new_id = parts[1].strip() if len(parts) > 1 else ""
+            if new_id:
+                active_identifier = new_id
+                c.print(f"\n[cyan]Carregando catálogo da coleção '{active_identifier}'...[/cyan]")
+                try:
+                    catalog = get_archive_catalog(
+                        identifier=active_identifier,
+                        platform_code=plat_key,
+                        repo_root=root,
+                    )
+                    c.print(
+                        f"[bold green]Catálogo atualizado:[/bold green] {len(catalog)} itens.\n"
+                    )
+                    current_query = ""
+                except Exception as err:
+                    c.print(f"[bold red]Erro ao trocar coleção:[/bold red] {err}\n")
+            continue
 
         if choice.lower().startswith("/busca ") or choice.lower().startswith("busca "):
             parts = choice.split(maxsplit=1)
@@ -404,7 +546,7 @@ def run_interactive_snes_fetcher(
                 )
                 final_path = fetch_and_ingest_rom(
                     entry=selected_entry,
-                    platform_code="snes",
+                    platform_code=plat_key,
                     repo_root=root,
                     console=c,
                 )
@@ -428,6 +570,32 @@ def run_interactive_snes_fetcher(
 
     c.print(
         f"\n[bold green]Sessão finalizada![/bold green] Total de {len(imported_paths)} "
-        "jogo(s) adicionado(s) à biblioteca.\n"
+        f"jogo(s) de {plat_info.name} adicionado(s) à biblioteca.\n"
     )
     return imported_paths
+
+
+def run_interactive_snes_fetcher(
+    query: str | None = None,
+    repo_root: Path | None = None,
+    console: Console | None = None,
+) -> list[Path]:
+    """Alias de compatibilidade para busca interativa em SNES.
+
+    Args:
+        query: Termo inicial opcional de pesquisa.
+        repo_root: Raiz opcional do repositório.
+        console: Instância do Console para renderização de telas e tabelas.
+
+    Returns:
+        Lista de caminhos de ROMs importadas com sucesso nesta sessão.
+
+    Raises:
+        None.
+    """
+    return run_interactive_fetcher(
+        platform_code="snes",
+        query=query,
+        repo_root=repo_root,
+        console=console,
+    )
