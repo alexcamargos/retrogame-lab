@@ -17,7 +17,7 @@ from rich.table import Table
 from retrogame_lab import __version__
 from retrogame_lab.auditor import Severity, run_full_audit
 from retrogame_lab.config import SUPPORTED_PLATFORMS, find_repo_root
-from retrogame_lab.fetcher import run_interactive_snes_fetcher
+from retrogame_lab.fetcher import run_interactive_fetcher, run_interactive_snes_fetcher
 from retrogame_lab.ingestion import import_rom, import_roms_batch
 from retrogame_lab.sanitizer import sanitize_directory
 
@@ -416,6 +416,64 @@ def import_rom_cmd(
             )
     except (ValueError, FileExistsError, FileNotFoundError, IsADirectoryError) as err:
         console.print(f"[bold red]Erro de Ingestão:[/bold red] {err}")
+        raise typer.Exit(code=1) from err
+
+
+@app.command(name="fetch-roms")
+def fetch_roms_cmd(
+    platform: Annotated[
+        str,
+        typer.Option(
+            "--platform",
+            "-p",
+            help="Código da plataforma homologada (snes, ps1, ps2, psp, gc, dc).",
+        ),
+    ] = "snes",
+    query: Annotated[
+        Optional[str],
+        typer.Option(
+            "--query",
+            "-q",
+            help="Termo de pesquisa opcional para pré-filtrar títulos do catálogo.",
+        ),
+    ] = None,
+    identifier: Annotated[
+        Optional[str],
+        typer.Option(
+            "--identifier",
+            "-i",
+            help="Identificador alternativo de coleção no Internet Archive.",
+        ),
+    ] = None,
+) -> None:
+    """Busca, seleciona e ingere interativamente ROMs de acervos de preservação digital.
+
+    Args:
+        platform: Plataforma alvo (snes, ps1, ps2, psp, gc, dc).
+        query: Termo opcional para pré-filtrar títulos.
+        identifier: Identificador alternativo da coleção no Internet Archive.
+
+    Returns:
+        None.
+
+    Raises:
+        typer.Exit: Se a plataforma for inválida.
+    """
+    try:
+        resolved_root = find_repo_root()
+    except FileNotFoundError:
+        resolved_root = Path.cwd()
+
+    try:
+        run_interactive_fetcher(
+            platform_code=platform,
+            query=query,
+            identifier=identifier,
+            repo_root=resolved_root,
+            console=console,
+        )
+    except ValueError as err:
+        console.print(f"[bold red]Erro:[/bold red] {err}")
         raise typer.Exit(code=1) from err
 
 

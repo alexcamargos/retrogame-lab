@@ -44,7 +44,9 @@ function Show-Help {
     Write-Host "                  Ex.: .\retrogame sanitize [--apply]"
     Write-Host "  import-rom      Ingere e higieniza uma nova ROM para a biblioteca canônica"
     Write-Host "                  Ex.: .\retrogame import-rom c:\temp\jogo.bin -p ps1"
-    Write-Host "  fetch-snes      Busca e ingere interativamente jogos SNES do acervo No-Intro"
+    Write-Host "  fetch-roms      Busca e ingere interativamente ROMs de preservação (todas as plataformas)"
+    Write-Host "                  Ex.: .\retrogame fetch-roms -p ps1 [-q crash] [-i colecao]"
+    Write-Host "  fetch-snes      Atalho para busca interativa em SNES (No-Intro)"
     Write-Host "                  Ex.: .\retrogame fetch-snes [-q mario]"
     Write-Host "  info            Exibe o catálogo de plataformas suportadas e formatos aceitos"
     Write-Host "  version         Exibe a versão instalada do RetroGame Lab`n"
@@ -78,7 +80,23 @@ switch -Regex ($Command.ToLower()) {
     "^(import-rom|import_rom|import)$" {
         & uv run retrogame-lab import-rom @RemainingArgs
     }
-    "^(fetch-snes|fetch_snes|fetch)$" {
+    "^(fetch-roms|fetch_roms)$" {
+        & uv run retrogame-lab fetch-roms @RemainingArgs
+    }
+    "^fetch$" {
+        if ($RemainingArgs.Count -gt 0 -and $RemainingArgs[0] -match "^(snes|ps1|ps2|psp|gc|dc)$") {
+            $Plat = $RemainingArgs[0]
+            $QueryArgs = if ($RemainingArgs.Count -gt 1) { @("-q", ($RemainingArgs[1..($RemainingArgs.Count - 1)] -join " ")) } else { @() }
+            & uv run retrogame-lab fetch-roms -p $Plat @QueryArgs
+        } else {
+            & uv run retrogame-lab fetch-roms @RemainingArgs
+        }
+    }
+    "^fetch-(snes|ps1|ps2|psp|gc|dc)$" {
+        $Plat = $Matches[1]
+        & uv run retrogame-lab fetch-roms -p $Plat @RemainingArgs
+    }
+    "^fetch_snes$" {
         & uv run retrogame-lab fetch-snes @RemainingArgs
     }
     "^launch$" {
