@@ -110,16 +110,17 @@ A perda de saves por colisão de sincronização é o problema mais crítico de 
 
 ### 4.3 Padrão Canônico de Nomenclatura de Arquivos e Ingestão Segura de ROMs
 
-1. **Proibição Estrita de Espaços e Caracteres Especiais:**
-   * Nomes de arquivos de ROMs, firmwares de BIOS e saves **nunca devem conter espaços** nem caracteres especiais (`'"~^!?\:;*<>|#`).
+1. **Proibição Estrita de Espaços, Caracteres Especiais e Padronização em Minúsculas:**
+   * Nomes de arquivos de ROMs, firmwares de BIOS e saves **nunca devem conter espaços**, caracteres especiais (`'"~^!?\:;*<>|#`) ou letras maiúsculas.
+   * Todos os nomes de arquivos devem ser **padronizados integralmente em letras minúsculas** (ex.: `super_mario_world_(usa).sfc`, `contra_iii_-_the_alien_wars_(usa).sfc`).
    * Espaços devem ser sempre convertidos para sublinhado (`_`).
    * Caracteres especiais e pontuações perigosas para linhas de comando e filesystems móveis (FAT32/exFAT) devem ser eliminados.
    * As extensões devem permanecer sempre em letras minúsculas (ex.: `.chd`, `.rvz`, `.sfc`, `.mcd`).
 2. **Dupla Camada de Blindagem (Dual-Layer Guard):**
-   * **Camada de Ingestão (`uv run retrogame-lab import-rom`):** Toda inclusão de novos títulos deve ser processada através do pipeline em `src/retrogame_lab/ingestion.py`, garantindo validação de formatos autorizados para a plataforma e higienização automática do nome antes de gravar em `data/roms/<plataforma>/`.
-   * **Camada Pré-Voo no Lançador (`scripts/launch.ps1`):** O script lançador atua como barreira secundária (*fail-safe*). Caso uma ROM tenha sido depositada manualmente na pasta contendo espaços ou caracteres proibidos, o lançador detecta a anomalia via regex e realiza a auto-higienização física no disco antes de invocar o emulador.
+   * **Camada de Ingestão (`uv run retrogame-lab import-rom`):** Toda inclusão de novos títulos deve ser processada através do pipeline em `src/retrogame_lab/ingestion.py`, garantindo validação de formatos autorizados para a plataforma e higienização automática do nome (convertendo para minúsculas e sem espaços) antes de gravar em `data/roms/<plataforma>/`.
+   * **Camada Pré-Voo no Lançador (`scripts/launch.ps1`):** O script lançador atua como barreira secundária (*fail-safe*). Caso uma ROM tenha sido depositada manualmente na pasta contendo letras maiúsculas, espaços ou caracteres proibidos, o lançador detecta a anomalia via regex / verificação de caixa e realiza a auto-higienização física no disco antes de invocar o emulador.
 3. **Higienização em Massa da Biblioteca:**
-   * Agentes e operadores dispõem do comando `uv run retrogame-lab sanitize [--apply]` para auditar e normalizar toda a árvore de arquivos de ROMs e saves de forma idempotente.
+   * Agentes e operadores dispõem do comando `uv run retrogame-lab sanitize [--apply]` ou do script `scripts/sanitize.ps1 [-Apply]` para auditar e normalizar toda a árvore de arquivos de ROMs e saves de forma idempotente.
 
 ---
 
