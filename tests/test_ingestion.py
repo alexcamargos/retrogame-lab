@@ -30,7 +30,7 @@ def test_import_rom_single_copy(tmp_path: Path, mock_repo_root: Path) -> None:
     dest = import_rom(source_file, "snes", move=False, repo_root=mock_repo_root)
 
     assert dest.exists()
-    assert dest.name == "Super_Mario_World_(USA).sfc"
+    assert dest.name == "super_mario_world_(usa).sfc"
     assert dest.parent == mock_repo_root / "data" / "roms" / "snes"
     assert source_file.exists()  # Preservado no modo cópia
 
@@ -54,7 +54,7 @@ def test_import_rom_single_move(tmp_path: Path, mock_repo_root: Path) -> None:
     dest = import_rom(source_file, "ps1", move=True, repo_root=mock_repo_root)
 
     assert dest.exists()
-    assert dest.name == "Tony_Hawks_Pro_Skater_2.chd"
+    assert dest.name == "tony_hawks_pro_skater_2.chd"
     assert not source_file.exists()  # Movido com sucesso
 
 
@@ -202,6 +202,6 @@ def test_import_roms_batch(tmp_path: Path, mock_repo_root: Path) -> None:
     imported = import_roms_batch(batch_dir, "snes", move=False, repo_root=mock_repo_root)
 
     assert len(imported) == 2
-    assert (mock_repo_root / "data" / "roms" / "snes" / "Chrono_Trigger.sfc").exists()
-    assert (mock_repo_root / "data" / "roms" / "snes" / "Super_Metroid.smc").exists()
+    assert (mock_repo_root / "data" / "roms" / "snes" / "chrono_trigger.sfc").exists()
+    assert (mock_repo_root / "data" / "roms" / "snes" / "super_metroid.smc").exists()
     assert not (mock_repo_root / "data" / "roms" / "snes" / "readme.txt").exists()

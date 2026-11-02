@@ -16,7 +16,7 @@ from retrogame_lab.sanitizer import (
 
 
 def test_sanitize_filename_spaces_and_quotes() -> None:
-    """Verifica a substituição de espaços por '_' e remoção de aspas simples, duplas e crases.
+    """Verifica a substituição de espaços por '_', remoção de aspas e conversão para minúsculas.
 
     Args:
         None.
@@ -27,9 +27,9 @@ def test_sanitize_filename_spaces_and_quotes() -> None:
     Raises:
         None.
     """
-    assert sanitize_filename("Super Mario World (USA).sfc") == "Super_Mario_World_(USA).sfc"
-    assert sanitize_filename("Tony Hawk's Pro Skater 2.chd") == "Tony_Hawks_Pro_Skater_2.chd"
-    assert sanitize_filename('Sonic\'s "Special" `Edition`!.iso') == "Sonics_Special_Edition.iso"
+    assert sanitize_filename("Super Mario World (USA).sfc") == "super_mario_world_(usa).sfc"
+    assert sanitize_filename("Tony Hawk's Pro Skater 2.chd") == "tony_hawks_pro_skater_2.chd"
+    assert sanitize_filename('Sonic\'s "Special" `Edition`!.iso') == "sonics_special_edition.iso"
 
 
 def test_sanitize_filename_collapse_and_trim_underscores() -> None:
@@ -44,8 +44,8 @@ def test_sanitize_filename_collapse_and_trim_underscores() -> None:
     Raises:
         None.
     """
-    assert sanitize_filename("___Game___Title___.chd") == "Game_Title.chd"
-    assert sanitize_filename("  Final   Fantasy   VII  .chd") == "Final_Fantasy_VII.chd"
+    assert sanitize_filename("___Game___Title___.chd") == "game_title.chd"
+    assert sanitize_filename("  Final   Fantasy   VII  .chd") == "final_fantasy_vii.chd"
 
 
 def test_sanitize_filename_compound_extension() -> None:
@@ -60,7 +60,31 @@ def test_sanitize_filename_compound_extension() -> None:
     Raises:
         None.
     """
-    assert sanitize_filename("Legend of Zelda Save.nvram.bak") == "Legend_of_Zelda_Save.nvram.bak"
+    assert sanitize_filename("Legend of Zelda Save.nvram.bak") == "legend_of_zelda_save.nvram.bak"
+
+
+def test_sanitize_filename_lowercase_normalization() -> None:
+    """Verifica se títulos com maiúsculas mistas ou no início são 100% normalizados para minúsculas.
+
+    Args:
+        None.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    assert (
+        sanitize_filename("Choplifter_III_-_Rescue-Survive_(USA).sfc")
+        == "choplifter_iii_-_rescue-survive_(usa).sfc"
+    )
+    assert (
+        sanitize_filename("Contra_III_-_The_Alien_Wars_(USA).sfc")
+        == "contra_iii_-_the_alien_wars_(usa).sfc"
+    )
+    assert sanitize_filename("Super-Mario-World.smc") == "super-mario-world.smc"
+    assert sanitize_filename("donkey-kong-country.smc") == "donkey-kong-country.smc"
 
 
 def test_sanitize_filename_empty_raises_error() -> None:
@@ -93,7 +117,7 @@ def test_sanitize_path() -> None:
     """
     original = Path("data/roms/ps1/Final Fantasy VII (Disc 1).chd")
     sanitized = sanitize_path(original)
-    assert sanitized.name == "Final_Fantasy_VII_(Disc_1).chd"
+    assert sanitized.name == "final_fantasy_vii_(disc_1).chd"
     assert sanitized.parent == original.parent
 
 
@@ -118,7 +142,7 @@ def test_sanitize_directory_dry_run_and_apply(tmp_path: Path) -> None:
     file2 = subdir / "Castlevania - Symphony of the Night.chd"
     file2.write_text("dummy", encoding="utf-8")
 
-    file_clean = subdir / "Clean_Game.chd"
+    file_clean = subdir / "clean_game.chd"
     file_clean.write_text("dummy", encoding="utf-8")
 
     # 1. Modo Simulação (dry_run=True)
@@ -132,8 +156,8 @@ def test_sanitize_directory_dry_run_and_apply(tmp_path: Path) -> None:
     assert len(changes_real) == 2
     assert not file1.exists()
     assert not file2.exists()
-    assert (subdir / "Final_Fantasy_VII_(Disc_1).chd").exists()
-    assert (subdir / "Castlevania_-_Symphony_of_the_Night.chd").exists()
+    assert (subdir / "final_fantasy_vii_(disc_1).chd").exists()
+    assert (subdir / "castlevania_-_symphony_of_the_night.chd").exists()
     assert file_clean.exists()
 
 
