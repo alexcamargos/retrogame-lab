@@ -1,25 +1,28 @@
 """Módulo de sanitização e padronização de nomenclatura de ROMs e saves.
 
 Garante conformidade com o padrão estrito de arquivos sem espaços (substituindo
-por sublinhado '_') e sem caracteres especiais (aspas simples, duplas, crases).
+por sublinhado '_'), sem caracteres especiais (aspas simples, duplas, crases)
+e com caracteres totalmente convertidos para letras minúsculas.
 """
 
+import os
 import re
 from pathlib import Path
 
 
 def sanitize_filename(filename: str) -> str:
-    """Higieniza o nome de um arquivo substituindo espaços por '_' e removendo caracteres especiais.
+    """Higieniza o nome de um arquivo substituindo espaços por '_' e convertendo para minúsculas.
 
     Remove aspas simples ('), duplas ("), crases (`), sinais de pontuação conflitantes
-    (!, ?, :, ;, *, <, >, |, #) e converte sequências de espaços em sublinhado único.
-    Preserva a extensão original do arquivo.
+    (!, ?, :, ;, *, <, >, |, #), converte todas as letras para minúsculas e normaliza
+    sequências de espaços em sublinhado único. Preserva a extensão original do arquivo
+    (também convertida para minúsculas).
 
     Args:
         filename: Nome original do arquivo (com extensão).
 
     Returns:
-        Nome do arquivo higienizado, sem espaços e sem caracteres especiais.
+        Nome do arquivo higienizado, sem espaços, sem caracteres especiais e em minúsculas.
 
     Raises:
         ValueError: Se a string fornecida for vazia.
@@ -34,7 +37,7 @@ def sanitize_filename(filename: str) -> str:
 
     for comp in compound_exts:
         if filename.lower().endswith(comp):
-            matched_ext = filename[-len(comp) :]
+            matched_ext = comp
             stem = filename[: -len(comp)]
             break
 
@@ -47,16 +50,20 @@ def sanitize_filename(filename: str) -> str:
             stem = filename
             matched_ext = ""
 
-    # 1. Remove aspas simples, duplas, crases e caracteres especiais inválidos
+    # 1. Converte stem e extensão para letras minúsculas
+    stem = stem.lower()
+    matched_ext = matched_ext.lower()
+
+    # 2. Remove aspas simples, duplas, crases e caracteres especiais inválidos
     stem = re.sub(r"['\"`\~\^\!\?\:\;\*\<\>\|\#]", "", stem)
 
-    # 2. Converte qualquer sequência de espaços em '_'
+    # 3. Converte qualquer sequência de espaços em '_'
     stem = re.sub(r"\s+", "_", stem)
 
-    # 3. Colapsa múltiplos sublinhados consecutivos em um único
+    # 4. Colapsa múltiplos sublinhados consecutivos em um único
     stem = re.sub(r"_+", "_", stem)
 
-    # 4. Remove sublinhados residuais nas pontas
+    # 5. Remove sublinhados residuais nas pontas
     stem = stem.strip("_")
 
     if not stem:
@@ -72,7 +79,7 @@ def sanitize_path(file_path: Path) -> Path:
         file_path: Objeto Path do arquivo a ser sanitizado.
 
     Returns:
-        Novo objeto Path com o nome do arquivo higienizado.
+        Novo objeto Path com o nome do arquivo higienizado em minúsculas.
 
     Raises:
         None.
@@ -114,6 +121,12 @@ def sanitize_directory(target_dir: Path, dry_run: bool = True) -> list[tuple[Pat
             new_path = file_path.with_name(sanitized_name)
             changes.append((file_path, new_path))
             if not dry_run:
-                file_path.rename(new_path)
+                try:
+                    file_path.rename(new_path)
+                except OSError:
+                    # Em filesystems que colidem no case-only (ex: FAT32), usa passo intermediário
+                    temp_path = file_path.with_name(f"{file_path.name}.tmp_{os.getpid()}")
+                    file_path.rename(temp_path)
+                    temp_path.rename(new_path)
 
     return changes
