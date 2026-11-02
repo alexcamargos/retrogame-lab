@@ -60,7 +60,14 @@ class AuditSummary:
 
     @property
     def is_healthy(self) -> bool:
-        """Indica se a categoria auditada está livre de erros impeditivos."""
+        """Indica se a categoria auditada está livre de erros impeditivos.
+
+        Returns:
+            True se a categoria não possuir erros com severidade ERROR.
+
+        Raises:
+            None.
+        """
         return not any(issue.severity == Severity.ERROR for issue in self.issues)
 
 
@@ -80,12 +87,26 @@ class AuditReport:
 
     @property
     def total_issues(self) -> int:
-        """Retorna o total consolidado de problemas detectados."""
+        """Retorna o total consolidado de problemas detectados.
+
+        Returns:
+            Soma inteira da quantidade de apontamentos em bios, roms e saves.
+
+        Raises:
+            None.
+        """
         return len(self.bios.issues) + len(self.roms.issues) + len(self.saves.issues)
 
     @property
     def has_errors(self) -> bool:
-        """Indica se existe ao menos um erro crítico em qualquer categoria."""
+        """Indica se existe ao menos um erro crítico em qualquer categoria.
+
+        Returns:
+            True se houver ao menos um problema com severidade ERROR.
+
+        Raises:
+            None.
+        """
         all_issues = self.bios.issues + self.roms.issues + self.saves.issues
         return any(issue.severity == Severity.ERROR for issue in all_issues)
 
@@ -279,9 +300,8 @@ def audit_roms(roms_dir: Path) -> AuditSummary:
                 )
 
         # Regra 2: PS1 e Dreamcast exigem CHD em vez de CUE/BIN/GDI/CDI desmembrado
-        if platform_code in ("ps1", "dc"):
-            if ext in (".cue", ".bin", ".iso", ".gdi", ".cdi"):
-                summary.issues.append(
+        if platform_code in ("ps1", "dc") and ext in (".cue", ".bin", ".iso", ".gdi", ".cdi"):
+            summary.issues.append(
                     AuditIssue(
                         category="ROMs",
                         severity=Severity.WARNING,
