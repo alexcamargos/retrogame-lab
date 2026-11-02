@@ -154,14 +154,14 @@ def test_cli_sanitize_dry_run_and_apply(tmp_path: Path) -> None:
     res_dry = runner.invoke(app, ["sanitize", "--path", str(tmp_path), "--dry-run"])
     assert res_dry.exit_code == 0
     assert "Super Mario World (USA).sfc" in res_dry.stdout
-    assert "Super_Mario_World_(USA).sfc" in res_dry.stdout
+    assert "super_mario_world_(usa).sfc" in res_dry.stdout
     assert dirty_rom.exists()
 
     # 2. Aplicação real (--apply)
     res_apply = runner.invoke(app, ["sanitize", "--path", str(tmp_path), "--apply"])
     assert res_apply.exit_code == 0
     assert not dirty_rom.exists()
-    assert (roms_dir / "Super_Mario_World_(USA).sfc").exists()
+    assert (roms_dir / "super_mario_world_(usa).sfc").exists()
 
 
 def test_cli_sanitize_missing_directory(tmp_path: Path) -> None:
@@ -205,10 +205,10 @@ def test_cli_import_rom_single(
     res = runner.invoke(app, ["import-rom", str(source_rom), "--platform", "snes"])
     assert res.exit_code == 0
     assert "Sucesso" in res.stdout
-    assert "Chrono_Trigger_Special_Edition.sfc" in res.stdout
+    assert "chrono_trigger_special_edition.sfc" in res.stdout
 
     expected_target = (
-        mock_repo_root / "data" / "roms" / "snes" / "Chrono_Trigger_Special_Edition.sfc"
+        mock_repo_root / "data" / "roms" / "snes" / "chrono_trigger_special_edition.sfc"
     )
     assert expected_target.exists()
 
@@ -239,8 +239,8 @@ def test_cli_import_rom_batch(
     res = runner.invoke(app, ["import-rom", str(batch_dir), "--platform", "snes"])
     assert res.exit_code == 0
     assert "Ingestão em Lote" in res.stdout
-    assert "Castlevania_4.sfc" in res.stdout
-    assert "Zelda_3.smc" in res.stdout
+    assert "castlevania_4.sfc" in res.stdout
+    assert "zelda_3.smc" in res.stdout
 
 
 def test_cli_import_rom_error(
@@ -572,13 +572,47 @@ def test_cli_fetch_snes(
         None.
     """
     monkeypatch.chdir(mock_repo_root)
-    mock_interactive = mocker.patch("retrogame_lab.cli.run_interactive_snes_fetcher")
+    mock_interactive = mocker.patch("retrogame_lab.cli.run_interactive_fetcher")
 
     res = runner.invoke(app, ["fetch-snes", "--query", "mario"])
     assert res.exit_code == 0
     mock_interactive.assert_called_once()
     _, kwargs = mock_interactive.call_args
+    assert kwargs["platform_code"] == "snes"
     assert kwargs["query"] == "mario"
+
+
+@pytest.mark.parametrize("platform", ["snes", "ps1", "ps2", "psp", "gc", "dc"])
+def test_cli_fetch_platform_shortcuts(
+    platform: str,
+    mocker: MockerFixture,
+    mock_repo_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verifica todos os atalhos diretos fetch-<plataforma> no CLI.
+
+    Args:
+        platform: Código da plataforma testada.
+        mocker: Fixture do pytest-mock.
+        mock_repo_root: Fixture de raiz mockada.
+        monkeypatch: Fixture do pytest.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    monkeypatch.chdir(mock_repo_root)
+    mock_fetcher = mocker.patch("retrogame_lab.cli.run_interactive_fetcher")
+
+    res = runner.invoke(app, [f"fetch-{platform}", "--query", "teste", "-i", "custom_id"])
+    assert res.exit_code == 0
+    mock_fetcher.assert_called_once()
+    _, kwargs = mock_fetcher.call_args
+    assert kwargs["platform_code"] == platform
+    assert kwargs["query"] == "teste"
+    assert kwargs["identifier"] == "custom_id"
 
 
 def test_cli_fetch_roms_generic(
