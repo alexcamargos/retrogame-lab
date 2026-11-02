@@ -318,7 +318,7 @@ def test_fetch_and_ingest_rom(
     final_path = fetch_and_ingest_rom(entry, platform_code="snes", repo_root=mock_repo_root)
 
     assert final_path.exists()
-    assert final_path.name == "Chrono_Trigger_(USA).sfc"
+    assert final_path.name == "chrono_trigger_(usa).sfc"
     assert final_path.parent == mock_repo_root / "data" / "roms" / "snes"
     assert final_path.read_bytes() == b"CHRONO_TRIGGER_DATA"
 
@@ -395,7 +395,7 @@ def test_fetch_and_ingest_ps1_chd(
     final_path = fetch_and_ingest_rom(entry, platform_code="ps1", repo_root=mock_repo_root)
 
     assert final_path.exists()
-    assert final_path.name == "Crash_Bandicoot_(USA).chd"
+    assert final_path.name == "crash_bandicoot_(usa).chd"
     assert final_path.parent == mock_repo_root / "data" / "roms" / "ps1"
 
 
