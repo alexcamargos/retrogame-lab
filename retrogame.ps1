@@ -46,8 +46,18 @@ function Show-Help {
     Write-Host "                  Ex.: .\retrogame import-rom c:\temp\jogo.bin -p ps1"
     Write-Host "  fetch-roms      Busca e ingere interativamente ROMs de preservação (todas as plataformas)"
     Write-Host "                  Ex.: .\retrogame fetch-roms -p ps1 [-q crash] [-i colecao]"
-    Write-Host "  fetch-snes      Atalho para busca interativa em SNES (No-Intro)"
+    Write-Host "  fetch-snes      Atalho direto para busca interativa em SNES (No-Intro)"
     Write-Host "                  Ex.: .\retrogame fetch-snes [-q mario]"
+    Write-Host "  fetch-ps1       Atalho direto para busca interativa em PlayStation 1 (Redump CHD)"
+    Write-Host "                  Ex.: .\retrogame fetch-ps1 [-q resident]"
+    Write-Host "  fetch-ps2       Atalho direto para busca interativa em PlayStation 2 (Redump)"
+    Write-Host "                  Ex.: .\retrogame fetch-ps2 [-q colossus]"
+    Write-Host "  fetch-psp       Atalho direto para busca interativa em PSP (Redump)"
+    Write-Host "                  Ex.: .\retrogame fetch-psp [-q god]"
+    Write-Host "  fetch-gc        Atalho direto para busca interativa em GameCube (Redump RVZ)"
+    Write-Host "                  Ex.: .\retrogame fetch-gc [-q zelda]"
+    Write-Host "  fetch-dc        Atalho direto para busca interativa em Dreamcast (Redump CHD)"
+    Write-Host "                  Ex.: .\retrogame fetch-dc [-q sonic]"
     Write-Host "  info            Exibe o catálogo de plataformas suportadas e formatos aceitos"
     Write-Host "  version         Exibe a versão instalada do RetroGame Lab`n"
 
@@ -92,12 +102,9 @@ switch -Regex ($Command.ToLower()) {
             & uv run retrogame-lab fetch-roms @RemainingArgs
         }
     }
-    "^fetch-(snes|ps1|ps2|psp|gc|dc)$" {
+    "^fetch[-_](snes|ps1|ps2|psp|gc|dc)$" {
         $Plat = $Matches[1]
-        & uv run retrogame-lab fetch-roms -p $Plat @RemainingArgs
-    }
-    "^fetch_snes$" {
-        & uv run retrogame-lab fetch-snes @RemainingArgs
+        & uv run retrogame-lab fetch-$Plat @RemainingArgs
     }
     "^launch$" {
         & pwsh -NoProfile -File "$ScriptsDir\launch.ps1" @RemainingArgs

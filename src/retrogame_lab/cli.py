@@ -17,7 +17,7 @@ from rich.table import Table
 from retrogame_lab import __version__
 from retrogame_lab.auditor import Severity, run_full_audit
 from retrogame_lab.config import SUPPORTED_PLATFORMS, find_repo_root
-from retrogame_lab.fetcher import run_interactive_fetcher, run_interactive_snes_fetcher
+from retrogame_lab.fetcher import run_interactive_fetcher
 from retrogame_lab.ingestion import import_rom, import_roms_batch
 from retrogame_lab.sanitizer import sanitize_directory
 
@@ -303,7 +303,7 @@ def sanitize(
 
     table = Table(show_header=True, header_style="bold magenta")
     table.add_column("Arquivo Original", style="red")
-    table.add_column("Nome Sanitizado (Sem Espaços/Especiais)", style="green")
+    table.add_column("Nome Sanitizado (Minúsculas/Sem Espaços)", style="green")
 
     for old_p, new_p in changes:
         try:
@@ -487,11 +487,20 @@ def fetch_snes_cmd(
             help="Termo de pesquisa opcional para pré-filtrar os jogos de SNES.",
         ),
     ] = None,
+    identifier: Annotated[
+        Optional[str],
+        typer.Option(
+            "--identifier",
+            "-i",
+            help="Identificador alternativo de coleção no Internet Archive.",
+        ),
+    ] = None,
 ) -> None:
-    """Busca, seleciona e ingere interativamente jogos de SNES do acervo No-Intro.
+    """Atalho direto: busca, seleciona e ingere jogos de SNES do acervo No-Intro.
 
     Args:
         query: Termo opcional para pré-filtrar títulos do acervo.
+        identifier: Identificador alternativo de coleção.
 
     Returns:
         None.
@@ -504,7 +513,238 @@ def fetch_snes_cmd(
     except FileNotFoundError:
         resolved_root = Path.cwd()
 
-    run_interactive_snes_fetcher(query=query, repo_root=resolved_root, console=console)
+    run_interactive_fetcher(
+        platform_code="snes",
+        query=query,
+        identifier=identifier,
+        repo_root=resolved_root,
+        console=console,
+    )
+
+
+@app.command(name="fetch-ps1")
+def fetch_ps1_cmd(
+    query: Annotated[
+        Optional[str],
+        typer.Option(
+            "--query",
+            "-q",
+            help="Termo de pesquisa opcional para pré-filtrar os jogos de PS1.",
+        ),
+    ] = None,
+    identifier: Annotated[
+        Optional[str],
+        typer.Option(
+            "--identifier",
+            "-i",
+            help="Identificador alternativo de coleção no Internet Archive.",
+        ),
+    ] = None,
+) -> None:
+    """Atalho direto: busca, seleciona e ingere jogos de PlayStation 1 do acervo Redump.
+
+    Args:
+        query: Termo opcional para pré-filtrar títulos do acervo.
+        identifier: Identificador alternativo de coleção.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    try:
+        resolved_root = find_repo_root()
+    except FileNotFoundError:
+        resolved_root = Path.cwd()
+
+    run_interactive_fetcher(
+        platform_code="ps1",
+        query=query,
+        identifier=identifier,
+        repo_root=resolved_root,
+        console=console,
+    )
+
+
+@app.command(name="fetch-ps2")
+def fetch_ps2_cmd(
+    query: Annotated[
+        Optional[str],
+        typer.Option(
+            "--query",
+            "-q",
+            help="Termo de pesquisa opcional para pré-filtrar os jogos de PS2.",
+        ),
+    ] = None,
+    identifier: Annotated[
+        Optional[str],
+        typer.Option(
+            "--identifier",
+            "-i",
+            help="Identificador alternativo de coleção no Internet Archive.",
+        ),
+    ] = None,
+) -> None:
+    """Atalho direto: busca, seleciona e ingere jogos de PlayStation 2 do acervo Redump.
+
+    Args:
+        query: Termo opcional para pré-filtrar títulos do acervo.
+        identifier: Identificador alternativo de coleção.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    try:
+        resolved_root = find_repo_root()
+    except FileNotFoundError:
+        resolved_root = Path.cwd()
+
+    run_interactive_fetcher(
+        platform_code="ps2",
+        query=query,
+        identifier=identifier,
+        repo_root=resolved_root,
+        console=console,
+    )
+
+
+@app.command(name="fetch-psp")
+def fetch_psp_cmd(
+    query: Annotated[
+        Optional[str],
+        typer.Option(
+            "--query",
+            "-q",
+            help="Termo de pesquisa opcional para pré-filtrar os jogos de PSP.",
+        ),
+    ] = None,
+    identifier: Annotated[
+        Optional[str],
+        typer.Option(
+            "--identifier",
+            "-i",
+            help="Identificador alternativo de coleção no Internet Archive.",
+        ),
+    ] = None,
+) -> None:
+    """Atalho direto: busca, seleciona e ingere jogos de PlayStation Portable do acervo Redump.
+
+    Args:
+        query: Termo opcional para pré-filtrar títulos do acervo.
+        identifier: Identificador alternativo de coleção.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    try:
+        resolved_root = find_repo_root()
+    except FileNotFoundError:
+        resolved_root = Path.cwd()
+
+    run_interactive_fetcher(
+        platform_code="psp",
+        query=query,
+        identifier=identifier,
+        repo_root=resolved_root,
+        console=console,
+    )
+
+
+@app.command(name="fetch-gc")
+def fetch_gc_cmd(
+    query: Annotated[
+        Optional[str],
+        typer.Option(
+            "--query",
+            "-q",
+            help="Termo de pesquisa opcional para pré-filtrar os jogos de GameCube.",
+        ),
+    ] = None,
+    identifier: Annotated[
+        Optional[str],
+        typer.Option(
+            "--identifier",
+            "-i",
+            help="Identificador alternativo de coleção no Internet Archive.",
+        ),
+    ] = None,
+) -> None:
+    """Atalho direto: busca, seleciona e ingere jogos de Nintendo GameCube do acervo Redump RVZ.
+
+    Args:
+        query: Termo opcional para pré-filtrar títulos do acervo.
+        identifier: Identificador alternativo de coleção.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    try:
+        resolved_root = find_repo_root()
+    except FileNotFoundError:
+        resolved_root = Path.cwd()
+
+    run_interactive_fetcher(
+        platform_code="gc",
+        query=query,
+        identifier=identifier,
+        repo_root=resolved_root,
+        console=console,
+    )
+
+
+@app.command(name="fetch-dc")
+def fetch_dc_cmd(
+    query: Annotated[
+        Optional[str],
+        typer.Option(
+            "--query",
+            "-q",
+            help="Termo de pesquisa opcional para pré-filtrar os jogos de Dreamcast.",
+        ),
+    ] = None,
+    identifier: Annotated[
+        Optional[str],
+        typer.Option(
+            "--identifier",
+            "-i",
+            help="Identificador alternativo de coleção no Internet Archive.",
+        ),
+    ] = None,
+) -> None:
+    """Atalho direto: busca, seleciona e ingere jogos de Sega Dreamcast do acervo Redump CHD.
+
+    Args:
+        query: Termo opcional para pré-filtrar títulos do acervo.
+        identifier: Identificador alternativo de coleção.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    try:
+        resolved_root = find_repo_root()
+    except FileNotFoundError:
+        resolved_root = Path.cwd()
+
+    run_interactive_fetcher(
+        platform_code="dc",
+        query=query,
+        identifier=identifier,
+        repo_root=resolved_root,
+        console=console,
+    )
 
 
 def run_pwsh_script(script_name: str, args: list[str]) -> int:
