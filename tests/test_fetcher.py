@@ -503,3 +503,153 @@ def test_run_interactive_fetcher_pagination_and_search(
         platform_code="snes", repo_root=mock_repo_root, console=console
     )
     assert res == []
+
+
+def test_resolve_initial_identifier() -> None:
+    """Verifica a resolução dinâmica de coleções e partições por plataforma e termo.
+
+    Args:
+        None.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    from retrogame_lab.fetcher import resolve_initial_identifier
+
+    # Identificador customizado tem precedência
+    assert resolve_initial_identifier("snes", "mario", "custom-id") == "custom-id"
+
+    # SNES padrão
+    assert resolve_initial_identifier("snes", "mario") == "nointro-snes"
+
+    # PS1 canônico
+    assert resolve_initial_identifier("ps1", "resident") == "chd_psx"
+
+    # PS2 roteamento de letras
+    assert resolve_initial_identifier("ps2", "colossus") == "ps2-redump-usa-chd-part-C"
+    assert resolve_initial_identifier("ps2", "shadow") == "ps2-redump-usa-chd-part-S"
+    assert resolve_initial_identifier("ps2", "007 agent") == "ps2-redump-usa-chd-part-0"
+    assert resolve_initial_identifier("ps2", "") == "ps2-redump-usa-chd-part-A"
+
+    # PSP roteamento Part 1 (A-M) vs Part 2 (N-Z)
+    assert resolve_initial_identifier("psp", "god of war") == "psp-chd-zstd-redump-part1"
+    assert resolve_initial_identifier("psp", "persona 3") == "psp-chd-zstd-redump-part2"
+
+
+def test_get_archive_catalog_subfolder_names(mock_repo_root: Path) -> None:
+    """Verifica se arquivos dentro de subpastas do acervo têm o prefixo limpo no título.
+
+    Args:
+        mock_repo_root: Fixture de raiz mockada do repositório.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    scratch_dir = mock_repo_root / "scratch"
+    scratch_dir.mkdir(parents=True, exist_ok=True)
+    cache_file = scratch_dir / "cache_chd_psx_files.json"
+
+    dummy_data = [
+        {"name": "CHD-PSX-USA/Resident Evil (USA).chd", "size": "318837841"},
+        {"name": "CHD-PSX-USA/Silent Hill (USA).chd", "size": "350000000"},
+    ]
+    cache_file.write_text(json.dumps(dummy_data), encoding="utf-8")
+
+    catalog = get_archive_catalog(
+        identifier="chd_psx", platform_code="ps1", repo_root=mock_repo_root
+    )
+
+    assert len(catalog) == 2
+    assert catalog[0].filename == "CHD-PSX-USA/Resident Evil (USA).chd"
+    assert catalog[0].title == "Resident Evil (USA)"
+    assert catalog[0].clean_title == "Resident Evil"
+    assert catalog[0].region_tag == "USA"
+    assert catalog[0].extension == ".chd"
+
+
+def test_find_ps2_partition_with_matches_cache(mock_repo_root: Path) -> None:
+    """Verifica localização rápida de títulos em partições de PS2 a partir do cache local.
+
+    Args:
+        mock_repo_root: Fixture de raiz mockada do repositório.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    from retrogame_lab.fetcher import find_ps2_partition_with_matches
+
+    scratch_dir = mock_repo_root / "scratch"
+    scratch_dir.mkdir(parents=True, exist_ok=True)
+    cache_s = scratch_dir / "cache_ps2-redump-usa-chd-part-S_files.json"
+
+    dummy_s = [
+        {"name": "Shadow of the Colossus (USA).chd", "size": "1110008023"},
+        {"name": "Silent Hill 2 (USA).chd", "size": "2100000000"},
+    ]
+    cache_s.write_text(json.dumps(dummy_s), encoding="utf-8")
+
+    found = find_ps2_partition_with_matches(
+        query="colossus", repo_root=mock_repo_root
+    )
+    assert found == "ps2-redump-usa-chd-part-S"
+
+    found_empty = find_ps2_partition_with_matches(
+        query="", repo_root=mock_repo_root
+    )
+    assert found_empty is None
+
+
+def test_run_interactive_fetcher_letra_and_parte_commands(
+    mock_repo_root: Path,
+    mocker: MockerFixture,
+) -> None:
+    """Verifica os comandos interativos /letra (PS2) e /parte (PSP).
+
+    Args:
+        mock_repo_root: Fixture de raiz mockada.
+        mocker: Fixture do pytest-mock.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    from retrogame_lab.fetcher import run_interactive_fetcher
+
+    catalog_s = [ArchiveRomEntry("Shadow (USA).chd", "Shadow (USA)", 100, "url1")]
+    catalog_part2 = [ArchiveRomEntry("Tekken (USA).chd", "Tekken (USA)", 200, "url2")]
+
+    def fake_catalog(identifier: str, platform_code: str, **kwargs):
+        if "part-S" in identifier:
+            return catalog_s
+        if "part2" in identifier:
+            return catalog_part2
+        return [ArchiveRomEntry("Default (USA).chd", "Default (USA)", 50, "url0")]
+
+    mocker.patch("retrogame_lab.fetcher.get_archive_catalog", side_effect=fake_catalog)
+
+    # Simula troca de letra no PS2: '/letra s', depois sai 'q'
+    mocker.patch("rich.prompt.Prompt.ask", side_effect=["/letra s", "q"])
+    console = Console(record=True)
+    res_ps2 = run_interactive_fetcher(
+        platform_code="ps2", repo_root=mock_repo_root, console=console
+    )
+    assert res_ps2 == []
+
+    # Simula troca de parte no PSP: '/parte 2', depois sai 'q'
+    mocker.patch("rich.prompt.Prompt.ask", side_effect=["/parte 2", "q"])
+    res_psp = run_interactive_fetcher(
+        platform_code="psp", repo_root=mock_repo_root, console=console
+    )
+    assert res_psp == []
+

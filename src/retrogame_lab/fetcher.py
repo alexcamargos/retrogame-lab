@@ -56,6 +56,44 @@ class PlatformArchiveConfig:
     description: str
 
 
+# Mapeamento canônico das 26 partições alfabéticas (+ numéricas) da coleção Redump PS2 CHD
+PS2_ALPHABET_PARTS: dict[str, str] = {
+    "a": "ps2-redump-usa-chd-part-A",
+    "b": "ps2-redump-usa-chd-part-B",
+    "c": "ps2-redump-usa-chd-part-C",
+    "d": "ps2-redump-usa-chd-part-D",
+    "e": "ps2-redump-usa-chd-part-E",
+    "f": "ps2-redump-usa-chd-part-F",
+    "g": "ps2-redump-usa-chd-part-g_202207",
+    "h": "ps2-redump-usa-chd-part-H",
+    "i": "ps2-redump-usa-chd-part-I",
+    "j": "ps2-redump-usa-chd-part-J",
+    "k": "ps2-redump-usa-chd-part-K",
+    "l": "ps2-redump-usa-chd-part-L",
+    "m": "ps2-redump-usa-chd-part-M",
+    "n": "ps2-redump-usa-chd-part-N",
+    "o": "ps2-redump-usa-chd-part-O",
+    "p": "ps2-redump-usa-chd-part-P",
+    "q": "ps2-redump-usa-chd-part-Q",
+    "r": "ps2-redump-usa-chd-part-R",
+    "s": "ps2-redump-usa-chd-part-S",
+    "t": "ps2-redump-usa-chd-part-T",
+    "u": "ps2-redump-usa-chd-part-U",
+    "v": "ps2-redump-usa-chd-part-V",
+    "w": "ps2-redump-usa-chd-part-W",
+    "x": "ps2-redump-usa-chd-part-X",
+    "y": "ps2-redump-usa-chd-part-Y",
+    "z": "ps2-redump-usa-chd-part-Z",
+    "0": "ps2-redump-usa-chd-part-0",
+}
+
+# Mapeamento canônico das partes da coleção Redump PSP CHD
+PSP_PARTS: dict[str, str] = {
+    "1": "psp-chd-zstd-redump-part1",
+    "2": "psp-chd-zstd-redump-part2",
+}
+
+
 # Catálogo de coleções canônicas de preservação (No-Intro e Redump) por plataforma
 PLATFORM_ARCHIVE_CONFIGS: dict[str, PlatformArchiveConfig] = {
     "snes": PlatformArchiveConfig(
@@ -66,21 +104,21 @@ PLATFORM_ARCHIVE_CONFIGS: dict[str, PlatformArchiveConfig] = {
     ),
     "ps1": PlatformArchiveConfig(
         platform_code="ps1",
-        default_identifier="ps1-psx-roms",
+        default_identifier="chd_psx",
         accepted_extensions=(".chd", ".zip"),
-        description="Redump Sony PlayStation 1 (CHD Collection)",
+        description="Redump Sony PlayStation 1 (USA CHD Collection)",
     ),
     "ps2": PlatformArchiveConfig(
         platform_code="ps2",
-        default_identifier="sony-playstation-2-j-redump-collection",
+        default_identifier="ps2-redump-usa-chd-part-A",
         accepted_extensions=(".chd", ".iso", ".zip"),
-        description="Redump Sony PlayStation 2 (CHD/ISO Collection)",
+        description="Redump Sony PlayStation 2 (USA CHD Collection - Particionado A-Z)",
     ),
     "psp": PlatformArchiveConfig(
         platform_code="psp",
-        default_identifier="sony-playstation-portable-redump",
+        default_identifier="psp-chd-zstd-redump-part1",
         accepted_extensions=(".cso", ".chd", ".iso", ".zip"),
-        description="Redump Sony PlayStation Portable (ISO/CSO/CHD Collection)",
+        description="Redump Sony PlayStation Portable (CHD-ZSTD Part 1 A-M)",
     ),
     "gc": PlatformArchiveConfig(
         platform_code="gc",
@@ -293,8 +331,9 @@ def get_archive_catalog(
             continue
 
         size = int(item.get("size", 0)) if str(item.get("size", "0")).isdigit() else 0
+        file_basename = Path(name).name
         clean_full_title = re.sub(
-            r"\.(zip|sfc|smc|chd|iso|cso|rvz|7z)$", "", name, flags=re.IGNORECASE
+            r"\.(zip|sfc|smc|chd|iso|cso|rvz|7z)$", "", file_basename, flags=re.IGNORECASE
         )
         base_name, region, extra = parse_title_metadata(clean_full_title)
         ext = Path(name).suffix.lower()
@@ -368,7 +407,7 @@ def download_and_extract_rom(
         RuntimeError: Se o download falhar ou se o arquivo compactado não contiver uma ROM válida.
     """
     target_dir.mkdir(parents=True, exist_ok=True)
-    temp_archive_path = target_dir / entry.filename
+    temp_archive_path = target_dir / Path(entry.filename).name
 
     req = urllib.request.Request(entry.download_url, headers={"User-Agent": USER_AGENT})
 
@@ -499,6 +538,143 @@ def fetch_and_ingest_rom(
             extracted_rom.unlink(missing_ok=True)
 
 
+def resolve_initial_identifier(
+    platform_code: str,
+    query: str | None = None,
+    custom_identifier: str | None = None,
+) -> str:
+    """Resolve o identificador de catálogo mais adequado para a plataforma e termo de busca.
+
+    Para plataformas com acervos particionados (como PS2 e PSP), roteia
+    dinamicamente para a partição alfabética ou volume correto com base
+    no termo de busca fornecido.
+
+    Args:
+        platform_code: Código da plataforma ('snes', 'ps1', 'ps2', 'psp', 'gc', 'dc').
+        query: Termo de busca inicial opcional.
+        custom_identifier: Identificador personalizado explícito fornecido pelo operador.
+
+    Returns:
+        String contendo o identificador do acervo no Internet Archive.
+
+    Raises:
+        None.
+    """
+    if custom_identifier:
+        return custom_identifier
+
+    plat = platform_code.lower().strip()
+    preset = PLATFORM_ARCHIVE_CONFIGS.get(plat)
+    default_id = preset.default_identifier if preset else "nointro-snes"
+
+    if not query or not query.strip():
+        return default_id
+
+    cleaned_q = query.strip().lower()
+    first_char = cleaned_q[0]
+
+    if plat == "ps2":
+        if first_char.isdigit():
+            return PS2_ALPHABET_PARTS.get("0", default_id)
+        if first_char in PS2_ALPHABET_PARTS:
+            return PS2_ALPHABET_PARTS[first_char]
+
+    elif plat == "psp":
+        if "n" <= first_char <= "z":
+            return PSP_PARTS.get("2", "psp-chd-zstd-redump-part2")
+        return PSP_PARTS.get("1", "psp-chd-zstd-redump-part1")
+
+    return default_id
+
+
+def find_ps2_partition_with_matches(
+    query: str,
+    repo_root: Path | None = None,
+    console: Console | None = None,
+) -> str | None:
+    """Localiza qual partição alfabética do PS2 contém títulos correspondentes ao termo.
+
+    Inspeciona inicialmente o cache local existente em scratch/ e, caso não
+    localize, consulta as partições no Internet Archive (priorizando a letra inicial
+    e partições mais populares como 'S', 'G', 'M', 'N', 'C').
+
+    Args:
+        query: Termo de pesquisa a ser localizado nas partições de PS2.
+        repo_root: Raiz opcional do repositório para acesso ao cache.
+        console: Instância do Console para mensagens de status.
+
+    Returns:
+        Identificador da partição que contém o jogo ou None se não encontrado.
+
+    Raises:
+        None.
+    """
+    if not query or not query.strip():
+        return None
+
+    root = repo_root or find_repo_root()
+    scratch_dir = root / "scratch"
+    tokens = [t.lower() for t in query.strip().split() if t.strip()]
+
+    # 1. Passo rápido: busca no cache local existente de todas as partições já consultadas
+    for ident in PS2_ALPHABET_PARTS.values():
+        cache_file = scratch_dir / f"cache_{ident}_files.json"
+        if cache_file.exists():
+            try:
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        for item in data:
+                            name = Path(item.get("name", "")).name.lower()
+                            if all(tok in name for tok in tokens):
+                                return ident
+            except (json.JSONDecodeError, OSError):
+                continue
+
+    # 2. Passo remoto: prioriza primeira letra e letras com alta concentração de sucessos
+    first_char = tokens[0][0]
+    priority_order: list[str] = []
+    if first_char in PS2_ALPHABET_PARTS:
+        priority_order.append(PS2_ALPHABET_PARTS[first_char])
+
+    popular_letters = ["s", "g", "m", "n", "c", "t", "b", "r", "d", "f", "p"]
+    for let in popular_letters:
+        ident = PS2_ALPHABET_PARTS.get(let)
+        if ident and ident not in priority_order:
+            priority_order.append(ident)
+
+    for ident in PS2_ALPHABET_PARTS.values():
+        if ident not in priority_order:
+            priority_order.append(ident)
+
+    if console:
+        console.print(
+            f"[dim]Procurando '{query}' nas demais partições de PS2...[/dim]"
+        )
+
+    for ident in priority_order:
+        metadata_url = f"https://archive.org/metadata/{ident}/files"
+        req = urllib.request.Request(metadata_url, headers={"User-Agent": USER_AGENT})
+        try:
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                result = data.get("result", [])
+                if isinstance(result, list):
+                    # Persiste em cache para acelerar chamadas futuras
+                    cache_file = scratch_dir / f"cache_{ident}_files.json"
+                    with open(cache_file, "w", encoding="utf-8") as f:
+                        json.dump(result, f, ensure_ascii=False)
+
+                    for item in result:
+                        name = Path(item.get("name", "")).name.lower()
+                        if all(tok in name for tok in tokens):
+                            return ident
+        except Exception:
+            continue
+
+    return None
+
+
 def render_header_panel(
     platform_code: str,
     identifier: str,
@@ -545,11 +721,11 @@ def render_header_panel(
     )
 
 
-def render_controls_panel() -> Panel:
+def render_controls_panel(platform_code: str = "snes") -> Panel:
     """Renderiza a barra inferior de navegação e comandos rápidos.
 
     Args:
-        None.
+        platform_code: Código da plataforma ativa para exibir comandos contextuais.
 
     Returns:
         Instância de Panel com instruções organizadas.
@@ -557,10 +733,17 @@ def render_controls_panel() -> Panel:
     Raises:
         None.
     """
+    extra_commands = ""
+    if platform_code == "ps2":
+        extra_commands = "[bold magenta]/letra <A-Z>[/bold magenta] Partição PS2  •  "
+    elif platform_code == "psp":
+        extra_commands = "[bold magenta]/parte <1|2>[/bold magenta] Partes PSP  •  "
+
     text = (
         "[bold cyan][1-N][/bold cyan] Baixar seleção (ex: [cyan]2[/cyan] ou [cyan]1, 3[/cyan])  •  "
         "[bold yellow][n / p][/bold yellow] Próxima / Anterior  •  "
         "[bold green]<texto>[/bold green] Filtrar título\n"
+        f"{extra_commands}"
         "[bold magenta]/plat <snes|ps1|ps2|psp|gc|dc>[/bold magenta] Trocar plataforma  •  "
         "[bold cyan]/colecao <id>[/bold cyan] Trocar acervo  •  "
         "[bold red]sair (q)[/bold red] Fechar"
@@ -605,10 +788,10 @@ def run_interactive_fetcher(
     root = repo_root or find_repo_root()
 
     active_plat = plat_key
-    preset_config = PLATFORM_ARCHIVE_CONFIGS.get(active_plat)
-    active_identifier = (
-        identifier
-        or (preset_config.default_identifier if preset_config else "nointro-snes")
+    active_identifier = resolve_initial_identifier(
+        platform_code=active_plat,
+        query=query,
+        custom_identifier=identifier,
     )
 
     c.print(f"\n[cyan]Carregando acervo de preservação ({active_identifier})...[/cyan]")
@@ -636,6 +819,58 @@ def run_interactive_fetcher(
                 for item in catalog
                 if all(tok in item.title.lower() for tok in tokens)
             ]
+            # Se não encontrou jogos na partição ativa e for PS2, busca em outras partições
+            if not matched_items and active_plat == "ps2":
+                found_part = find_ps2_partition_with_matches(
+                    query=current_query, repo_root=root, console=c
+                )
+                if found_part and found_part != active_identifier:
+                    c.print(
+                        f"\n[cyan]Títulos com '{current_query}' encontrados na partição "
+                        f"'{found_part}'. Alternando acervo...[/cyan]"
+                    )
+                    active_identifier = found_part
+                    try:
+                        catalog = get_archive_catalog(
+                            identifier=active_identifier,
+                            platform_code=active_plat,
+                            repo_root=root,
+                        )
+                        matched_items = [
+                            item
+                            for item in catalog
+                            if all(tok in item.title.lower() for tok in tokens)
+                        ]
+                    except Exception:
+                        pass
+            # Se não encontrou jogos na parte ativa e for PSP, verifica a outra parte
+            elif not matched_items and active_plat == "psp":
+                alt_part = (
+                    "psp-chd-zstd-redump-part2"
+                    if active_identifier == "psp-chd-zstd-redump-part1"
+                    else "psp-chd-zstd-redump-part1"
+                )
+                try:
+                    alt_cat = get_archive_catalog(
+                        identifier=alt_part,
+                        platform_code=active_plat,
+                        repo_root=root,
+                    )
+                    alt_matches = [
+                        item
+                        for item in alt_cat
+                        if all(tok in item.title.lower() for tok in tokens)
+                    ]
+                    if alt_matches:
+                        active_identifier = alt_part
+                        catalog = alt_cat
+                        matched_items = alt_matches
+                        c.print(
+                            f"\n[cyan]Títulos com '{current_query}' encontrados em "
+                            f"'{active_identifier}'. Alternando acervo...[/cyan]"
+                        )
+                except Exception:
+                    pass
         else:
             matched_items = catalog
 
@@ -701,7 +936,7 @@ def run_interactive_fetcher(
                 )
 
         c.print(table)
-        c.print(render_controls_panel())
+        c.print(render_controls_panel(active_plat))
 
         user_input = Prompt.ask("\n[bold cyan]retrogame-lab[/bold cyan] >", default="").strip()
 
@@ -733,8 +968,11 @@ def run_interactive_fetcher(
                 target_plat = action if action in SUPPORTED_PLATFORMS else arg.lower()
                 if target_plat in SUPPORTED_PLATFORMS:
                     active_plat = target_plat
-                    cfg = PLATFORM_ARCHIVE_CONFIGS.get(active_plat)
-                    active_identifier = cfg.default_identifier if cfg else "nointro-snes"
+                    active_identifier = resolve_initial_identifier(
+                        platform_code=active_plat,
+                        query="",
+                        custom_identifier=None,
+                    )
                     current_query = ""
                     current_page = 0
                     c.print(
@@ -750,6 +988,54 @@ def run_interactive_fetcher(
                 else:
                     valid_str = ", ".join(SUPPORTED_PLATFORMS.keys())
                     c.print(f"[bold red]Plataforma inválida.[/bold red] Opções: {valid_str}")
+                continue
+
+            # Troca de partição alfabética do PS2
+            if action in ("letra", "letter", "particao"):
+                if active_plat != "ps2":
+                    c.print("[yellow]O comando /letra é exclusivo para a plataforma PS2.[/yellow]")
+                    continue
+                target_letter = arg.lower().strip()
+                if target_letter in PS2_ALPHABET_PARTS:
+                    active_identifier = PS2_ALPHABET_PARTS[target_letter]
+                    current_query = ""
+                    current_page = 0
+                    c.print(
+                        f"\n[cyan]Carregando partição '{target_letter.upper()}' de PS2 "
+                        f"({active_identifier})...[/cyan]"
+                    )
+                    try:
+                        catalog = get_archive_catalog(
+                            identifier=active_identifier, platform_code=active_plat, repo_root=root
+                        )
+                    except Exception as err:
+                        c.print(f"[bold red]Erro ao carregar partição:[/bold red] {err}")
+                else:
+                    c.print("[yellow]Letra inválida. Escolha de A a Z ou 0.[/yellow]")
+                continue
+
+            # Troca de parte do acervo de PSP
+            if action in ("parte", "part"):
+                if active_plat != "psp":
+                    c.print("[yellow]O comando /parte é exclusivo para a plataforma PSP.[/yellow]")
+                    continue
+                part_code = arg.strip()
+                if part_code in PSP_PARTS:
+                    active_identifier = PSP_PARTS[part_code]
+                    current_query = ""
+                    current_page = 0
+                    c.print(
+                        f"\n[cyan]Carregando Parte {part_code} de PSP "
+                        f"({active_identifier})...[/cyan]"
+                    )
+                    try:
+                        catalog = get_archive_catalog(
+                            identifier=active_identifier, platform_code=active_plat, repo_root=root
+                        )
+                    except Exception as err:
+                        c.print(f"[bold red]Erro ao carregar parte:[/bold red] {err}")
+                else:
+                    c.print("[yellow]Parte inválida. Escolha 1 (A-M) ou 2 (N-Z).[/yellow]")
                 continue
 
             # Troca de coleção remota
