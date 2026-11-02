@@ -9,7 +9,9 @@ realizar o download para a área volátil (scratch/) e acionar a ingestão canô
 from __future__ import annotations
 
 import json
+import os
 import re
+import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
@@ -386,11 +388,104 @@ def search_catalog(
     return filtered[:limit]
 
 
+def load_env_credentials(repo_root: Path | None = None) -> dict[str, str]:
+    """Carrega credenciais de preservação a partir de variáveis de ambiente e arquivos .env.
+
+    Inspeciona o ambiente do sistema (os.environ) e, caso não localizadas,
+    lê o arquivo '.env' na raiz do repositório ou 'scratch/ia_cookie.txt'.
+
+    Args:
+        repo_root: Caminho raiz opcional do repositório.
+
+    Returns:
+        Dicionário com as chaves encontradas ('IA_ACCESS_KEY', 'IA_SECRET_KEY', 'IA_COOKIE').
+
+    Raises:
+        None.
+    """
+    creds: dict[str, str] = {}
+    for var in ("IA_ACCESS_KEY", "IA_SECRET_KEY", "IA_COOKIE"):
+        val = os.environ.get(var, "").strip()
+        if val:
+            creds[var] = val
+
+    try:
+        root = repo_root or find_repo_root()
+    except FileNotFoundError:
+        root = Path.cwd()
+
+    # Se faltar alguma credencial, tenta carregar do arquivo .env
+    env_file = root / ".env"
+    if env_file.exists():
+        try:
+            with open(env_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    stripped = line.strip()
+                    if not stripped or stripped.startswith("#"):
+                        continue
+                    if "=" in stripped:
+                        key, val = stripped.split("=", 1)
+                        k = key.strip()
+                        v = val.strip().strip("'\"")
+                        if (
+                            k in ("IA_ACCESS_KEY", "IA_SECRET_KEY", "IA_COOKIE")
+                            and v
+                            and k not in creds
+                        ):
+                            creds[k] = v
+        except OSError:
+            pass
+
+    # Fallback para cookie em scratch/ia_cookie.txt se ainda não definido
+    if "IA_COOKIE" not in creds:
+        cookie_file = root / "scratch" / "ia_cookie.txt"
+        if cookie_file.exists():
+            try:
+                c_val = cookie_file.read_text(encoding="utf-8").strip()
+                if c_val:
+                    creds["IA_COOKIE"] = c_val
+            except OSError:
+                pass
+
+    return creds
+
+
+def get_ia_auth_headers(repo_root: Path | None = None) -> dict[str, str]:
+    """Constrói os cabeçalhos HTTP necessários para autenticação no Internet Archive.
+
+    Suporta autenticação via chaves S3 (Authorization: LOW <access>:<secret>)
+    e cookies de sessão (Cookie: logged-in-user=...; logged-in-sig=...).
+
+    Args:
+        repo_root: Caminho raiz opcional do repositório.
+
+    Returns:
+        Dicionário com cabeçalhos HTTP de autorização configurados.
+
+    Raises:
+        None.
+    """
+    creds = load_env_credentials(repo_root)
+    headers: dict[str, str] = {}
+
+    access_key = creds.get("IA_ACCESS_KEY")
+    secret_key = creds.get("IA_SECRET_KEY")
+    if access_key and secret_key:
+        headers["Authorization"] = f"LOW {access_key}:{secret_key}"
+
+    cookie = creds.get("IA_COOKIE")
+    if cookie:
+        headers["Cookie"] = cookie
+
+    return headers
+
+
 def download_and_extract_rom(
     entry: ArchiveRomEntry,
     target_dir: Path,
     platform_code: str = "snes",
     console: Console | None = None,
+    repo_root: Path | None = None,
 ) -> Path:
     """Faz o download do arquivo do acervo e extrai a imagem da ROM se for compactada.
 
@@ -399,6 +494,7 @@ def download_and_extract_rom(
         target_dir: Diretório temporário de destino para gravação e extração.
         platform_code: Plataforma alvo para validar o arquivo extraído.
         console: Instância opcional do Console do Rich para renderizar progresso.
+        repo_root: Raiz opcional do repositório para acesso a credenciais.
 
     Returns:
         Caminho Path da ROM extraída compatível com a plataforma.
@@ -409,7 +505,11 @@ def download_and_extract_rom(
     target_dir.mkdir(parents=True, exist_ok=True)
     temp_archive_path = target_dir / Path(entry.filename).name
 
-    req = urllib.request.Request(entry.download_url, headers={"User-Agent": USER_AGENT})
+    headers = {"User-Agent": USER_AGENT}
+    auth_headers = get_ia_auth_headers(repo_root)
+    headers.update(auth_headers)
+
+    req = urllib.request.Request(entry.download_url, headers=headers)
 
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
@@ -440,6 +540,21 @@ def download_and_extract_rom(
                         if not chunk:
                             break
                         f.write(chunk)
+    except urllib.error.HTTPError as err:
+        if temp_archive_path.exists():
+            temp_archive_path.unlink(missing_ok=True)
+        if err.code in (401, 403, 500):
+            msg = (
+                f"Acesso restrito no Internet Archive (HTTP {err.code}: {err.reason}).\n"
+                "Esta coleção (Redump/loggedin) requer autenticação no archive.org.\n"
+                "Para autenticar:\n"
+                " 1. Crie uma conta gratuita em https://archive.org/account/signup\n"
+                " 2. Obtenha suas S3 API Keys em https://archive.org/account/s3.php\n"
+                " 3. Preencha IA_ACCESS_KEY e IA_SECRET_KEY no seu arquivo .env\n"
+                "    (ou defina IA_COOKIE com os cookies de sessão do navegador)."
+            )
+            raise RuntimeError(msg) from err
+        raise RuntimeError(f"Falha durante o download de '{entry.title}': {err}") from err
     except Exception as err:
         if temp_archive_path.exists():
             temp_archive_path.unlink(missing_ok=True)
@@ -521,7 +636,11 @@ def fetch_and_ingest_rom(
     temp_dir.mkdir(parents=True, exist_ok=True)
 
     extracted_rom = download_and_extract_rom(
-        entry, temp_dir, platform_code=platform_code, console=console
+        entry=entry,
+        target_dir=temp_dir,
+        platform_code=platform_code,
+        console=console,
+        repo_root=root,
     )
 
     try:

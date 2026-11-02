@@ -653,3 +653,97 @@ def test_run_interactive_fetcher_letra_and_parte_commands(
     )
     assert res_psp == []
 
+
+def test_download_and_extract_rom_http_auth_error(
+    tmp_path: Path,
+    mocker: MockerFixture,
+) -> None:
+    """Verifica interceptação amigável de HTTP 401/403/500 com orientações sobre login e .env.
+
+    Args:
+        tmp_path: Diretório temporário fornecido pelo pytest.
+        mocker: Fixture do pytest-mock.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    import urllib.error
+
+    entry = ArchiveRomEntry(
+        filename="Tony Hawk's Pro Skater 2 (USA).chd",
+        title="Tony Hawk's Pro Skater 2 (USA)",
+        size_bytes=100,
+        download_url="https://archive.org/download/chd_psx/thps2.chd",
+    )
+
+    fake_err_401 = urllib.error.HTTPError(
+        url=entry.download_url,
+        code=401,
+        msg="Unauthorized",
+        hdrs={},  # type: ignore[arg-type]
+        fp=None,
+    )
+    mocker.patch("urllib.request.urlopen", side_effect=fake_err_401)
+
+    with pytest.raises(RuntimeError, match="Acesso restrito no Internet Archive"):
+        download_and_extract_rom(entry, tmp_path, platform_code="ps1")
+
+    # Também valida HTTP 500
+    fake_err_500 = urllib.error.HTTPError(
+        url=entry.download_url,
+        code=500,
+        msg="Internal Server Error",
+        hdrs={},  # type: ignore[arg-type]
+        fp=None,
+    )
+    mocker.patch("urllib.request.urlopen", side_effect=fake_err_500)
+
+    with pytest.raises(RuntimeError, match="Acesso restrito no Internet Archive"):
+        download_and_extract_rom(entry, tmp_path, platform_code="ps1")
+
+
+def test_load_env_credentials_and_headers(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verifica o carregamento de credenciais do .env e construção de headers HTTP.
+
+    Args:
+        tmp_path: Diretório temporário simulando repo_root.
+        monkeypatch: Fixture do pytest para variáveis de ambiente.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    from retrogame_lab.fetcher import get_ia_auth_headers, load_env_credentials
+
+    # Limpa variáveis de ambiente para isolamento do teste
+    monkeypatch.delenv("IA_ACCESS_KEY", raising=False)
+    monkeypatch.delenv("IA_SECRET_KEY", raising=False)
+    monkeypatch.delenv("IA_COOKIE", raising=False)
+
+    # Cria arquivo .env simulado
+    env_content = (
+        "# Arquivo de configuracao\n"
+        "IA_ACCESS_KEY=my_access_key_123\n"
+        "IA_SECRET_KEY=\"my_secret_key_456\"\n"
+        "IA_COOKIE='logged-in-user=test@user; logged-in-sig=sig123'\n"
+    )
+    (tmp_path / ".env").write_text(env_content, encoding="utf-8")
+
+    creds = load_env_credentials(repo_root=tmp_path)
+    assert creds["IA_ACCESS_KEY"] == "my_access_key_123"
+    assert creds["IA_SECRET_KEY"] == "my_secret_key_456"
+    assert "logged-in-sig=sig123" in creds["IA_COOKIE"]
+
+    headers = get_ia_auth_headers(repo_root=tmp_path)
+    assert headers["Authorization"] == "LOW my_access_key_123:my_secret_key_456"
+    assert "logged-in-sig=sig123" in headers["Cookie"]
+
+
