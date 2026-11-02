@@ -100,6 +100,7 @@ Este script em PowerShell utiliza o **Android Debug Bridge (ADB)** para:
 4. Configurar whitelist de economia de bateria para o Syncthing (`dumpsys deviceidle`).
 5. Baixar e instalar automaticamente os APKs ARM64 compatíveis (com fallback para cache offline).
 6. Injetar o arquivo `.stignore` no diretório de saves do Android.
+7. Injetar arquivos de configuração otimizados (`retroarch.cfg`, `ppsspp.ini`, `Dolphin.ini`, `emu.cfg`, `duckstation_settings.ini`, `nethersx2_settings.ini`) pré-configurando diretórios de ROMs, BIOS, saves e backend gráfico Vulkan.
 
 Salvo em `scripts/setup_android_emulators.ps1`:
 
@@ -276,7 +277,69 @@ if (Test-Path $NetherApk) {
     Write-Host "`n[AVISO] NetherSX2.apk não encontrado em tools\android_apks\. Copie o APK patcheado para concluir a instalação do PS2." -ForegroundColor Magenta
 }
 
-# 7. Otimização do Syncthing contra Doze Mode (Economia de Bateria)
+# 7. Injeção de Arquivos de Configuração Específicos para Android
+Write-Host "`n>>> Injetando configurações automáticas dos emuladores no Android..." -ForegroundColor Cyan
+$AndroidTemplatesDir = Join-Path $BaseDir "templates\android"
+
+if (Test-Path $AndroidTemplatesDir) {
+    # 7.1 Espelhar templates para a pasta central de configurações no dispositivo
+    Write-Host "Enviando perfis padronizados para $TargetDevicePath/config/..." -ForegroundColor Gray
+    Get-ChildItem -Path $AndroidTemplatesDir -File | ForEach-Object {
+        & adb @AdbArgs push $_.FullName "$TargetDevicePath/config/$($_.Name)" 2>$null | Out-Null
+    }
+
+    # 7.2 Injeção Direta - RetroArch (Universal)
+    $RetroArchCfg = Join-Path $AndroidTemplatesDir "retroarch.cfg"
+    if (Test-Path $RetroArchCfg) {
+        Write-Host "Aplicando configuração: RetroArch..." -ForegroundColor Gray
+        & adb @AdbArgs shell "mkdir -p /storage/emulated/0/RetroArch /storage/emulated/0/Android/data/com.retroarch.aarch64/files" 2>$null | Out-Null
+        & adb @AdbArgs push $RetroArchCfg "/storage/emulated/0/RetroArch/retroarch.cfg" 2>$null | Out-Null
+        & adb @AdbArgs push $RetroArchCfg "/storage/emulated/0/Android/data/com.retroarch.aarch64/files/retroarch.cfg" 2>$null | Out-Null
+    }
+
+    # 7.3 Injeção Direta - PPSSPP (PSP)
+    $PpssppIni = Join-Path $AndroidTemplatesDir "ppsspp.ini"
+    if (Test-Path $PpssppIni) {
+        Write-Host "Aplicando configuração: PPSSPP..." -ForegroundColor Gray
+        & adb @AdbArgs shell "mkdir -p /storage/emulated/0/PSP/SYSTEM /storage/emulated/0/Android/data/org.ppsspp.ppsspp/files/PSP/SYSTEM" 2>$null | Out-Null
+        & adb @AdbArgs push $PpssppIni "/storage/emulated/0/PSP/SYSTEM/ppsspp.ini" 2>$null | Out-Null
+        & adb @AdbArgs push $PpssppIni "/storage/emulated/0/Android/data/org.ppsspp.ppsspp/files/PSP/SYSTEM/ppsspp.ini" 2>$null | Out-Null
+    }
+
+    # 7.4 Injeção Direta - Dolphin (GameCube/Wii)
+    $DolphinIni = Join-Path $AndroidTemplatesDir "Dolphin.ini"
+    if (Test-Path $DolphinIni) {
+        Write-Host "Aplicando configuração: Dolphin..." -ForegroundColor Gray
+        & adb @AdbArgs shell "mkdir -p /storage/emulated/0/dolphin-emu/Config /storage/emulated/0/Android/data/org.dolphinemu.dolphinemu/files/Config" 2>$null | Out-Null
+        & adb @AdbArgs push $DolphinIni "/storage/emulated/0/dolphin-emu/Config/Dolphin.ini" 2>$null | Out-Null
+        & adb @AdbArgs push $DolphinIni "/storage/emulated/0/Android/data/org.dolphinemu.dolphinemu/files/Config/Dolphin.ini" 2>$null | Out-Null
+    }
+
+    # 7.5 Injeção Direta - Flycast (Dreamcast)
+    $FlycastCfg = Join-Path $AndroidTemplatesDir "emu.cfg"
+    if (Test-Path $FlycastCfg) {
+        Write-Host "Aplicando configuração: Flycast..." -ForegroundColor Gray
+        & adb @AdbArgs shell "mkdir -p /storage/emulated/0/Flycast /storage/emulated/0/Android/data/com.flyinghead.flycast/files" 2>$null | Out-Null
+        & adb @AdbArgs push $FlycastCfg "/storage/emulated/0/Flycast/emu.cfg" 2>$null | Out-Null
+        & adb @AdbArgs push $FlycastCfg "/storage/emulated/0/Android/data/com.flyinghead.flycast/files/emu.cfg" 2>$null | Out-Null
+    }
+
+    # 7.6 DuckStation e NetherSX2 (Carga de perfis nos diretórios de staging do app)
+    $DuckSettings = Join-Path $AndroidTemplatesDir "duckstation_settings.ini"
+    if (Test-Path $DuckSettings) {
+        & adb @AdbArgs shell "mkdir -p /storage/emulated/0/Android/data/com.github.stenzek.duckstation/files" 2>$null | Out-Null
+        & adb @AdbArgs push $DuckSettings "/storage/emulated/0/Android/data/com.github.stenzek.duckstation/files/settings.ini" 2>$null | Out-Null
+    }
+    $NetherSettings = Join-Path $AndroidTemplatesDir "nethersx2_settings.ini"
+    if (Test-Path $NetherSettings) {
+        & adb @AdbArgs shell "mkdir -p /storage/emulated/0/Android/data/xyz.nethersx2.android/files /storage/emulated/0/Android/data/xyz.aethersx2.android/files" 2>$null | Out-Null
+        & adb @AdbArgs push $NetherSettings "/storage/emulated/0/Android/data/xyz.nethersx2.android/files/PCSX2.ini" 2>$null | Out-Null
+        & adb @AdbArgs push $NetherSettings "/storage/emulated/0/Android/data/xyz.aethersx2.android/files/PCSX2.ini" 2>$null | Out-Null
+    }
+    Write-Host "Injeção de configurações concluída." -ForegroundColor Green
+}
+
+# 8. Otimização do Syncthing contra Doze Mode (Economia de Bateria)
 Write-Host "`n>>> Inserindo Syncthing na whitelist de economia de bateria..." -ForegroundColor Cyan
 $SyncthingPackages = @(
     "com.nutomic.syncthingandroid",
@@ -318,11 +381,12 @@ Write-Host "`n=== Provisionamento Android Concluído com Sucesso! ===" -Foregrou
      pwsh -File .\scripts\setup_android_emulators.ps1
      ```
 5. **Configuração dos Emuladores no Android:**
-   * **DuckStation:** Mapear pasta de Memory Cards para `RetroGames/saves/ps1/` e marcar modo "Separate card per title".
-   * **NetherSX2:** Mapear Memory Cards para `RetroGames/saves/ps2/`.
-   * **PPSSPP:** Mapear o diretório de Memory Stick para `RetroGames/saves/psp/`.
-   * **Dolphin:** Mapear pasta de saves de GameCube para `RetroGames/saves/gc/`.
-   * **Flycast:** Mapear pasta de VMU para `RetroGames/saves/dc/`.
+   * Graças à **injeção automática de configurações** executada na etapa 7 do script ADB:
+     * **RetroArch:** Já inicializa com diretórios de BIOS (`RetroGames/bios/`), saves (`RetroGames/saves/snes/`) e ROMs (`RetroGames/roms/`) pré-configurados com backend Vulkan.
+     * **PPSSPP:** Já inicializa com MemoryStick e `SAVEDATA` apontando para `RetroGames/saves/psp/` e diretório de ROMs em `RetroGames/roms/psp/`.
+     * **Dolphin:** Já inicializa com caminhos de ISO em `RetroGames/roms/gc/` e backend gráfico Vulkan.
+     * **Flycast:** Já inicializa com VMU em `RetroGames/saves/dc/`, BIOS em `RetroGames/bios/dc/` e ROMs em `RetroGames/roms/dc/`.
+     * **DuckStation e NetherSX2:** O script disponibiliza os perfis padronizados em `/storage/emulated/0/RetroGames/config/`. Caso o Storage Access Framework (SAF) do Android exija permissão de escaneamento visual no primeiro boot, utilize a opção *Import Settings* apontando para o arquivo correspondente na pasta `config/` ou selecione os diretórios indicados.
 
 ---
 

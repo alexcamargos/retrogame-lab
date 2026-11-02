@@ -218,6 +218,7 @@ O script realiza automaticamente todas as configuracoes criticas de sistema:
 4. **Bypass de Scoped Storage:** Concede a permissao especial `MANAGE_EXTERNAL_STORAGE` para os pacotes dos emuladores via `appops`, permitindo leitura e gravacao direta em `/storage/emulated/0/RetroGames/`.
 5. **Whitelist de Bateria (Doze Mode):** Adiciona os pacotes do Syncthing a lista de isencao de economia de energia (`dumpsys deviceidle whitelist`), garantindo sincronizacao em segundo plano com a tela apagada.
 6. **Instalacao de Emuladores:** Baixa e instala as versoes oficiais ARM64 de RetroArch, PPSSPP, Dolphin e Flycast (e instala DuckStation e NetherSX2 caso os APKs estejam presentes na pasta `tools/android_apks/`).
+7. **Injecao de Configuracoes Automaticas:** Injeta os templates otimizados (`retroarch.cfg`, `ppsspp.ini`, `Dolphin.ini`, `emu.cfg`, `duckstation_settings.ini`, `nethersx2_settings.ini`) diretamente nas pastas de dados dos emuladores e espelha copias de seguranca em `/storage/emulated/0/RetroGames/config/`.
 
 ---
 
@@ -270,7 +271,10 @@ Configure exatamente as tres pastas abaixo para manter o isolamento e evitar per
 
 ## 6. Etapa 5: Calibracao dos Emuladores no Android
 
-Para que os emuladores leiam os mesmos arquivos sincronizados pelo Syncthing, configure os seguintes caminhos no dispositivo Android:
+> [!NOTE]
+> **Injecao Automatica via ADB:** Se voce executou `.\retrogame android` (ou `setup_android_emulators.ps1`), a maioria dos emuladores (**RetroArch, PPSSPP, Dolphin e Flycast**) ja tera seus caminhos de BIOS, Saves e ROMs configurados automaticamente. Os passos abaixo servem para confirmacao ou para os emuladores que exigem concessao de leitura via interface visual (Storage Access Framework).
+
+Para que os emuladores leiam os mesmos arquivos sincronizados pelo Syncthing, confirme os seguintes caminhos no dispositivo Android:
 
 ### 6.1 DuckStation (PlayStation 1)
 1. Abra o DuckStation no Android.
