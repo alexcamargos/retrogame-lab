@@ -126,7 +126,7 @@ $Emulators = @(
     @{
         Name    = "Flycast (Dreamcast)"
         Package = "com.flyinghead.flycast"
-        Url     = "https://github.com/flyinghead/flycast/releases/download/v2.4/flycast-release.apk"
+        Url     = "https://github.com/flyinghead/flycast/releases/download/v2.7/flycast-2.7.apk"
         File    = Join-Path $ApkCacheDir "flycast-android.apk"
     }
 )
