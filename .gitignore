@@ -35,3 +35,8 @@ htmlcov/
 Thumbs.db
 desktop.ini
 *.tmp
+
+# Arquivos de ambiente e credenciais (Higiene de Repositório)
+.env
+.env.*
+!.env.example
