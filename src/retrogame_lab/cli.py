@@ -4,11 +4,12 @@ Fornece comandos para auditoria de integridade da biblioteca de jogos,
 inspeção de configurações do sistema e diagnóstico de salvamentos.
 """
 
+import contextlib
 import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 from rich.console import Console
@@ -22,12 +23,15 @@ from retrogame_lab.ingestion import import_rom, import_roms_batch
 from retrogame_lab.sanitizer import sanitize_directory
 
 # Configuração de encoding UTF-8 resiliente para Windows
-if hasattr(sys.stdout, "reconfigure"):
-    try:
-        sys.stdout.reconfigure(encoding="utf-8")
-        sys.stderr.reconfigure(encoding="utf-8")
-    except Exception:
-        pass
+reconfig_stdout = getattr(sys.stdout, "reconfigure", None)
+if callable(reconfig_stdout):
+    with contextlib.suppress(Exception):
+        reconfig_stdout(encoding="utf-8")
+
+reconfig_stderr = getattr(sys.stderr, "reconfigure", None)
+if callable(reconfig_stderr):
+    with contextlib.suppress(Exception):
+        reconfig_stderr(encoding="utf-8")
 
 app = typer.Typer(
     name="retrogame-lab",
@@ -96,7 +100,7 @@ def info() -> None:
 @app.command()
 def audit(
     repo_path: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option(
             "--path",
             "-p",
@@ -245,7 +249,7 @@ def audit(
 @app.command()
 def sanitize(
     target_path: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option(
             "--path",
             "-p",
@@ -430,7 +434,7 @@ def fetch_roms_cmd(
         ),
     ] = "snes",
     query: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--query",
             "-q",
@@ -438,7 +442,7 @@ def fetch_roms_cmd(
         ),
     ] = None,
     identifier: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--identifier",
             "-i",
@@ -480,7 +484,7 @@ def fetch_roms_cmd(
 @app.command(name="fetch-snes")
 def fetch_snes_cmd(
     query: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--query",
             "-q",
@@ -488,7 +492,7 @@ def fetch_snes_cmd(
         ),
     ] = None,
     identifier: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--identifier",
             "-i",
@@ -525,7 +529,7 @@ def fetch_snes_cmd(
 @app.command(name="fetch-ps1")
 def fetch_ps1_cmd(
     query: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--query",
             "-q",
@@ -533,7 +537,7 @@ def fetch_ps1_cmd(
         ),
     ] = None,
     identifier: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--identifier",
             "-i",
@@ -570,7 +574,7 @@ def fetch_ps1_cmd(
 @app.command(name="fetch-ps2")
 def fetch_ps2_cmd(
     query: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--query",
             "-q",
@@ -578,7 +582,7 @@ def fetch_ps2_cmd(
         ),
     ] = None,
     identifier: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--identifier",
             "-i",
@@ -615,7 +619,7 @@ def fetch_ps2_cmd(
 @app.command(name="fetch-psp")
 def fetch_psp_cmd(
     query: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--query",
             "-q",
@@ -623,7 +627,7 @@ def fetch_psp_cmd(
         ),
     ] = None,
     identifier: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--identifier",
             "-i",
@@ -660,7 +664,7 @@ def fetch_psp_cmd(
 @app.command(name="fetch-gc")
 def fetch_gc_cmd(
     query: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--query",
             "-q",
@@ -668,7 +672,7 @@ def fetch_gc_cmd(
         ),
     ] = None,
     identifier: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--identifier",
             "-i",
@@ -705,7 +709,7 @@ def fetch_gc_cmd(
 @app.command(name="fetch-dc")
 def fetch_dc_cmd(
     query: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--query",
             "-q",
@@ -713,7 +717,7 @@ def fetch_dc_cmd(
         ),
     ] = None,
     identifier: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--identifier",
             "-i",
@@ -819,7 +823,7 @@ def bootstrap(
 @app.command(name="download-emulators")
 def download_emulators_cmd(
     emulators: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--emulators",
             "-e",
@@ -887,7 +891,7 @@ def download_emulators_cmd(
 @app.command(name="check-updates")
 def check_updates_cmd(
     emulators: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--emulators",
             "-e",
@@ -912,7 +916,7 @@ def check_updates_cmd(
 @app.command(name="update-emulators")
 def update_emulators_cmd(
     emulators: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--emulators",
             "-e",
@@ -946,7 +950,7 @@ def update_emulators_cmd(
 @app.command(name="audit-library", hidden=True)
 def audit_library_alias(
     repo_path: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option(
             "--path",
             "-p",
@@ -1154,7 +1158,17 @@ def setup_android(
 
 
 def main() -> None:
-    """Ponto de entrada para execução de script direto."""
+    """Ponto de entrada para execução de script direto.
+
+    Args:
+        None.
+
+    Returns:
+        None.
+
+    Raises:
+        SystemExit: Ao concluir a execução pelo Typer.
+    """
     app()
 
 
