@@ -249,8 +249,12 @@ def audit_roms(roms_dir: Path) -> AuditSummary:
     summary.total_scanned = len(files)
 
     for rom_file in files:
-        ext = rom_file.suffix.lower()
         rel_parts = rom_file.relative_to(roms_dir).parts
+        # Ignorar arquivos ou diretórios de metadados do sistema (ex: .gitkeep, .stversions)
+        if any(part.startswith(".") for part in rel_parts):
+            continue
+
+        ext = rom_file.suffix.lower()
 
         # Detecção de arquivos soltos diretamente na raiz de data/roms/
         if len(rel_parts) <= 1:
@@ -416,6 +420,11 @@ def audit_saves(saves_dir: Path) -> AuditSummary:
     ]
 
     for save_file in all_files:
+        rel_parts = save_file.relative_to(saves_dir).parts
+        # Ignorar arquivos ou diretórios de metadados do sistema (ex: .stversions, .stignore, .nomedia)
+        if any(part.startswith(".") for part in rel_parts):
+            continue
+
         name_lower = save_file.name.lower()
 
         # 1. Detecção de Savestates proibidos na sincronização via regex precisa

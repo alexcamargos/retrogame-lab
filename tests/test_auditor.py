@@ -389,6 +389,46 @@ def test_audit_saves_special_characters(tmp_path: Path) -> None:
     assert any("Nome de save fora do padrão" in i.message for i in warnings)
 
 
+def test_audit_ignores_syncthing_and_dotfiles(tmp_path: Path) -> None:
+    """Verifica que arquivos de controle e backups do Syncthing são ignorados.
+
+    Garante que arquivos em .stversions, .stignore e .nomedia não disparem
+    falsos positivos de nomenclatura ou soltura de arquivos.
+
+    Args:
+        tmp_path: Diretório temporário fornecido pelo pytest.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    saves_dir = tmp_path / "saves"
+    syncthing_versions = saves_dir / ".stversions" / "psp"
+    syncthing_versions.mkdir(parents=True)
+    (syncthing_versions / "ppsspp~20261102-084111.ini").write_text("dummy", encoding="utf-8")
+    (saves_dir / ".stignore").write_text("*.state*", encoding="utf-8")
+    (saves_dir / "psp" / ".nomedia").parent.mkdir(parents=True, exist_ok=True)
+    (saves_dir / "psp" / ".nomedia").write_text("", encoding="utf-8")
+
+    # Save válido na mesma árvore
+    (saves_dir / "snes" / "super_mario.srm").parent.mkdir(parents=True, exist_ok=True)
+    (saves_dir / "snes" / "super_mario.srm").write_text("srm", encoding="utf-8")
+
+    saves_summary = audit_saves(saves_dir)
+    assert len(saves_summary.issues) == 0
+
+    roms_dir = tmp_path / "roms"
+    (roms_dir / ".gitkeep").parent.mkdir(parents=True, exist_ok=True)
+    (roms_dir / ".gitkeep").write_text("", encoding="utf-8")
+    (roms_dir / "snes" / "mario.sfc").parent.mkdir(parents=True, exist_ok=True)
+    (roms_dir / "snes" / "mario.sfc").write_text("sfc", encoding="utf-8")
+
+    roms_summary = audit_roms(roms_dir)
+    assert len(roms_summary.issues) == 0
+
+
 def test_run_full_audit(mock_repo_root: Path) -> None:
     """Verifica a execução integrada do relatório de auditoria completa.
 
