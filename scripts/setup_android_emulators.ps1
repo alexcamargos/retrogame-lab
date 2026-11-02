@@ -18,17 +18,17 @@ Write-Host ">>> Identificando conexões via ADB..." -ForegroundColor Cyan
 
 # 1. Resolução Segura de Dispositivo (Suporte a Multi-Device)
 try {
-    $DeviceLines = (adb devices | Out-String) -split "`r?`n" | Where-Object { $_ -match "\bdevice\b" -and $_ -notmatch "List of devices" }
+    $DeviceLines = @((adb devices | Out-String) -split "`r?`n" | Where-Object { $_ -match "\bdevice\b" -and $_ -notmatch "List of devices" })
 } catch {
     Write-Error "O utilitário adb não foi encontrado no PATH. Execute scripts/bootstrap.ps1 para instalar o Google.PlatformTools."
 }
 
-if (-not $DeviceLines) {
+if (-not $DeviceLines -or $DeviceLines.Count -eq 0) {
     Write-Error "Nenhum dispositivo Android autorizado foi detectado. Ative a Depuração USB e autorize o computador."
 }
 
 if (-not $DeviceId) {
-    $DeviceId = ($DeviceLines[0] -split "\s+")[0]
+    $DeviceId = ($DeviceLines[0].Trim() -split "\s+")[0]
     Write-Host ">>> Dispositivo selecionado automaticamente: $DeviceId" -ForegroundColor Yellow
 }
 
