@@ -63,10 +63,18 @@ New-Item -ItemType File -Path (Join-Path $BinDir "dolphin\portable.txt") -Force 
 $PpssppMemstick = Join-Path $BinDir "ppsspp\memstick"
 New-Item -ItemType Directory -Path $PpssppMemstick -Force | Out-Null
 
-# Vincula a pasta SAVEDATA do PPSSPP ao diretório centralizado data\saves\psp\SAVEDATA via junção
+# Vincula a pasta SAVEDATA do PPSSPP ao diretório centralizado data\saves\psp\PSP\SAVEDATA via junção
 $PpssppPsp = Join-Path $PpssppMemstick "PSP"
 $PpssppSaveData = Join-Path $PpssppPsp "SAVEDATA"
-$TargetPspSave = Join-Path $DataDir "saves\psp\SAVEDATA"
+$TargetPspSave = Join-Path $DataDir "saves\psp\PSP\SAVEDATA"
+$LegacyPspSave = Join-Path $DataDir "saves\psp\SAVEDATA"
+
+# Migração de retrocompatibilidade de layout legado caso necessário
+if ((Test-Path $LegacyPspSave) -and -not (Test-Path $TargetPspSave)) {
+    New-Item -ItemType Directory -Path (Split-Path -Parent $TargetPspSave) -Force | Out-Null
+    Move-Item -Path $LegacyPspSave -Destination $TargetPspSave -Force
+}
+
 if (-not (Test-Path $TargetPspSave)) { New-Item -ItemType Directory -Path $TargetPspSave -Force | Out-Null }
 if (-not (Test-Path $PpssppPsp)) { New-Item -ItemType Directory -Path $PpssppPsp -Force | Out-Null }
 if (-not (Test-Path $PpssppSaveData)) {
@@ -88,6 +96,14 @@ if (Test-Path $TplDir) {
         $Pcsx2Inis = Join-Path $BinDir "pcsx2\inis"
         if (-not (Test-Path $Pcsx2Inis)) { New-Item -ItemType Directory -Path $Pcsx2Inis -Force | Out-Null }
         Copy-Item "$TplDir\PCSX2.ini" "$Pcsx2Inis\PCSX2.ini" -Force 
+    }
+    if (Test-Path "$TplDir\Dolphin.ini") {
+        $DolphinCfg = Join-Path $BinDir "dolphin\User\Config"
+        if (-not (Test-Path $DolphinCfg)) { New-Item -ItemType Directory -Path $DolphinCfg -Force | Out-Null }
+        Copy-Item "$TplDir\Dolphin.ini" "$DolphinCfg\Dolphin.ini" -Force
+    }
+    if (Test-Path "$TplDir\emu.cfg") {
+        Copy-Item "$TplDir\emu.cfg" "$BinDir\flycast\emu.cfg" -Force
     }
 }
 
