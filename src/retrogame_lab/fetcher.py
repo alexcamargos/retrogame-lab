@@ -292,7 +292,7 @@ def get_archive_catalog(
 
     if not force_refresh and cache_file.exists():
         try:
-            with open(cache_file, "r", encoding="utf-8") as f:
+            with open(cache_file, encoding="utf-8") as f:
                 cached = json.load(f)
                 if isinstance(cached, list) and cached:
                     files_data = cached
@@ -418,7 +418,7 @@ def load_env_credentials(repo_root: Path | None = None) -> dict[str, str]:
     env_file = root / ".env"
     if env_file.exists():
         try:
-            with open(env_file, "r", encoding="utf-8") as f:
+            with open(env_file, encoding="utf-8") as f:
                 for line in f:
                     stripped = line.strip()
                     if not stripped or stripped.startswith("#"):
@@ -740,7 +740,7 @@ def find_ps2_partition_with_matches(
         cache_file = scratch_dir / f"cache_{ident}_files.json"
         if cache_file.exists():
             try:
-                with open(cache_file, "r", encoding="utf-8") as f:
+                with open(cache_file, encoding="utf-8") as f:
                     data = json.load(f)
                     if isinstance(data, list):
                         for item in data:
@@ -758,9 +758,9 @@ def find_ps2_partition_with_matches(
 
     popular_letters = ["s", "g", "m", "n", "c", "t", "b", "r", "d", "f", "p"]
     for let in popular_letters:
-        ident = PS2_ALPHABET_PARTS.get(let)
-        if ident and ident not in priority_order:
-            priority_order.append(ident)
+        part_ident = PS2_ALPHABET_PARTS.get(let)
+        if part_ident and part_ident not in priority_order:
+            priority_order.append(part_ident)
 
     for ident in PS2_ALPHABET_PARTS.values():
         if ident not in priority_order:

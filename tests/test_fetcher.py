@@ -10,6 +10,7 @@ import io
 import json
 import zipfile
 from pathlib import Path
+from typing import Any
 
 import pytest
 from pytest_mock import MockerFixture
@@ -629,7 +630,9 @@ def test_run_interactive_fetcher_letra_and_parte_commands(
     catalog_s = [ArchiveRomEntry("Shadow (USA).chd", "Shadow (USA)", 100, "url1")]
     catalog_part2 = [ArchiveRomEntry("Tekken (USA).chd", "Tekken (USA)", 200, "url2")]
 
-    def fake_catalog(identifier: str, platform_code: str, **kwargs):
+    def fake_catalog(
+        identifier: str, platform_code: str, **kwargs: Any
+    ) -> list[ArchiveRomEntry]:
         if "part-S" in identifier:
             return catalog_s
         if "part2" in identifier:
