@@ -39,7 +39,7 @@ line-length = 100
 target-version = "py310"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "D"]
+select = ["E", "F", "W", "I", "D", "B", "UP", "C4", "SIM"]
 ignore = [
     "D100", # Missing docstring in public module (checked where appropriate)
     "D104", # Missing docstring in public package
@@ -47,3 +47,10 @@ ignore = [
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
