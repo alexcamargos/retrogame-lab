@@ -339,18 +339,43 @@ if (Test-Path $AndroidTemplatesDir) {
     Write-Host "Injeção de configurações concluída." -ForegroundColor Green
 }
 
-# 8. Otimização do Syncthing contra Doze Mode (Economia de Bateria)
-Write-Host "`n>>> Inserindo Syncthing na whitelist de economia de bateria..." -ForegroundColor Cyan
+# 8. Provisionamento e Otimização do Syncthing (nel0x/syncthing-android-gplay)
+Write-Host "`n--- Processando: Syncthing-Fork (Sincronização de Saves) ---" -ForegroundColor Yellow
 $SyncthingPackages = @(
-    "com.nutomic.syncthingandroid",
     "com.github.catfriend1.syncthingandroid",
+    "com.nutomic.syncthingandroid",
     "com.nutomic.syncthingcb"
 )
-foreach ($Pkg in $SyncthingPackages) {
-    & adb @AdbArgs shell "dumpsys deviceidle whitelist +$Pkg" 2>$null
+$SyncthingInstalled = Resolve-InstalledPackage -PackageCandidates $SyncthingPackages
+$SyncthingApk = Find-LocalApk -Pattern "*syncthing*.apk"
+$SyncthingDefaultFile = Join-Path $ApkCacheDir "syncthing-fork-arm64.apk"
+$SyncthingUrl = "https://github.com/nel0x/syncthing-android-gplay/releases/latest/download/app-arm64-v8a-release.apk"
+
+if (-not $SyncthingApk -and -not $SkipDownload -and -not $SyncthingInstalled) {
+    Write-Host "Baixando Syncthing-Fork atualizado (nel0x/syncthing-android-gplay)..." -ForegroundColor Gray
+    try {
+        Invoke-WebRequest -Uri $SyncthingUrl -OutFile $SyncthingDefaultFile -MaximumRedirection 10 -UserAgent "Mozilla/5.0"
+        if ((Test-Path $SyncthingDefaultFile) -and (Get-Item $SyncthingDefaultFile).Length -ge 1024) {
+            $SyncthingApk = $SyncthingDefaultFile
+        }
+    } catch {
+        if (Test-Path $SyncthingDefaultFile) { Remove-Item $SyncthingDefaultFile -Force }
+        Write-Warning "Falha no download online do Syncthing-Fork. Forneça o APK em tools\android_apks\"
+    }
 }
 
-Write-Host "`n=== Provisionamento Android Concluído com Sucesso! ===" -ForegroundColor Green
+if ($SyncthingApk -and -not $SyncthingInstalled) {
+    Write-Host "Instalando Syncthing-Fork no dispositivo Android ($([System.IO.Path]::GetFileName($SyncthingApk)))..." -ForegroundColor Green
+    & adb @AdbArgs install -r -d -g $SyncthingApk
+}
+
+if ($SyncthingInstalled) {
+    Write-Host "Concedendo permissão MANAGE_EXTERNAL_STORAGE para $SyncthingInstalled..." -ForegroundColor Gray
+    & adb @AdbArgs shell "appops set $SyncthingInstalled MANAGE_EXTERNAL_STORAGE allow" 2>$null
+    Write-Host "Inserindo Syncthing na whitelist de economia de bateria (Doze Mode)..." -ForegroundColor Gray
+    $DumpResult = (& adb @AdbArgs shell "dumpsys deviceidle whitelist +$SyncthingInstalled") | Out-String
+    Write-Host "Whitelist de economia de bateria aplicada com sucesso: $SyncthingInstalled" -ForegroundColor Green
+}
 ```
 
 ---
@@ -362,7 +387,7 @@ Write-Host "`n=== Provisionamento Android Concluído com Sucesso! ===" -Foregrou
 
 1. **Inicialização do Syncthing:**
    * **No Windows:** Instale via Winget (`winget install Syncthing.Syncthing`) e inicie o serviço. Acesse `http://127.0.0.1:8384`.
-   * **No Android:** Instale o app do Syncthing via F-Droid ou Play Store. Conceda permissão de *Acesso a todos os arquivos*.
+   * **No Android:** Utilize exclusivamente o **Syncthing-Fork** ([nel0x/syncthing-android-gplay](https://github.com/nel0x/syncthing-android-gplay)), disponível via Play Store ou provisionado via `.\retrogame android`. Conceda permissão de *Acesso a todos os arquivos* (`MANAGE_EXTERNAL_STORAGE`).
 2. **Pareamento de Dispositivos:**
    * Adicione o ID do dispositivo de cada ponta no painel do outro.
    * Ative a opção **Local Discovery (LAN)** para garantir que as transferências ocorram em rede local de alta velocidade sem passar por relays de internet.

@@ -170,9 +170,10 @@ Ao desenvolver scripts de pareamento via ADB ou automações para o dispositivo 
   ```
 
 ### 6.3 Prevenção contra Doze Mode no Syncthing
+* O cliente Android homologado e mantido ativamente é o **Syncthing-Fork** ([nel0x/syncthing-android-gplay](https://github.com/nel0x/syncthing-android-gplay)), com pacote `com.github.catfriend1.syncthingandroid`.
 * Para impedir que o sistema operacional Android finalize o Syncthing em segundo plano e bloqueie a sincronização de saves, adicionar o pacote à whitelist de economia de energia:
   ```powershell
-  adb shell "dumpsys deviceidle whitelist +com.nutomic.syncthingcb"
+  adb shell "dumpsys deviceidle whitelist +com.github.catfriend1.syncthingandroid"
   ```
 
 ### 6.4 Estrutura de Diretórios Canônica no Armazenamento Interno
