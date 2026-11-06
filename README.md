@@ -42,14 +42,19 @@ A documentação detalhada de engenharia e decisões operacionais está estrutur
 
 ## Catálogo de Plataformas Homologadas
 
-| Código | Plataforma | Formato Canônico | Extensões Aceitas | Estratégia de Saves | Emulador de Referência |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **`snes`** | Super Nintendo | `.sfc` | `.sfc`, `.smc`, `.zip` | Arquivo `.srm` idêntico à ROM | RetroArch (`snes9x`) |
-| **`ps1`** | Sony PlayStation 1 | `.chd` | `.chd` | Cartão individual por jogo (`.mcd`) | DuckStation (Qt) |
-| **`ps2`** | Sony PlayStation 2 | `.chd` | `.chd`, `.iso` | Cartão individual por jogo (`.ps2`) | PCSX2 (Qt v2.0+) |
-| **`psp`** | Sony PlayStation Portable | `.cso` | `.cso`, `.chd`, `.iso` | Pastas nativas `SAVEDATA` | PPSSPP Standalone |
-| **`gc`** | Nintendo GameCube | `.rvz` | `.rvz` | Cartões GCI / Pastas de Região em `gc/` | Dolphin |
-| **`dc`** | Sega Dreamcast | `.chd` | `.chd` | Arquivo de VMU padrão (`vms0.bin`) | Flycast |
+| Código | Plataforma | Formato Canônico | Extensões Aceitas | Estratégia de Saves | Emulador de Referência | Escopo |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **`snes`** | Super Nintendo | `.sfc` | `.sfc`, `.smc`, `.zip` | Arquivo `.srm` idêntico à ROM | RetroArch (`snes9x`) | Windows + Android |
+| **`ps1`** | Sony PlayStation 1 | `.chd` | `.chd` | Cartão individual por jogo (`.mcd`) | DuckStation (Qt) | Windows + Android |
+| **`ps2`** | Sony PlayStation 2 | `.chd` | `.chd`, `.iso` | Cartão individual por jogo (`.ps2`) | PCSX2 (Qt v2.0+) | Windows + Android |
+| **`psp`** | Sony PlayStation Portable | `.cso` | `.cso`, `.chd`, `.iso` | Pastas nativas `SAVEDATA` | PPSSPP Standalone | Windows + Android |
+| **`gc`** | Nintendo GameCube | `.rvz` | `.rvz` | Cartões GCI / Pastas de Região em `gc/` | Dolphin | Windows + Android |
+| **`dc`** | Sega Dreamcast | `.chd` | `.chd` | Arquivo de VMU padrão (`vms0.bin`) | Flycast | Windows + Android |
+| **`wii`** | Nintendo Wii | `.rvz` | `.rvz` | Pastas e dados nativos Dolphin em `wii/` | Dolphin | Windows + Android |
+| **`n64`** | Nintendo 64 | `.z64` | `.z64`, `.n64`, `.v64`, `.zip` | Saves `.sra`/`.fla`/`.eep`/`.mpk` por ROM | RetroArch (`mupen64plus-next`) | Windows + Android |
+| **`ps3`** | Sony PlayStation 3 | `.iso` | `.iso`, `.pkg` | Pastas nativas `dev_hdd0/home/.../savedata` | RPCS3 | Windows 11 (Desktop) |
+| **`xbox360`** | Microsoft Xbox 360 | `.iso` | `.iso`, `.xex` | Pastas de perfil `Content/0000000000000000` | Xenia | Windows 11 (Desktop) |
+| **`switch`** | Nintendo Switch | `.nsp` | `.nsp`, `.xci` | Pastas de save do perfil do emulador | Ryujinx | Windows 11 (Desktop) |
 
 ---
 
@@ -124,7 +129,7 @@ Valida o formato aceito para a plataforma, bloqueia extensões proibidas (ex.: `
 
 ### 4.1 Ingestão Interativa de ROMs Preservadas (No-Intro / Redump / Internet Archive)
 
-Permite buscar, escolher e baixar títulos para todas as plataformas homologadas (SNES, PS1, PS2, PSP, GameCube, Dreamcast) diretamente de acervos de preservação digital oficiais, integrando o arquivo automaticamente na esteira de extração, sanitização de nomenclatura e ingestão física:
+Permite buscar, escolher e baixar títulos para todas as plataformas homologadas (SNES, PS1, PS2, PSP, GameCube, Dreamcast, Wii, N64, PS3, Xbox 360, Switch) diretamente de acervos de preservação digital oficiais, integrando o arquivo automaticamente na esteira de extração, sanitização de nomenclatura e ingestão física:
 
 ```powershell
 # Busca e download interativo para qualquer plataforma
@@ -134,10 +139,17 @@ Permite buscar, escolher e baixar títulos para todas as plataformas homologadas
 .\retrogame fetch-roms -p gc  -q "metroid"
 .\retrogame fetch-roms -p dc  -q "sonic"
 .\retrogame fetch-roms -p snes -q "donkey kong"
+.\retrogame fetch-roms -p wii -q "mario galaxy"
+.\retrogame fetch-roms -p n64 -q "zelda"
+.\retrogame fetch-roms -p ps3 -q "uncharted"
+.\retrogame fetch-roms -p xbox360 -q "halo"
+.\retrogame fetch-roms -p switch -q "odyssey"
 
 # Atalhos por plataforma
 .\retrogame fetch-snes -q "mario"
 .\retrogame fetch-ps1 -q "silent hill"
+.\retrogame fetch-wii -q "kart"
+.\retrogame fetch-n64 -q "banjo"
 ```
 
 *Comandos alternativos diretos:*

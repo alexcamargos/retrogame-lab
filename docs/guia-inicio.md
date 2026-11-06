@@ -87,17 +87,20 @@ Caso prefira baixar manualmente, faca o download das versoes portateis oficiais 
 
 | Plataforma / Sistema | Pasta de Destino | Executavel Esperado | Pacote Portatil Oficial Homologado |
 | :--- | :--- | :--- | :--- |
-| **SNES / 2D** (RetroArch) | `bin/retroarch/` | `retroarch.exe` | [RetroArch Windows x86_64 (.7z)](https://www.retroarch.com/?page=platforms)<br>*(O core Snes9x e baixado automaticamente ao executar `.\retrogame download-emulators` ou ao iniciar um jogo)* |
+| **SNES / N64 / 2D** (RetroArch) | `bin/retroarch/` | `retroarch.exe` | [RetroArch Windows x86_64 (.7z)](https://www.retroarch.com/?page=platforms)<br>*(Os cores Snes9x e Mupen64Plus-Next são baixados automaticamente)* |
 | **PlayStation 1** (DuckStation) | `bin/duckstation/` | `duckstation-qt.exe` | [DuckStation Releases](https://github.com/stenzek/duckstation/releases) (`duckstation-windows-x64-release.zip`) |
 | **PlayStation 2** (PCSX2) | `bin/pcsx2/` | `pcsx2-qt.exe` | [PCSX2 Releases](https://pcsx2.net/downloads) (`pcsx2-v...-windows-x64-Qt.7z`) |
 | **PSP** (PPSSPP) | `bin/ppsspp/` | `PPSSPPWindows64.exe` | [PPSSPP Download](https://www.ppsspp.org/download/) (`PPSSPP Windows zip` portatil) |
 | **GameCube / Wii** (Dolphin) | `bin/dolphin/` | `Dolphin.exe` | [Dolphin Emulator](https://dolphin-emu.org/download/) (`Windows x64 7z` portatil) |
 | **Dreamcast** (Flycast) | `bin/flycast/` | `flycast.exe` | [Flycast Releases](https://github.com/flyinghead/flycast/releases) (`flycast-win64.zip`) |
+| **PlayStation 3** (RPCS3 - Windows) | `bin/rpcs3/` | `rpcs3.exe` | [RPCS3 Binaries](https://github.com/RPCS3/rpcs3-binaries-win/releases) (`rpcs3-...-win64.7z`) |
+| **Xbox 360** (Xenia - Windows) | `bin/xenia/` | `xenia.exe` | [Xenia Canary](https://github.com/xenia-canary/xenia-canary-releases/releases) (`xenia_canary.zip`) |
+| **Nintendo Switch** (Ryujinx - Windows) | `bin/ryujinx/` | `Ryujinx.exe` | [Ryujinx Releases](https://github.com/Ryubing/Ryujinx/releases) (`ryujinx-...-win_x64.zip`) |
 | **Frontend** (ES-DE Opcional) | `bin/es-de/` | `ES-DE.exe` | [ES-DE Frontend](https://es-de.org/) (`Portable Release .zip`) |
 
 > [!IMPORTANT]
 > **Marcador de Portabilidade:**  
-> Apos extrair manualmente, certifique-se de que o arquivo vazio `portable.txt` continue presente dentro de `bin/duckstation/`, `bin/pcsx2/` e `bin/dolphin/` para forcar o armazenamento local de configuracoes.
+> Apos extrair manualmente, certifique-se de que o arquivo vazio `portable.txt` continue presente dentro de `bin/duckstation/`, `bin/pcsx2/`, `bin/dolphin/`, `bin/xenia/` e `bin/rpcs3/`, e a subpasta `portable/` em `bin/ryujinx/`, forçando o armazenamento isolado e portátil de configurações e saves.
 
 ### 2.4 Ativacao do Ambiente Python do Repositorio
 No mesmo terminal (ou em sessao comum sem elevacao):
