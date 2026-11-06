@@ -15,13 +15,13 @@ Esta skill capacita agentes a executar, diagnosticar, auditar e provisionar o ec
 Para lançar uma ROM de qualquer plataforma suportada com perfilamento de hardware automático:
 
 ```powershell
-pwsh -NoProfile -File scripts/launch.ps1 -Platform <snes|ps1|ps2|psp|gc|dc> -RomPath <caminho_da_rom> [-Fullscreen | -Windowed] [-GpuMode auto|igpu|dgpu]
+pwsh -NoProfile -File scripts/launch.ps1 -Platform <snes|ps1|ps2|psp|gc|dc|wii|n64|ps3|xbox360|switch> -RomPath <caminho_da_rom> [-Fullscreen | -Windowed] [-GpuMode auto|igpu|dgpu]
 ```
 
 * **Comportamento Automático:**
   * **Trava Pré-Voo:** Inspeciona o nome da ROM física; caso contenha espaços ou caracteres especiais, executa auto-higienização física no disco antes de lançar o emulador.
   * Detecta automaticamente GPUs dedicadas (NVIDIA/Radeon/Arc) e injeta preferência de alto desempenho no registro do DirectX.
-  * Em CPUs híbridas (Intel 12ª Gen+, Core Ultra), vincula processos com alta demanda de IPC (PCSX2, Dolphin) aos **P-cores (0 a 7)**.
+  * Em CPUs híbridas (Intel 12ª Gen+, Core Ultra), vincula processos com alta demanda de IPC (PCSX2, Dolphin, RPCS3, Xenia, Ryujinx) aos **P-cores (0 a 7)**.
   * Executa o processo com isolamento estrito do diretório de trabalho (*Push-Location / Pop-Location*).
 
 ---
