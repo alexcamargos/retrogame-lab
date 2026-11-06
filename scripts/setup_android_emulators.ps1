@@ -47,6 +47,29 @@ if ($DeviceAbi -notmatch "arm64") {
     Write-Warning "O dispositivo conectado não reporta ABI arm64-v8a ($DeviceAbi). Alguns APKs podem falhar."
 }
 
+# Cache de pacotes instalados no Android
+$InstalledPackagesRaw = (& adb @AdbArgs shell "pm list packages") | Out-String
+$InstalledPackages = @($InstalledPackagesRaw -split "`r?`n" | ForEach-Object {
+    if ($_ -match "^package:\s*(.+)$") { $Matches[1].Trim() }
+})
+
+function Resolve-InstalledPackage {
+    param([string[]]$PackageCandidates)
+    foreach ($Pkg in $PackageCandidates) {
+        if ($InstalledPackages -contains $Pkg) { return $Pkg }
+    }
+    return $null
+}
+
+function Find-LocalApk {
+    param([string]$Pattern)
+    $FoundFiles = @(Get-ChildItem -Path $ApkCacheDir -Filter $Pattern -File -ErrorAction SilentlyContinue | Sort-Object Length -Descending)
+    if ($FoundFiles.Count -gt 0 -and $FoundFiles[0].Length -ge 1024) {
+        return $FoundFiles[0].FullName
+    }
+    return $null
+}
+
 # 2. Estruturação Completa de Pastas no Android
 Write-Host ">>> Criando estrutura hierárquica no armazenamento interno..." -ForegroundColor Cyan
 $Directories = @(
@@ -102,34 +125,39 @@ if (Test-Path $LocalStIgnore) {
 # 4. Definição do Catálogo de Emuladores ARM64
 $Emulators = @(
     @{
-        Name    = "RetroArch (Universal)"
-        Package = "com.retroarch.aarch64"
-        Url     = "https://buildbot.libretro.com/nightly/android/RetroArch_aarch64.apk"
-        File    = Join-Path $ApkCacheDir "RetroArch_aarch64.apk"
+        Name        = "RetroArch (Universal)"
+        Packages    = @("com.retroarch.aarch64", "com.retroarch")
+        Url         = "https://buildbot.libretro.com/nightly/android/RetroArch_aarch64.apk"
+        FilePattern = "*retroarch*.apk"
+        DefaultFile = Join-Path $ApkCacheDir "RetroArch_aarch64.apk"
     },
     @{
-        Name    = "DuckStation (PS1)"
-        Package = "com.github.stenzek.duckstation"
-        Url     = "" # DuckStation Android é mantido preferencialmente em cache local
-        File    = Join-Path $ApkCacheDir "duckstation-android.apk"
+        Name        = "DuckStation (PS1)"
+        Packages    = @("com.github.stenzek.duckstation")
+        Url         = "" # DuckStation oficial é distribuído na Google Play Store
+        FilePattern = "*duckstation*.apk"
+        DefaultFile = Join-Path $ApkCacheDir "duckstation-android.apk"
     },
     @{
-        Name    = "PPSSPP (PSP)"
-        Package = "org.ppsspp.ppsspp"
-        Url     = "https://www.ppsspp.org/files/1_18_1/ppsspp.apk"
-        File    = Join-Path $ApkCacheDir "ppsspp.apk"
+        Name        = "PPSSPP (PSP)"
+        Packages    = @("org.ppsspp.ppsspp", "org.ppsspp.ppssppgold")
+        Url         = "https://www.ppsspp.org/files/1_18_1/ppsspp.apk"
+        FilePattern = "*ppsspp*.apk"
+        DefaultFile = Join-Path $ApkCacheDir "ppsspp.apk"
     },
     @{
-        Name    = "Dolphin (GameCube/Wii)"
-        Package = "org.dolphinemu.dolphinemu"
-        Url     = "https://dolphin-emu.org/download/get/latest/dolphin-master.apk"
-        File    = Join-Path $ApkCacheDir "dolphin-android.apk"
+        Name        = "Dolphin (GameCube/Wii)"
+        Packages    = @("org.dolphinemu.dolphinemu")
+        Url         = "https://dolphin-emu.org/download/get/latest/dolphin-master.apk"
+        FilePattern = "*dolphin*.apk"
+        DefaultFile = Join-Path $ApkCacheDir "dolphin-android.apk"
     },
     @{
-        Name    = "Flycast (Dreamcast)"
-        Package = "com.flyinghead.flycast"
-        Url     = "https://github.com/flyinghead/flycast/releases/download/v2.7/flycast-2.7.apk"
-        File    = Join-Path $ApkCacheDir "flycast-android.apk"
+        Name        = "Flycast (Dreamcast)"
+        Packages    = @("com.flycast.emulator", "com.flyinghead.flycast")
+        Url         = "https://github.com/flyinghead/flycast/releases/download/v2.7/flycast-2.7.apk"
+        FilePattern = "*flycast*.apk"
+        DefaultFile = Join-Path $ApkCacheDir "flycast-android.apk"
     }
 )
 
@@ -137,39 +165,77 @@ $Emulators = @(
 foreach ($Emu in $Emulators) {
     Write-Host "`n--- Processando: $($Emu.Name) ---" -ForegroundColor Yellow
 
-    if (-not $SkipDownload -and $Emu.Url) {
-        if (-not (Test-Path $Emu.File) -or (Get-Item $Emu.File).Length -lt 1024) {
-            Write-Host "Baixando pacote atualizado ($($Emu.Url))..." -ForegroundColor Gray
-            try {
-                Invoke-WebRequest -Uri $Emu.Url -OutFile $Emu.File -MaximumRedirection 10 -UserAgent "Mozilla/5.0"
-            } catch {
-                if (Test-Path $Emu.File) { Remove-Item $Emu.File -Force }
-                Write-Warning "Falha no download online de $($Emu.Name). Verifique a URL ou forneça o APK em tools\android_apks\"
+    $InstalledPkg = Resolve-InstalledPackage -PackageCandidates $Emu.Packages
+    $LocalApk = Find-LocalApk -Pattern $Emu.FilePattern
+
+    # Tenta baixar online caso o APK local não exista e uma URL esteja configurada
+    if (-not $LocalApk -and -not $SkipDownload -and $Emu.Url) {
+        Write-Host "Tentando baixar pacote atualizado ($($Emu.Url))..." -ForegroundColor Gray
+        try {
+            Invoke-WebRequest -Uri $Emu.Url -OutFile $Emu.DefaultFile -MaximumRedirection 10 -UserAgent "Mozilla/5.0"
+            if ((Test-Path $Emu.DefaultFile) -and (Get-Item $Emu.DefaultFile).Length -ge 1024) {
+                $LocalApk = $Emu.DefaultFile
+            }
+        } catch {
+            if (Test-Path $Emu.DefaultFile) { Remove-Item $Emu.DefaultFile -Force }
+            if (-not $InstalledPkg) {
+                Write-Warning "Download online de $($Emu.Name) indisponível ou bloqueado por CDN. Forneça o APK em tools\android_apks\"
             }
         }
     }
 
-    if ((Test-Path $Emu.File) -and (Get-Item $Emu.File).Length -ge 1024) {
-        Write-Host "Instalando/Atualizando APK no dispositivo Android..." -ForegroundColor Green
-        & adb @AdbArgs install -r -d -g $Emu.File
-
-        # Concessão mandatória de MANAGE_EXTERNAL_STORAGE (Android 11+)
-        Write-Host "Concedendo permissão MANAGE_EXTERNAL_STORAGE..." -ForegroundColor Gray
-        & adb @AdbArgs shell "appops set $($Emu.Package) MANAGE_EXTERNAL_STORAGE allow" 2>$null
+    if ($LocalApk) {
+        Write-Host "Instalando/Atualizando APK no dispositivo Android ($([System.IO.Path]::GetFileName($LocalApk)))..." -ForegroundColor Green
+        & adb @AdbArgs install -r -d -g $LocalApk
+        # Reavalia o pacote instalado após a instalação
+        $InstalledPackagesRaw = (& adb @AdbArgs shell "pm list packages") | Out-String
+        $InstalledPackages = @($InstalledPackagesRaw -split "`r?`n" | ForEach-Object {
+            if ($_ -match "^package:\s*(.+)$") { $Matches[1].Trim() }
+        })
+        $InstalledPkg = Resolve-InstalledPackage -PackageCandidates $Emu.Packages
+    } elseif ($InstalledPkg) {
+        Write-Host "Emulador já instalado no dispositivo Android ($InstalledPkg)." -ForegroundColor Green
     } else {
-        Write-Warning "APK válido para $($Emu.Name) não encontrado em $($Emu.File). Etapa ignorada."
+        if ($Emu.Name -match "DuckStation") {
+            Write-Warning "DuckStation (PS1) não encontrado em tools\android_apks\ nem instalado no dispositivo. Instale via Google Play Store (com.github.stenzek.duckstation) ou copie o APK para tools\android_apks\"
+        } else {
+            Write-Warning "APK válido para $($Emu.Name) não encontrado em $ApkCacheDir nem instalado no aparelho. Etapa ignorada."
+        }
+    }
+
+    # Concessão mandatória de MANAGE_EXTERNAL_STORAGE (Android 11+)
+    if ($InstalledPkg) {
+        Write-Host "Concedendo permissão MANAGE_EXTERNAL_STORAGE para $InstalledPkg..." -ForegroundColor Gray
+        & adb @AdbArgs shell "appops set $InstalledPkg MANAGE_EXTERNAL_STORAGE allow" 2>$null
     }
 }
 
 # 6. Tratamento Especial para o NetherSX2 (PS2)
-$NetherApk = Join-Path $ApkCacheDir "NetherSX2.apk"
-if (Test-Path $NetherApk) {
-    Write-Host "`n--- Instalando NetherSX2 (PS2) do cache local ---" -ForegroundColor Yellow
+Write-Host "`n--- Processando: NetherSX2 (PS2) ---" -ForegroundColor Yellow
+$NetherPackages = @("com.theemulatorapp.nethersx2", "xyz.nethersx2.android", "xyz.aethersx2.android")
+$NetherInstalled = Resolve-InstalledPackage -PackageCandidates $NetherPackages
+$NetherApk = Find-LocalApk -Pattern "*nether*.apk"
+
+if ($NetherApk) {
+    Write-Host "Instalando/Atualizando NetherSX2 do cache local ($([System.IO.Path]::GetFileName($NetherApk)))..." -ForegroundColor Green
     & adb @AdbArgs install -r -d -g $NetherApk
-    & adb @AdbArgs shell "appops set xyz.aethersx2.android MANAGE_EXTERNAL_STORAGE allow" 2>$null
-    & adb @AdbArgs shell "appops set xyz.nethersx2.android MANAGE_EXTERNAL_STORAGE allow" 2>$null
+    $InstalledPackagesRaw = (& adb @AdbArgs shell "pm list packages") | Out-String
+    $InstalledPackages = @($InstalledPackagesRaw -split "`r?`n" | ForEach-Object {
+        if ($_ -match "^package:\s*(.+)$") { $Matches[1].Trim() }
+    })
+    $NetherInstalled = Resolve-InstalledPackage -PackageCandidates $NetherPackages
+} elseif ($NetherInstalled) {
+    Write-Host "NetherSX2 já instalado no dispositivo Android ($NetherInstalled)." -ForegroundColor Green
 } else {
-    Write-Host "`n[AVISO] NetherSX2.apk não encontrado em tools\android_apks\. Copie o APK patcheado para concluir a instalação do PS2." -ForegroundColor Magenta
+    Write-Host "[AVISO] NetherSX2.apk não encontrado em tools\android_apks\ nem instalado no dispositivo." -ForegroundColor Magenta
+    Write-Host "O NetherSX2 é um patch comunitário para o AetherSX2. Para instalar, copie o APK patcheado para tools\android_apks\" -ForegroundColor Gray
+}
+
+foreach ($Pkg in $NetherPackages) {
+    if ($InstalledPackages -contains $Pkg) {
+        Write-Host "Concedendo permissão MANAGE_EXTERNAL_STORAGE para $Pkg..." -ForegroundColor Gray
+        & adb @AdbArgs shell "appops set $Pkg MANAGE_EXTERNAL_STORAGE allow" 2>$null
+    }
 }
 
 # 7. Injeção de Arquivos de Configuração Específicos para Android
@@ -214,22 +280,28 @@ if (Test-Path $AndroidTemplatesDir) {
     $FlycastCfg = Join-Path $AndroidTemplatesDir "emu.cfg"
     if (Test-Path $FlycastCfg) {
         Write-Host "Aplicando configuração: Flycast..." -ForegroundColor Gray
-        & adb @AdbArgs shell "mkdir -p /storage/emulated/0/Flycast /storage/emulated/0/Android/data/com.flyinghead.flycast/files" 2>$null | Out-Null
+        & adb @AdbArgs shell "mkdir -p /storage/emulated/0/Flycast" 2>$null | Out-Null
         & adb @AdbArgs push $FlycastCfg "/storage/emulated/0/Flycast/emu.cfg" 2>$null | Out-Null
-        & adb @AdbArgs push $FlycastCfg "/storage/emulated/0/Android/data/com.flyinghead.flycast/files/emu.cfg" 2>$null | Out-Null
+        foreach ($Pkg in @("com.flycast.emulator", "com.flyinghead.flycast")) {
+            & adb @AdbArgs shell "mkdir -p /storage/emulated/0/Android/data/$Pkg/files" 2>$null | Out-Null
+            & adb @AdbArgs push $FlycastCfg "/storage/emulated/0/Android/data/$Pkg/files/emu.cfg" 2>$null | Out-Null
+        }
     }
 
     # 7.6 DuckStation e NetherSX2 (Carga de perfis nos diretórios de staging do app)
     $DuckSettings = Join-Path $AndroidTemplatesDir "duckstation_settings.ini"
     if (Test-Path $DuckSettings) {
+        Write-Host "Aplicando configuração: DuckStation..." -ForegroundColor Gray
         & adb @AdbArgs shell "mkdir -p /storage/emulated/0/Android/data/com.github.stenzek.duckstation/files" 2>$null | Out-Null
         & adb @AdbArgs push $DuckSettings "/storage/emulated/0/Android/data/com.github.stenzek.duckstation/files/settings.ini" 2>$null | Out-Null
     }
     $NetherSettings = Join-Path $AndroidTemplatesDir "nethersx2_settings.ini"
     if (Test-Path $NetherSettings) {
-        & adb @AdbArgs shell "mkdir -p /storage/emulated/0/Android/data/xyz.nethersx2.android/files /storage/emulated/0/Android/data/xyz.aethersx2.android/files" 2>$null | Out-Null
-        & adb @AdbArgs push $NetherSettings "/storage/emulated/0/Android/data/xyz.nethersx2.android/files/PCSX2.ini" 2>$null | Out-Null
-        & adb @AdbArgs push $NetherSettings "/storage/emulated/0/Android/data/xyz.aethersx2.android/files/PCSX2.ini" 2>$null | Out-Null
+        Write-Host "Aplicando configuração: NetherSX2..." -ForegroundColor Gray
+        foreach ($Pkg in @("com.theemulatorapp.nethersx2", "xyz.nethersx2.android", "xyz.aethersx2.android")) {
+            & adb @AdbArgs shell "mkdir -p /storage/emulated/0/Android/data/$Pkg/files" 2>$null | Out-Null
+            & adb @AdbArgs push $NetherSettings "/storage/emulated/0/Android/data/$Pkg/files/PCSX2.ini" 2>$null | Out-Null
+        }
     }
     Write-Host "Injeção de configurações concluída." -ForegroundColor Green
 }
@@ -237,12 +309,18 @@ if (Test-Path $AndroidTemplatesDir) {
 # 8. Otimização do Syncthing contra Doze Mode (Economia de Bateria)
 Write-Host "`n>>> Inserindo Syncthing na whitelist de economia de bateria..." -ForegroundColor Cyan
 $SyncthingPackages = @(
-    "com.nutomic.syncthingandroid",
     "com.github.catfriend1.syncthingandroid",
+    "com.nutomic.syncthingandroid",
     "com.nutomic.syncthingcb"
 )
-foreach ($Pkg in $SyncthingPackages) {
-    & adb @AdbArgs shell "dumpsys deviceidle whitelist +$Pkg" 2>$null
+$InstalledSyncthing = $SyncthingPackages | Where-Object { $InstalledPackages -contains $_ }
+if ($InstalledSyncthing) {
+    foreach ($Pkg in $InstalledSyncthing) {
+        $DumpResult = (& adb @AdbArgs shell "dumpsys deviceidle whitelist +$Pkg") | Out-String
+        Write-Host "Whitelist de economia de bateria aplicada com sucesso: $Pkg" -ForegroundColor Green
+    }
+} else {
+    Write-Warning "Nenhum pacote do Syncthing (ex.: com.github.catfriend1.syncthingandroid) foi encontrado instalado no Android. Instale o Syncthing para sincronizar saves."
 }
 
 Write-Host "`n=== Provisionamento Android Concluído com Sucesso! ===" -ForegroundColor Green
