@@ -82,12 +82,16 @@ $Directories = @(
     "$TargetDevicePath/roms/psp",
     "$TargetDevicePath/roms/gc",
     "$TargetDevicePath/roms/dc",
+    "$TargetDevicePath/roms/wii",
+    "$TargetDevicePath/roms/n64",
     "$TargetDevicePath/saves/snes",
     "$TargetDevicePath/saves/ps1",
     "$TargetDevicePath/saves/ps2",
     "$TargetDevicePath/saves/psp",
     "$TargetDevicePath/saves/gc",
     "$TargetDevicePath/saves/dc",
+    "$TargetDevicePath/saves/wii",
+    "$TargetDevicePath/saves/n64",
     "$TargetDevicePath/config",
     "$TargetDevicePath/states"
 )
@@ -115,6 +119,10 @@ if (Test-Path $LocalStIgnore) {
 (?d)thumbs.db
 (?d)desktop.ini
 (?d).syncthing.*
+// Plataformas Exclusivas de Desktop (Windows-only)
+ps3/
+xbox360/
+switch/
 "@
     $TempStIgnore = [System.IO.Path]::GetTempFileName()
     Set-Content -Path $TempStIgnore -Value $StIgnoreContent -Encoding UTF8

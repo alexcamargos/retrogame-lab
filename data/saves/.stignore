@@ -17,3 +17,8 @@
 (?d)thumbs.db
 (?d)desktop.ini
 (?d).syncthing.*
+
+// 4. Plataformas Exclusivas de Desktop (Windows-only - isolamento mobile)
+ps3/
+xbox360/
+switch/
