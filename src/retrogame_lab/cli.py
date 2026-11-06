@@ -21,6 +21,12 @@ from retrogame_lab.config import SUPPORTED_PLATFORMS, find_repo_root
 from retrogame_lab.fetcher import run_interactive_fetcher
 from retrogame_lab.ingestion import import_rom, import_roms_batch
 from retrogame_lab.sanitizer import sanitize_directory
+from retrogame_lab.syncthing import (
+    apply_android_syncthing_setup,
+    apply_windows_syncthing_config,
+    render_syncthing_report,
+    run_syncthing_validation,
+)
 
 # Configuração de encoding UTF-8 resiliente para Windows
 reconfig_stdout = getattr(sys.stdout, "reconfigure", None)
@@ -1392,6 +1398,173 @@ def setup_android(
     except FileNotFoundError as err:
         console.print(f"[bold red]Erro:[/bold red] {err}")
         raise typer.Exit(code=1) from err
+
+
+@app.command(name="syncthing")
+def syncthing_cmd(
+    repo_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--path",
+            "-p",
+            help="Caminho raiz do repositório para validação. Padrão: auto-detectado.",
+        ),
+    ] = None,
+    apply: Annotated[
+        bool,
+        typer.Option(
+            "--apply",
+            "-a",
+            help="Aplica correções e gera configurações automaticamente no Windows e Android.",
+        ),
+    ] = False,
+    android: Annotated[
+        bool,
+        typer.Option(
+            "--android/--no-android",
+            help="Habilita ou ignora verificações no Android via ADB.",
+        ),
+    ] = True,
+    windows: Annotated[
+        bool,
+        typer.Option(
+            "--windows/--no-windows",
+            help="Habilita ou ignora verificações no host Windows.",
+        ),
+    ] = True,
+    device_id: Annotated[
+        str,
+        typer.Option(
+            "--device-id",
+            "-d",
+            help="Identificador do dispositivo Android no ADB (opcional).",
+        ),
+    ] = "",
+    json_output: Annotated[
+        bool,
+        typer.Option(
+            "--json-output",
+            "--json",
+            "-j",
+            help="Retorna o relatório de auditoria em formato JSON estruturado.",
+        ),
+    ] = False,
+) -> None:
+    """Valida e provisiona configurações de sincronização do Syncthing para Windows e Android.
+
+    Args:
+        repo_path: Caminho raiz opcional do repositório.
+        apply: Se True, aplica correções automáticas e gera arquivos de configuração.
+        android: Se True, inclui validações e automações no Android via ADB.
+        windows: Se True, inclui validações e automações no Windows.
+        device_id: ID opcional do dispositivo Android no ADB.
+        json_output: Se True, formata a saída em JSON estruturado.
+
+    Returns:
+        None.
+
+    Raises:
+        typer.Exit: Se a raiz não for encontrada ou se erros críticos forem detectados.
+    """
+    try:
+        resolved_root = repo_path or find_repo_root()
+    except FileNotFoundError as err:
+        console.print(f"[bold red]Erro:[/bold red] {err}")
+        raise typer.Exit(code=1) from err
+
+    report = run_syncthing_validation(
+        repo_root=resolved_root,
+        check_android=android,
+        check_windows=windows,
+        device_id=device_id,
+    )
+
+    if apply:
+        console.print("\n[bold cyan]>>> Aplicando auto-configuração do Syncthing...[/bold cyan]")
+
+        if windows:
+            try:
+                win_actions = apply_windows_syncthing_config(
+                    repo_root=resolved_root,
+                    android_device_id=report.android_device_id,
+                )
+                for act in win_actions:
+                    console.print(f"  [green]• [Windows][/green] {act}")
+            except Exception as err:
+                console.print(f"  [bold red]• [Windows] Falha ao aplicar:[/bold red] {err}")
+
+        if android and report.android_connected:
+            try:
+                and_actions = apply_android_syncthing_setup(
+                    repo_root=resolved_root,
+                    device_id=device_id,
+                    windows_device_id=report.windows_device_id,
+                )
+                for act in and_actions:
+                    console.print(f"  [green]• [Android][/green] {act}")
+            except Exception as err:
+                console.print(f"  [bold red]• [Android] Falha ao provisionar:[/bold red] {err}")
+        elif android and not report.android_connected:
+            console.print("  [yellow]• [Android] Ignorado: Dispositivo ADB não conectado.[/yellow]")
+
+        report = run_syncthing_validation(
+            repo_root=resolved_root,
+            check_android=android,
+            check_windows=windows,
+            device_id=device_id,
+        )
+
+    if json_output:
+        cfg_str = str(report.windows_config_path) if report.windows_config_path else None
+        data = {
+            "windows": {
+                "running": report.windows_running,
+                "config_path": cfg_str,
+                "device_id": report.windows_device_id,
+                "folders": [
+                    {
+                        "id": f.id,
+                        "label": f.label,
+                        "path": f.path,
+                        "type": f.folder_type,
+                        "watcher": f.watcher_enabled,
+                        "versioning": f.versioning_type,
+                        "devices": f.devices,
+                    }
+                    for f in report.windows_folders
+                ],
+                "devices": [
+                    {"id": d.id, "name": d.name, "introducer": d.introducer}
+                    for d in report.windows_devices
+                ],
+            },
+            "android": {
+                "connected": report.android_connected,
+                "device_id": report.android_device_id,
+                "package": report.android_package,
+                "model": report.android_model,
+            },
+            "items": [
+                {
+                    "target": item.target,
+                    "category": item.category,
+                    "status": item.status.value,
+                    "message": item.message,
+                    "details": item.details,
+                }
+                for item in report.items
+            ],
+            "has_errors": report.has_errors,
+            "has_warnings": report.has_warnings,
+        }
+        print(json.dumps(data, indent=2, ensure_ascii=False))
+        if report.has_errors:
+            raise typer.Exit(code=1)
+        return
+
+    render_syncthing_report(report, console=console)
+    if report.has_errors:
+        raise typer.Exit(code=1)
 
 
 def main() -> None:

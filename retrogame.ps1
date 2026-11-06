@@ -38,6 +38,8 @@ function Show-Help {
     Write-Host "                  Ex.: .\retrogame android [-SkipDownload]`n"
 
     Write-Host "Comandos Analíticos e de Biblioteca (Python / uv):" -ForegroundColor Yellow
+    Write-Host "  syncthing       Valida regras e provisiona configurações no Windows e Android"
+    Write-Host "                  Ex.: .\retrogame syncthing [--apply] [--no-android]"
     Write-Host "  audit           Audita integridade de BIOS, formatos de ROMs e regras de saves"
     Write-Host "                  Ex.: .\retrogame audit [--json]"
     Write-Host "  sanitize        Higieniza nomes de ROMs e saves (remove espaços e caracteres especiais)"
@@ -90,6 +92,9 @@ switch -Regex ($Command.ToLower()) {
     }
     "^(update-emulators|update_emulators|update)$" {
         & pwsh -NoProfile -File "$ScriptsDir\download_emulators.ps1" -Update @RemainingArgs
+    }
+    "^(syncthing|sync)$" {
+        & uv run retrogame-lab syncthing @RemainingArgs
     }
     "^(audit|audit_library|audit-library)$" {
         & uv run retrogame-lab audit @RemainingArgs
