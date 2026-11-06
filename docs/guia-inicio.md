@@ -228,7 +228,7 @@ O **Syncthing** garante a troca de saves e o envio de jogos na rede local Wi-Fi 
 
 ### 5.1 Inicializacao dos Servicos
 * **No Windows:** Abra o menu Iniciar, inicie o aplicativo **Syncthing** (ou abra no navegador o endereco `http://127.0.0.1:8384`).
-* **No Android:** Abra o aplicativo **Syncthing** (ou *Syncthing-Fork*). Conceda todas as permissoes de armazenamento solicitadas.
+* **No Android:** Abra o aplicativo **Syncthing-Fork** ([nel0x/syncthing-android-gplay](https://github.com/nel0x/syncthing-android-gplay)). Conceda todas as permissões de armazenamento solicitadas (`MANAGE_EXTERNAL_STORAGE`).
 
 ### 5.2 Pareamento dos Dois Aparelhos
 1. No painel web do Windows (`http://127.0.0.1:8384`), clique em **Acoes** $\rightarrow$ **Mostrar ID**.
