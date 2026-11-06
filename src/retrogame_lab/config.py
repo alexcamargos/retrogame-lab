@@ -23,6 +23,7 @@ class PlatformInfo:
         prohibited_extensions: Tupla de extensões proibidas ou que exigem conversão.
         save_format_desc: Descrição da estratégia de salvamento compatível.
         emulator_name: Nome do emulador padrão de referência.
+        windows_only: Se a plataforma é restrita ao host Windows 11 (sem paridade Android).
     """
 
     code: str
@@ -32,6 +33,7 @@ class PlatformInfo:
     prohibited_extensions: tuple[str, ...]
     save_format_desc: str
     emulator_name: str
+    windows_only: bool = False
 
 
 SUPPORTED_PLATFORMS: dict[str, PlatformInfo] = {
@@ -43,6 +45,7 @@ SUPPORTED_PLATFORMS: dict[str, PlatformInfo] = {
         prohibited_extensions=(".state", ".s01"),
         save_format_desc="Arquivo .srm idêntico ao nome da ROM",
         emulator_name="RetroArch (Snes9x)",
+        windows_only=False,
     ),
     "ps1": PlatformInfo(
         code="ps1",
@@ -52,6 +55,7 @@ SUPPORTED_PLATFORMS: dict[str, PlatformInfo] = {
         prohibited_extensions=(".cue", ".bin", ".iso", ".img"),
         save_format_desc="Cartão individual por jogo (.mcd)",
         emulator_name="DuckStation",
+        windows_only=False,
     ),
     "ps2": PlatformInfo(
         code="ps2",
@@ -61,6 +65,7 @@ SUPPORTED_PLATFORMS: dict[str, PlatformInfo] = {
         prohibited_extensions=(".cue", ".bin"),
         save_format_desc="Cartão individual por jogo (.ps2) ou Folder Memory Card",
         emulator_name="PCSX2",
+        windows_only=False,
     ),
     "psp": PlatformInfo(
         code="psp",
@@ -70,6 +75,7 @@ SUPPORTED_PLATFORMS: dict[str, PlatformInfo] = {
         prohibited_extensions=(),
         save_format_desc="Pastas nativas SAVEDATA",
         emulator_name="PPSSPP",
+        windows_only=False,
     ),
     "gc": PlatformInfo(
         code="gc",
@@ -79,6 +85,7 @@ SUPPORTED_PLATFORMS: dict[str, PlatformInfo] = {
         prohibited_extensions=(".chd", ".iso", ".gcm"),
         save_format_desc="Cartões GCI / Pastas de Região em gc/",
         emulator_name="Dolphin",
+        windows_only=False,
     ),
     "dc": PlatformInfo(
         code="dc",
@@ -88,6 +95,57 @@ SUPPORTED_PLATFORMS: dict[str, PlatformInfo] = {
         prohibited_extensions=(".cdi", ".gdi", ".cue", ".bin"),
         save_format_desc="Arquivo de VMU padrão (vms0.bin)",
         emulator_name="Flycast",
+        windows_only=False,
+    ),
+    "wii": PlatformInfo(
+        code="wii",
+        name="Nintendo Wii",
+        canonical_format=".rvz",
+        accepted_extensions=(".rvz",),
+        prohibited_extensions=(".chd", ".iso", ".gcm", ".wbfs"),
+        save_format_desc="Pastas e títulos de salvamento nativos do Dolphin em saves/wii/",
+        emulator_name="Dolphin",
+        windows_only=False,
+    ),
+    "n64": PlatformInfo(
+        code="n64",
+        name="Nintendo 64",
+        canonical_format=".z64",
+        accepted_extensions=(".z64", ".n64", ".v64", ".zip"),
+        prohibited_extensions=(".state", ".s01"),
+        save_format_desc="Arquivo de save (.sra, .fla, .eep, .mpk ou .srm) idêntico à ROM",
+        emulator_name="RetroArch (Mupen64Plus-Next)",
+        windows_only=False,
+    ),
+    "ps3": PlatformInfo(
+        code="ps3",
+        name="Sony PlayStation 3",
+        canonical_format=".iso",
+        accepted_extensions=(".iso", ".pkg"),
+        prohibited_extensions=(".state",),
+        save_format_desc="Pastas de save dev_hdd0/home/.../savedata (Windows-only)",
+        emulator_name="RPCS3",
+        windows_only=True,
+    ),
+    "xbox360": PlatformInfo(
+        code="xbox360",
+        name="Microsoft Xbox 360",
+        canonical_format=".iso",
+        accepted_extensions=(".iso", ".xex"),
+        prohibited_extensions=(".state",),
+        save_format_desc="Pastas de perfil Content/0000000000000000 (Windows-only)",
+        emulator_name="Xenia",
+        windows_only=True,
+    ),
+    "switch": PlatformInfo(
+        code="switch",
+        name="Nintendo Switch",
+        canonical_format=".nsp",
+        accepted_extensions=(".nsp", ".xci"),
+        prohibited_extensions=(".state",),
+        save_format_desc="Pastas de save do perfil do emulador (Windows-only)",
+        emulator_name="Ryujinx",
+        windows_only=True,
     ),
 }
 

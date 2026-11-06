@@ -88,7 +88,19 @@ def test_supported_platforms_metadata() -> None:
     Raises:
         None.
     """
-    expected_codes = {"snes", "ps1", "ps2", "psp", "gc", "dc"}
+    expected_codes = {
+        "snes",
+        "ps1",
+        "ps2",
+        "psp",
+        "gc",
+        "dc",
+        "wii",
+        "n64",
+        "ps3",
+        "xbox360",
+        "switch",
+    }
     assert set(SUPPORTED_PLATFORMS.keys()) == expected_codes
 
     for code, info in SUPPORTED_PLATFORMS.items():
@@ -97,3 +109,7 @@ def test_supported_platforms_metadata() -> None:
         assert info.canonical_format.startswith(".")
         assert len(info.accepted_extensions) > 0
         assert len(info.emulator_name) > 0
+        if code in {"ps3", "xbox360", "switch"}:
+            assert info.windows_only is True
+        else:
+            assert info.windows_only is False
