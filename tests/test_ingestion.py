@@ -205,3 +205,43 @@ def test_import_roms_batch(tmp_path: Path, mock_repo_root: Path) -> None:
     assert (mock_repo_root / "data" / "roms" / "snes" / "chrono_trigger.sfc").exists()
     assert (mock_repo_root / "data" / "roms" / "snes" / "super_metroid.smc").exists()
     assert not (mock_repo_root / "data" / "roms" / "snes" / "readme.txt").exists()
+
+
+def test_import_rom_wii_and_n64_and_switch(tmp_path: Path, mock_repo_root: Path) -> None:
+    """Verifica a importação de títulos para Wii, N64 e Switch com sanitização.
+
+    Args:
+        tmp_path: Diretório temporário fornecido pelo pytest.
+        mock_repo_root: Fixture de raiz mockada.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    # 1. Wii com RVZ (válido) e CHD (proibido)
+    wii_valid = tmp_path / "Super Mario Galaxy.rvz"
+    wii_valid.write_text("rvz", encoding="utf-8")
+    dest_wii = import_rom(wii_valid, "wii", repo_root=mock_repo_root)
+    assert dest_wii.name == "super_mario_galaxy.rvz"
+    assert dest_wii.parent == mock_repo_root / "data" / "roms" / "wii"
+
+    wii_bad = tmp_path / "Mario Kart Wii.chd"
+    wii_bad.write_text("chd", encoding="utf-8")
+    with pytest.raises(ValueError, match="é proibida para a plataforma"):
+        import_rom(wii_bad, "wii", repo_root=mock_repo_root)
+
+    # 2. N64 com Z64
+    n64_valid = tmp_path / "Legend of Zelda - Ocarina of Time.z64"
+    n64_valid.write_text("z64", encoding="utf-8")
+    dest_n64 = import_rom(n64_valid, "n64", repo_root=mock_repo_root)
+    assert dest_n64.name == "legend_of_zelda_-_ocarina_of_time.z64"
+    assert dest_n64.parent == mock_repo_root / "data" / "roms" / "n64"
+
+    # 3. Switch com NSP
+    switch_valid = tmp_path / "Super Mario Odyssey.nsp"
+    switch_valid.write_text("nsp", encoding="utf-8")
+    dest_switch = import_rom(switch_valid, "switch", repo_root=mock_repo_root)
+    assert dest_switch.name == "super_mario_odyssey.nsp"
+    assert dest_switch.parent == mock_repo_root / "data" / "roms" / "switch"

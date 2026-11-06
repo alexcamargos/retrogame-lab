@@ -134,6 +134,36 @@ PLATFORM_ARCHIVE_CONFIGS: dict[str, PlatformArchiveConfig] = {
         accepted_extensions=(".chd", ".zip"),
         description="Redump Sega Dreamcast 1G1R (CHD Collection)",
     ),
+    "wii": PlatformArchiveConfig(
+        platform_code="wii",
+        default_identifier="first-party-dolphin-rvz",
+        accepted_extensions=(".rvz", ".zip"),
+        description="Redump Nintendo Wii (RVZ Collection)",
+    ),
+    "n64": PlatformArchiveConfig(
+        platform_code="n64",
+        default_identifier="nointro-n64",
+        accepted_extensions=(".z64", ".n64", ".v64", ".zip"),
+        description="No-Intro Nintendo 64 Collection",
+    ),
+    "ps3": PlatformArchiveConfig(
+        platform_code="ps3",
+        default_identifier="ps3-redump-usa",
+        accepted_extensions=(".iso", ".pkg", ".zip"),
+        description="Redump Sony PlayStation 3 (Collection)",
+    ),
+    "xbox360": PlatformArchiveConfig(
+        platform_code="xbox360",
+        default_identifier="x360-redump-usa",
+        accepted_extensions=(".iso", ".xex", ".zip"),
+        description="Redump Microsoft Xbox 360 (Collection)",
+    ),
+    "switch": PlatformArchiveConfig(
+        platform_code="switch",
+        default_identifier="switch-preservation",
+        accepted_extensions=(".nsp", ".xci", ".zip"),
+        description="Nintendo Switch Preservation Collection",
+    ),
 }
 
 
