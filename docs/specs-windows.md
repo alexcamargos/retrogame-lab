@@ -104,29 +104,50 @@ retrogame-lab/
 │   ├── dolphin/                    # GameCube / Wii
 │   │   ├── Dolphin.exe
 │   │   └── portable.txt            # Gatilho de portabilidade oficial
-│   └── flycast/                    # Dreamcast
-│       ├── flycast.exe
-│       └── emu.cfg                 # Configuração local
+│   ├── flycast/                    # Dreamcast
+│   │   ├── flycast.exe
+│   │   └── emu.cfg                 # Configuração local
+│   ├── rpcs3/                      # PS3 (Windows-only)
+│   │   ├── rpcs3.exe
+│   │   └── portable.txt            # Gatilho de portabilidade oficial
+│   ├── xenia/                      # Xbox 360 (Windows-only)
+│   │   ├── xenia.exe
+│   │   └── portable.txt            # Gatilho de portabilidade oficial
+│   └── ryujinx/                    # Switch (Windows-only)
+│       ├── Ryujinx.exe
+│       └── portable/               # Isolamento local oficial de perfil/saves
 ├── data/                           # Segregação estrita do ciclo de vida dos dados
 │   ├── bios/                       # Firmware centralizado (Sincronizado via Syncthing Send-Only)
 │   │   ├── ps1/
 │   │   ├── ps2/
-│   │   └── dc/
+│   │   ├── dc/
+│   │   ├── ps3/                    # PS3UPDAT.PUP (Firmware oficial)
+│   │   └── switch/                 # prod.keys e firmware
 │   ├── roms/                       # Imagens de jogos padronizadas sem espaços (Send-Only)
 │   │   ├── snes/                   # Formato .sfc / .smc
 │   │   ├── ps1/                    # Formato .chd (CD)
 │   │   ├── ps2/                    # Formato .chd (DVD) / .iso
 │   │   ├── psp/                    # Formato .cso / .iso
 │   │   ├── gc/                     # Formato .rvz (Dolphin)
-│   │   └── dc/                     # Formato .chd (CD)
+│   │   ├── dc/                     # Formato .chd (CD)
+│   │   ├── wii/                    # Formato .rvz (Dolphin)
+│   │   ├── n64/                    # Formato .z64
+│   │   ├── ps3/                    # Formato .iso / .pkg (Windows-only)
+│   │   ├── xbox360/                # Formato .iso / .xex (Windows-only)
+│   │   └── switch/                 # Formato .nsp / .xci (Windows-only)
 │   ├── saves/                      # Saves in-game (.srm, .mcd, .ps2, .gci, .bin) (Send-Receive)
-│   │   ├── .stignore               # Filtro anti-savestate (*.state*) e anti-locks
+│   │   ├── .stignore               # Filtro anti-savestate (*.state*), locks e isolamento Windows-only
 │   │   ├── snes/                   # Arquivos .srm por jogo
 │   │   ├── ps1/                    # Cartão por jogo (.mcd)
 │   │   ├── ps2/                    # Cartão por jogo (.ps2)
 │   │   ├── psp/SAVEDATA/           # Pastas SAVEDATA nativas
 │   │   ├── gc/                     # Cartões GCI / Pastas por Região (USA, EUR, JAP)
-│   │   └── dc/                     # Arquivos VMU (.bin)
+│   │   ├── dc/                     # Arquivos VMU (.bin)
+│   │   ├── wii/                    # Títulos e saves nativos do Dolphin
+│   │   ├── n64/                    # Arquivos .sra / .fla / .eep / .mpk por jogo
+│   │   ├── ps3/                    # Pastas dev_hdd0/home/.../savedata (Desktop-only)
+│   │   ├── xbox360/                # Pastas Content/0000000000000000 (Desktop-only)
+│   │   └── switch/                 # Pastas de perfil do emulador (Desktop-only)
 │   └── states/                     # Savestates locais (NÃO sincronizados, isolados via .stignore)
 ├── docs/                           # Documentação técnica e de engenharia
 │   ├── guia-inicio.md              # Guia de início e integração multiplataforma (Windows <-> Android)
@@ -166,14 +187,19 @@ retrogame-lab/
 
 A resolução interna e os aprimoramentos visuais são parametrizados com base na capacidade do hardware host e nas características do jogo:
 
-| Plataforma | Emulador Homologado | Backend Recomendado | Perfil Básico (iGPU) | Perfil Avançado (dGPU / Baseline) | Estratégia de Saves |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **SNES** | RetroArch (`snes9x` / `bsnes`) | Vulkan / D3D11 | 1x Nativo (CRT shader leve) | 1x Nativo (CRT-Royale / Mega Bezel) | Arquivos `.srm` por jogo em `data/saves/snes/` |
-| **PS1** | DuckStation (Qt) | Vulkan | 2x a 3x (720p) | 5x (1080p) a 6x (1440p) + PGXP | **Title-specific Card** (`data/saves/ps1/<Title>_<ID>.mcd`) |
-| **PS2** | PCSX2 (Qt v2.0+) | Vulkan / D3D12 | 1x a 2x (Nativo/720p) | 3x (1080p) a 4x (1440p) + Aniso 16x | **Title-specific Card** (`data/saves/ps2/<Title>_<ID>.ps2`) |
-| **PSP** | PPSSPP Standalone | Vulkan | 2x a 3x (PSP HD) | 5x a 10x (1080p / 4K) | Pastas nativas `data/saves/psp/SAVEDATA/` |
-| **GameCube / Wii** | Dolphin | Vulkan | 1.5x a 2x (720p) | 3x (1080p) a 4x (1440p) + Ubershaders | Cartões GCI / Pastas de Região em `data/saves/gc/` |
-| **Dreamcast** | Flycast | Vulkan | 1x a 2x (VGA) | 3x (1440p) + Per-Pixel Transparency | Arquivo de VMU padrão em `data/saves/dc/vms0.bin` |
+| Plataforma | Emulador Homologado | Backend Recomendado | Perfil Básico (iGPU) | Perfil Avançado (dGPU / Baseline) | Estratégia de Saves | Escopo |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **SNES** | RetroArch (`snes9x` / `bsnes`) | Vulkan / D3D11 | 1x Nativo (CRT shader leve) | 1x Nativo (CRT-Royale / Mega Bezel) | Arquivos `.srm` por jogo em `data/saves/snes/` | Windows + Android |
+| **PS1** | DuckStation (Qt) | Vulkan | 2x a 3x (720p) | 5x (1080p) a 6x (1440p) + PGXP | **Title-specific Card** (`data/saves/ps1/<Title>_<ID>.mcd`) | Windows + Android |
+| **PS2** | PCSX2 (Qt v2.0+) | Vulkan / D3D12 | 1x a 2x (Nativo/720p) | 3x (1080p) a 4x (1440p) + Aniso 16x | **Title-specific Card** (`data/saves/ps2/<Title>_<ID>.ps2`) | Windows + Android |
+| **PSP** | PPSSPP Standalone | Vulkan | 2x a 3x (PSP HD) | 5x a 10x (1080p / 4K) | Pastas nativas `data/saves/psp/SAVEDATA/` | Windows + Android |
+| **GameCube** | Dolphin | Vulkan | 1.5x a 2x (720p) | 3x (1080p) a 4x (1440p) + Ubershaders | Cartões GCI / Pastas de Região em `data/saves/gc/` | Windows + Android |
+| **Dreamcast** | Flycast | Vulkan | 1x a 2x (VGA) | 3x (1440p) + Per-Pixel Transparency | Arquivo de VMU padrão em `data/saves/dc/vms0.bin` | Windows + Android |
+| **Nintendo Wii** | Dolphin | Vulkan | 1.5x a 2x (720p) | 3x (1080p) a 4x (1440p) + Ubershaders | Títulos nativos Dolphin em `data/saves/wii/` | Windows + Android |
+| **Nintendo 64** | RetroArch (`mupen64plus-next`) | Vulkan / D3D11 | 2x (720p) | 4x (1440p) + CRT Shaders | Saves `.sra`/`.fla`/`.eep`/`.mpk` em `data/saves/n64/` | Windows + Android |
+| **PS3** | RPCS3 | Vulkan | 1x Nativo (720p) | 1080p a 1440p + ZCull Occlusion | Pastas nativas `dev_hdd0/home/.../savedata` | Windows 11 (Desktop) |
+| **Xbox 360** | Xenia (ou Canary) | Direct3D 12 / Vulkan | 1x Nativo (720p) | 2x (1440p) + FSR | Pastas de perfil `Content/0000000000000000` | Windows 11 (Desktop) |
+| **Nintendo Switch** | Ryujinx | Vulkan | 1x Nativo (Handheld/Dock) | 2x (1440p) + FSR Scaling | Pastas de perfil de save do usuário | Windows 11 (Desktop) |
 
 ---
 
@@ -187,7 +213,7 @@ O lançador realiza auto-higienização de nomenclatura (trava pré-voo), inspe�
 [CmdletBinding()]
 param (
     [Parameter(Mandatory = $true)]
-    [ValidateSet("snes", "ps1", "ps2", "psp", "gc", "dc")]
+    [ValidateSet("snes", "ps1", "ps2", "psp", "gc", "dc", "wii", "n64", "ps3", "xbox360", "switch")]
     [string]$Platform,
 
     [Parameter(Mandatory = $true)]

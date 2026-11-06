@@ -67,6 +67,11 @@ O arquivo de ignore deve ser posicionado em `data\saves\.stignore` no Windows e 
 (?d)thumbs.db
 (?d)desktop.ini
 (?d).syncthing.*
+
+// 4. Plataformas Exclusivas de Desktop (Windows-only - isolamento mobile)
+ps3/
+xbox360/
+switch/
 ```
 
 ---
@@ -83,6 +88,12 @@ Para evitar perdas por concorrência (quando dois aparelhos alteram o mesmo arqu
 | **PSP** | PPSSPP Windows | PPSSPP Android | Pastas `SAVEDATA` nativas | `psp/SAVEDATA/` |
 | **GameCube** | Dolphin | Dolphin Android | Pastas de Região (USA, EUR, JAP) e GCI individuais | `gc/` |
 | **Dreamcast** | Flycast | Flycast Android | Arquivo VMU padrão (`vms0.bin`) | `dc/` |
+| **Nintendo Wii** | Dolphin | Dolphin Android | Pastas de títulos e saves nativos do Dolphin | `wii/` |
+| **Nintendo 64** | RetroArch (`mupen64plus-next`) | RetroArch (`mupen64plus-next`) | Arquivos `.sra`/`.fla`/`.eep`/`.mpk`/`.srm` por jogo | `n64/` |
+
+> [!NOTE]
+> **Sistemas Exclusivos do Host Desktop (Windows-only):**  
+> As plataformas PlayStation 3 (RPCS3), Microsoft Xbox 360 (Xenia) e Nintendo Switch (Ryujinx) operam com suporte exclusivo no Windows 11 desktop, pois não dispõem de emulação nativa e paridade funcional com o ecossistema Android ARM64. Suas pastas de salvamento (`saves/ps3/`, `saves/xbox360/`, `saves/switch/`) são ignoradas ativamente pelo `.stignore`, prevenindo transferência desnecessária e economizando armazenamento no dispositivo móvel.
 
 > [!IMPORTANT]
 > **Padronização de Nomenclatura Sem Espaços:**  
