@@ -349,7 +349,10 @@ def import_rom_cmd(
         typer.Option(
             "--platform",
             "-p",
-            help="Código da plataforma de destino (snes, ps1, ps2, psp, gc, dc).",
+            help=(
+                "Código da plataforma de destino (snes, ps1, ps2, psp, gc, dc, "
+                "wii, n64, ps3, xbox360, switch)."
+            ),
         ),
     ],
     move: Annotated[
@@ -433,7 +436,10 @@ def fetch_roms_cmd(
         typer.Option(
             "--platform",
             "-p",
-            help="Código da plataforma homologada (snes, ps1, ps2, psp, gc, dc).",
+            help=(
+                "Código da plataforma homologada (snes, ps1, ps2, psp, gc, dc, "
+                "wii, n64, ps3, xbox360, switch)."
+            ),
         ),
     ] = "snes",
     query: Annotated[
@@ -456,7 +462,7 @@ def fetch_roms_cmd(
     """Busca, seleciona e ingere interativamente ROMs de acervos de preservação digital.
 
     Args:
-        platform: Plataforma alvo (snes, ps1, ps2, psp, gc, dc).
+        platform: Plataforma alvo (snes, ps1, ps2, psp, gc, dc, wii, n64, ps3, xbox360, switch).
         query: Termo opcional para pré-filtrar títulos.
         identifier: Identificador alternativo da coleção no Internet Archive.
 
@@ -1223,7 +1229,10 @@ def launch(
     platform: Annotated[
         str,
         typer.Argument(
-            help="Código da plataforma suportada (snes, ps1, ps2, psp, gc, dc).",
+            help=(
+                "Código da plataforma suportada (snes, ps1, ps2, psp, gc, dc, "
+                "wii, n64, ps3, xbox360, switch)."
+            ),
         ),
     ],
     rom_path: Annotated[
