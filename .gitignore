@@ -27,6 +27,7 @@ tools/android_apks/*.apk
 
 # Caches e diretórios de execução voláteis
 scratch/
+.vscode/
 .pytest_cache/
 .coverage
 htmlcov/
