@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param (
-    [string[]]$Emulators = @("retroarch", "duckstation", "pcsx2", "ppsspp", "dolphin", "flycast"),
+    [string[]]$Emulators = @("retroarch", "duckstation", "pcsx2", "ppsspp", "dolphin", "flycast", "rpcs3", "xenia", "ryujinx"),
     [switch]$CheckOnly = $false,
     [switch]$Update = $false,
     [switch]$Force = $false
@@ -79,7 +79,7 @@ function Flatten-SingleDirectory {
 function Install-RetroArchCores {
     param (
         [string]$RetroArchFolder,
-        [string[]]$CoreNames = @("snes9x"),
+        [string[]]$CoreNames = @("snes9x", "mupen64plus_next"),
         [switch]$ForceDownload = $false
     )
 
@@ -278,12 +278,60 @@ foreach ($Emu in $Emulators) {
                 $RaRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/libretro/RetroArch/releases/latest" -Headers $Headers
                 $RemoteVer = if ($RaRelease.tag_name) { $RaRelease.tag_name } else { "stable" }
                 $RemoteCatalog[$EmuName] = [ordered]@{
-                    Name = "RetroArch (SNES/2D)"
+                    Name = "RetroArch (SNES/N64/2D)"
                     RemoteVersion = $RemoteVer
                     InstalledVersion = $InstalledVer
                     Url = "https://buildbot.libretro.com/nightly/windows/x86_64/RetroArch.7z"
                     Archive = "retroarch.7z"
                     Type = "7z"
+                    ExistingExe = $ExistingExe
+                }
+            }
+
+            "rpcs3" {
+                $Release = Invoke-RestMethod -Uri "https://api.github.com/repos/RPCS3/rpcs3-binaries-win/releases/latest" -Headers $Headers
+                $Asset = $Release.assets | Where-Object { $_.name -match "win64.*\.7z$" } | Select-Object -First 1
+                $RemoteCatalog[$EmuName] = [ordered]@{
+                    Name = "RPCS3 (PS3 - Windows)"
+                    RemoteVersion = $Release.tag_name
+                    InstalledVersion = $InstalledVer
+                    Url = $Asset.browser_download_url
+                    Archive = "rpcs3.7z"
+                    Type = "7z"
+                    ExistingExe = $ExistingExe
+                }
+            }
+
+            "xenia" {
+                $Release = Invoke-RestMethod -Uri "https://api.github.com/repos/xenia-canary/xenia-canary-releases/latest" -Headers $Headers
+                $Asset = $Release.assets | Where-Object { $_.name -match "xenia_canary\.zip$" } | Select-Object -First 1
+                if (-not $Asset) {
+                    $Asset = $Release.assets | Where-Object { $_.name -match "xenia.*\.zip$" } | Select-Object -First 1
+                }
+                $RemoteCatalog[$EmuName] = [ordered]@{
+                    Name = "Xenia (Xbox 360 - Windows)"
+                    RemoteVersion = $Release.tag_name
+                    InstalledVersion = $InstalledVer
+                    Url = $Asset.browser_download_url
+                    Archive = "xenia.zip"
+                    Type = "zip"
+                    ExistingExe = $ExistingExe
+                }
+            }
+
+            "ryujinx" {
+                $Release = Invoke-RestMethod -Uri "https://api.github.com/repos/Ryubing/Ryujinx/releases/latest" -Headers $Headers
+                $Asset = $Release.assets | Where-Object { $_.name -match "win_x64\.zip$" } | Select-Object -First 1
+                if (-not $Asset) {
+                    $Asset = $Release.assets | Where-Object { $_.name -match "windows.*x64.*\.zip$" } | Select-Object -First 1
+                }
+                $RemoteCatalog[$EmuName] = [ordered]@{
+                    Name = "Ryujinx (Switch - Windows)"
+                    RemoteVersion = $Release.tag_name
+                    InstalledVersion = $InstalledVer
+                    Url = $Asset.browser_download_url
+                    Archive = "ryujinx.zip"
+                    Type = "zip"
                     ExistingExe = $ExistingExe
                 }
             }
@@ -376,8 +424,11 @@ foreach ($EmuName in $RemoteCatalog.Keys) {
         Flatten-SingleDirectory -DirectoryPath $TargetFolder
 
         # Marcadores de portabilidade e ações específicas
-        if ($EmuName -in @("duckstation", "pcsx2", "dolphin")) {
+        if ($EmuName -in @("duckstation", "pcsx2", "dolphin", "xenia", "rpcs3")) {
             New-Item -ItemType File -Path (Join-Path $TargetFolder "portable.txt") -Force | Out-Null
+        } elseif ($EmuName -eq "ryujinx") {
+            $RyujinxPortable = Join-Path $TargetFolder "portable"
+            if (-not (Test-Path $RyujinxPortable)) { New-Item -ItemType Directory -Path $RyujinxPortable -Force | Out-Null }
         } elseif ($EmuName -eq "ppsspp") {
             $PpssppMemstick = Join-Path $TargetFolder "memstick"
             New-Item -ItemType Directory -Path $PpssppMemstick -Force | Out-Null
@@ -401,7 +452,7 @@ if (Test-Path $TempDir) {
 
 Write-Host "`n=== Verificação Final dos Executáveis em bin/ ===" -ForegroundColor Green
 $UpdatedManifest = Get-InstalledVersionsManifest
-foreach ($Emu in @("retroarch", "duckstation", "pcsx2", "ppsspp", "dolphin", "flycast")) {
+foreach ($Emu in @("retroarch", "duckstation", "pcsx2", "ppsspp", "dolphin", "flycast", "rpcs3", "xenia", "ryujinx")) {
     $Folder = Join-Path $BinDir $Emu
     $Exe = Get-ChildItem -Path $Folder -Filter "*.exe" -Recurse -ErrorAction SilentlyContinue |
         Where-Object { $_.Name -notmatch "updater|setup|unins|vcredist" } |
@@ -411,12 +462,11 @@ foreach ($Emu in @("retroarch", "duckstation", "pcsx2", "ppsspp", "dolphin", "fl
 
     if ($Exe) {
         if ($Emu -eq "retroarch") {
-            $Core = Join-Path $Folder "cores\snes9x_libretro.dll"
-            if (Test-Path $Core) {
-                Write-Host "  [OK] $Emu ($Ver) -> $($Exe.Name) (Core snes9x: OK)" -ForegroundColor Green
-            } else {
-                Write-Host "  [AVISO] $Emu ($Ver) -> $($Exe.Name) (Core snes9x ausente em cores/)" -ForegroundColor Yellow
-            }
+            $CoreSnes = Join-Path $Folder "cores\snes9x_libretro.dll"
+            $CoreN64  = Join-Path $Folder "cores\mupen64plus_next_libretro.dll"
+            $SnesOk   = if (Test-Path $CoreSnes) { "snes9x: OK" } else { "snes9x: ausente" }
+            $N64Ok    = if (Test-Path $CoreN64) { "mupen64plus: OK" } else { "mupen64plus: ausente" }
+            Write-Host "  [OK] $Emu ($Ver) -> $($Exe.Name) (Cores: $SnesOk, $N64Ok)" -ForegroundColor Green
         } else {
             Write-Host "  [OK] $Emu ($Ver) -> $($Exe.Name)" -ForegroundColor Green
         }
