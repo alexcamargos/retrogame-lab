@@ -277,26 +277,26 @@ def audit_roms(roms_dir: Path) -> AuditSummary:
             continue
 
         # Regra 1: GameCube / Wii PROÍBE CHD e exige RVZ
-        if platform_code == "gc":
+        if platform_code in ("gc", "wii"):
             if ext == ".chd":
                 summary.issues.append(
                     AuditIssue(
                         category="ROMs",
                         severity=Severity.ERROR,
                         message=(
-                            "Mídia de GameCube convertida incorretamente para .chd: "
+                            f"Mídia de {platform.name} convertida incorretamente para .chd: "
                             f"'{rom_file.name}'. O formato obrigatório para Dolphin é .rvz."
                         ),
                         file_path=rom_file,
                     )
                 )
-            elif ext in (".iso", ".gcm"):
+            elif ext in (".iso", ".gcm", ".wbfs"):
                 summary.issues.append(
                     AuditIssue(
                         category="ROMs",
                         severity=Severity.WARNING,
                         message=(
-                            f"Imagem de GameCube não otimizada: '{rom_file.name}'. "
+                            f"Imagem de {platform.name} não otimizada: '{rom_file.name}'. "
                             "Converta para .rvz nativo do Dolphin para economizar espaço."
                         ),
                         file_path=rom_file,
@@ -421,7 +421,8 @@ def audit_saves(saves_dir: Path) -> AuditSummary:
 
     for save_file in all_files:
         rel_parts = save_file.relative_to(saves_dir).parts
-        # Ignorar arquivos ou diretórios de metadados do sistema (ex: .stversions, .stignore, .nomedia)
+        # Ignorar arquivos ou diretórios de metadados do sistema
+        # (ex: .stversions, .stignore, .nomedia)
         if any(part.startswith(".") for part in rel_parts):
             continue
 

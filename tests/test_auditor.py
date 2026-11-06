@@ -429,6 +429,47 @@ def test_audit_ignores_syncthing_and_dotfiles(tmp_path: Path) -> None:
     assert len(roms_summary.issues) == 0
 
 
+def test_audit_roms_wii_and_new_platforms(tmp_path: Path) -> None:
+    """Verifica regras de auditoria para Wii (.rvz), N64 (.z64) e plataformas desktop.
+
+    Args:
+        tmp_path: Diretório temporário fornecido pelo pytest.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    roms_dir = tmp_path / "roms"
+    wii_dir = roms_dir / "wii"
+    n64_dir = roms_dir / "n64"
+    switch_dir = roms_dir / "switch"
+
+    wii_dir.mkdir(parents=True)
+    n64_dir.mkdir(parents=True)
+    switch_dir.mkdir(parents=True)
+
+    # Wii: CHD é proibido (ERROR), RVZ é canônico (OK)
+    (wii_dir / "mario_kart_wii.chd").write_text("dummy", encoding="utf-8")
+    (wii_dir / "xenoblade.rvz").write_text("dummy", encoding="utf-8")
+
+    # N64: Z64 é canônico (OK)
+    (n64_dir / "super_mario_64.z64").write_text("dummy", encoding="utf-8")
+
+    # Switch: NSP é canônico (OK), state é proibido (ERROR)
+    (switch_dir / "zelda_botw.nsp").write_text("dummy", encoding="utf-8")
+    (switch_dir / "zelda_botw.state").write_text("dummy", encoding="utf-8")
+
+    summary = audit_roms(roms_dir)
+    errors = [i for i in summary.issues if i.severity == Severity.ERROR]
+
+    assert len(errors) == 2
+    error_files = [e.file_path.name for e in errors if e.file_path]
+    assert "mario_kart_wii.chd" in error_files
+    assert "zelda_botw.state" in error_files
+
+
 def test_run_full_audit(mock_repo_root: Path) -> None:
     """Verifica a execução integrada do relatório de auditoria completa.
 
