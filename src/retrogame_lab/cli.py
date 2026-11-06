@@ -83,8 +83,10 @@ def info() -> None:
     table.add_column("Extensões Aceitas", style="yellow")
     table.add_column("Estratégia de Saves", style="magenta")
     table.add_column("Emulador", style="blue")
+    table.add_column("Escopo", style="bold green")
 
     for p in SUPPORTED_PLATFORMS.values():
+        scope_str = "Windows 11 (Desktop)" if p.windows_only else "Windows + Android"
         table.add_row(
             p.code,
             p.name,
@@ -92,6 +94,7 @@ def info() -> None:
             ", ".join(p.accepted_extensions),
             p.save_format_desc,
             p.emulator_name,
+            scope_str,
         )
 
     console.print(table)
@@ -744,6 +747,231 @@ def fetch_dc_cmd(
 
     run_interactive_fetcher(
         platform_code="dc",
+        query=query,
+        identifier=identifier,
+        repo_root=resolved_root,
+        console=console,
+    )
+
+
+@app.command(name="fetch-wii")
+def fetch_wii_cmd(
+    query: Annotated[
+        str | None,
+        typer.Option(
+            "--query",
+            "-q",
+            help="Termo de pesquisa opcional para pré-filtrar os jogos de Nintendo Wii.",
+        ),
+    ] = None,
+    identifier: Annotated[
+        str | None,
+        typer.Option(
+            "--identifier",
+            "-i",
+            help="Identificador alternativo de coleção no Internet Archive.",
+        ),
+    ] = None,
+) -> None:
+    """Atalho direto: busca, seleciona e ingere jogos de Nintendo Wii do acervo RVZ.
+
+    Args:
+        query: Termo opcional para pré-filtrar títulos do acervo.
+        identifier: Identificador alternativo de coleção.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    try:
+        resolved_root = find_repo_root()
+    except FileNotFoundError:
+        resolved_root = Path.cwd()
+
+    run_interactive_fetcher(
+        platform_code="wii",
+        query=query,
+        identifier=identifier,
+        repo_root=resolved_root,
+        console=console,
+    )
+
+
+@app.command(name="fetch-n64")
+def fetch_n64_cmd(
+    query: Annotated[
+        str | None,
+        typer.Option(
+            "--query",
+            "-q",
+            help="Termo de pesquisa opcional para pré-filtrar os jogos de Nintendo 64.",
+        ),
+    ] = None,
+    identifier: Annotated[
+        str | None,
+        typer.Option(
+            "--identifier",
+            "-i",
+            help="Identificador alternativo de coleção no Internet Archive.",
+        ),
+    ] = None,
+) -> None:
+    """Atalho direto: busca, seleciona e ingere jogos de Nintendo 64 do acervo No-Intro.
+
+    Args:
+        query: Termo opcional para pré-filtrar títulos do acervo.
+        identifier: Identificador alternativo de coleção.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    try:
+        resolved_root = find_repo_root()
+    except FileNotFoundError:
+        resolved_root = Path.cwd()
+
+    run_interactive_fetcher(
+        platform_code="n64",
+        query=query,
+        identifier=identifier,
+        repo_root=resolved_root,
+        console=console,
+    )
+
+
+@app.command(name="fetch-ps3")
+def fetch_ps3_cmd(
+    query: Annotated[
+        str | None,
+        typer.Option(
+            "--query",
+            "-q",
+            help="Termo de pesquisa opcional para pré-filtrar os jogos de PlayStation 3.",
+        ),
+    ] = None,
+    identifier: Annotated[
+        str | None,
+        typer.Option(
+            "--identifier",
+            "-i",
+            help="Identificador alternativo de coleção no Internet Archive.",
+        ),
+    ] = None,
+) -> None:
+    """Atalho direto: busca, seleciona e ingere jogos de PlayStation 3 (Windows-only).
+
+    Args:
+        query: Termo opcional para pré-filtrar títulos do acervo.
+        identifier: Identificador alternativo de coleção.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    try:
+        resolved_root = find_repo_root()
+    except FileNotFoundError:
+        resolved_root = Path.cwd()
+
+    run_interactive_fetcher(
+        platform_code="ps3",
+        query=query,
+        identifier=identifier,
+        repo_root=resolved_root,
+        console=console,
+    )
+
+
+@app.command(name="fetch-xbox360")
+def fetch_xbox360_cmd(
+    query: Annotated[
+        str | None,
+        typer.Option(
+            "--query",
+            "-q",
+            help="Termo de pesquisa opcional para pré-filtrar os jogos de Xbox 360.",
+        ),
+    ] = None,
+    identifier: Annotated[
+        str | None,
+        typer.Option(
+            "--identifier",
+            "-i",
+            help="Identificador alternativo de coleção no Internet Archive.",
+        ),
+    ] = None,
+) -> None:
+    """Atalho direto: busca, seleciona e ingere jogos de Microsoft Xbox 360 (Windows-only).
+
+    Args:
+        query: Termo opcional para pré-filtrar títulos do acervo.
+        identifier: Identificador alternativo de coleção.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    try:
+        resolved_root = find_repo_root()
+    except FileNotFoundError:
+        resolved_root = Path.cwd()
+
+    run_interactive_fetcher(
+        platform_code="xbox360",
+        query=query,
+        identifier=identifier,
+        repo_root=resolved_root,
+        console=console,
+    )
+
+
+@app.command(name="fetch-switch")
+def fetch_switch_cmd(
+    query: Annotated[
+        str | None,
+        typer.Option(
+            "--query",
+            "-q",
+            help="Termo de pesquisa opcional para pré-filtrar os jogos de Nintendo Switch.",
+        ),
+    ] = None,
+    identifier: Annotated[
+        str | None,
+        typer.Option(
+            "--identifier",
+            "-i",
+            help="Identificador alternativo de coleção no Internet Archive.",
+        ),
+    ] = None,
+) -> None:
+    """Atalho direto: busca, seleciona e ingere jogos de Nintendo Switch (Windows-only).
+
+    Args:
+        query: Termo opcional para pré-filtrar títulos do acervo.
+        identifier: Identificador alternativo de coleção.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    try:
+        resolved_root = find_repo_root()
+    except FileNotFoundError:
+        resolved_root = Path.cwd()
+
+    run_interactive_fetcher(
+        platform_code="switch",
         query=query,
         identifier=identifier,
         repo_root=resolved_root,

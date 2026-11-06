@@ -582,7 +582,10 @@ def test_cli_fetch_snes(
     assert kwargs["query"] == "mario"
 
 
-@pytest.mark.parametrize("platform", ["snes", "ps1", "ps2", "psp", "gc", "dc"])
+@pytest.mark.parametrize(
+    "platform",
+    ["snes", "ps1", "ps2", "psp", "gc", "dc", "wii", "n64", "ps3", "xbox360", "switch"],
+)
 def test_cli_fetch_platform_shortcuts(
     platform: str,
     mocker: MockerFixture,
