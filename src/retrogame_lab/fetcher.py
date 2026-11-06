@@ -95,8 +95,77 @@ PSP_PARTS: dict[str, str] = {
     "2": "psp-chd-zstd-redump-part2",
 }
 
+# Mapeamento canônico das partes da coleção Redump Nintendo Wii RVZ
+WII_PARTS: dict[str, str] = {
+    "1": "Wii-p1-EU-Arquivista",  # 0-9 e A a K
+    "2": "Wii-p2-US-Arquivista",  # L a S
+    "3": "Wii-p3-US-Arquivista",  # T a Z
+}
 
-# Catálogo de coleções canônicas de preservação (No-Intro e Redump) por plataforma
+# Mapeamento canônico das partições alfabéticas da coleção Redump Sony PlayStation 3
+PS3_ALPHABET_PARTS: dict[str, str] = {
+    "a": "sony_playstation3_a_part1",
+    "b": "sony_playstation3_b_part1",
+    "c": "sony_playstation3_c_part1",
+    "d": "sony_playstation3_d_part1",
+    "e": "sony_playstation3_e",
+    "f": "sony_playstation3_f_part1",
+    "g": "sony_playstation3_g_part1",
+    "h": "sony_playstation3_h_part1",
+    "i": "sony_playstation3_i",
+    "j": "sony_playstation3_j",
+    "k": "sony_playstation3_k",
+    "l": "sony_playstation3_l_part1",
+    "m": "sony_playstation3_m_part1",
+    "n": "sony_playstation3_n_part1",
+    "o": "sony_playstation3_o_part1",
+    "p": "sony_playstation3_p_part1",
+    "q": "sony_playstation3_q",
+    "r": "sony_playstation3_r_part1",
+    "s": "sony_playstation3_s_part1",
+    "t": "sony_playstation3_t_part1",
+    "u": "sony_playstation3_u_part1",
+    "v": "sony_playstation3_v",
+    "w": "sony_playstation3_w_part1",
+    "x": "sony_playstation3_x",
+    "y": "sony_playstation3_y",
+    "z": "sony_playstation3_z",
+    "0": "sony_playstation3_numberssymbols",
+}
+
+# Mapeamento canônico das partições alfabéticas da coleção Redump Microsoft Xbox 360
+XBOX360_ALPHABET_PARTS: dict[str, str] = {
+    "a": "microsoft_xbox360_a_part1",
+    "b": "microsoft_xbox360_b_part1",
+    "c": "microsoft_xbox360_c_part1",
+    "d": "microsoft_xbox360_d_part1",
+    "e": "microsoft_xbox360_e",
+    "f": "microsoft_xbox360_f_part1",
+    "g": "microsoft_xbox360_g",
+    "h": "microsoft_xbox360_h",
+    "i": "microsoft_xbox360_i",
+    "j": "microsoft_xbox360_j",
+    "k": "microsoft_xbox360_k",
+    "l": "microsoft_xbox360_l",
+    "m": "microsoft_xbox360_m_part1",
+    "n": "microsoft_xbox360_n_part1",
+    "o": "microsoft_xbox360_o",
+    "p": "microsoft_xbox360_p",
+    "q": "microsoft_xbox360_q",
+    "r": "microsoft_xbox360_r",
+    "s": "microsoft_xbox360_s_part1",
+    "t": "microsoft_xbox360_t_part1",
+    "u": "microsoft_xbox360_u",
+    "v": "microsoft_xbox360_v",
+    "w": "microsoft_xbox360_w",
+    "x": "microsoft_xbox360_x_part1",
+    "y": "microsoft_xbox360_y",
+    "z": "microsoft_xbox360_z",
+    "0": "microsoft_xbox360_numberssymbols",
+}
+
+
+# Catálogo de coleções canônicas de preservação (No-Intro, TOSEC e Redump) por plataforma
 PLATFORM_ARCHIVE_CONFIGS: dict[str, PlatformArchiveConfig] = {
     "snes": PlatformArchiveConfig(
         platform_code="snes",
@@ -136,33 +205,33 @@ PLATFORM_ARCHIVE_CONFIGS: dict[str, PlatformArchiveConfig] = {
     ),
     "wii": PlatformArchiveConfig(
         platform_code="wii",
-        default_identifier="first-party-dolphin-rvz",
-        accepted_extensions=(".rvz", ".zip"),
-        description="Redump Nintendo Wii (RVZ Collection)",
+        default_identifier="Wii-p2-US-Arquivista",
+        accepted_extensions=(".rvz", ".iso", ".zip"),
+        description="Redump Nintendo Wii (RVZ US Collection - Particionado L-S)",
     ),
     "n64": PlatformArchiveConfig(
         platform_code="n64",
-        default_identifier="nointro-n64",
+        default_identifier="N64TOSEC",
         accepted_extensions=(".z64", ".n64", ".v64", ".zip"),
-        description="No-Intro Nintendo 64 Collection",
+        description="TOSEC Nintendo 64 Collection",
     ),
     "ps3": PlatformArchiveConfig(
         platform_code="ps3",
-        default_identifier="ps3-redump-usa",
+        default_identifier="sony_playstation3_a_part1",
         accepted_extensions=(".iso", ".pkg", ".zip"),
-        description="Redump Sony PlayStation 3 (Collection)",
+        description="Redump Sony PlayStation 3 (Particionado A-Z)",
     ),
     "xbox360": PlatformArchiveConfig(
         platform_code="xbox360",
-        default_identifier="x360-redump-usa",
+        default_identifier="microsoft_xbox360_a_part1",
         accepted_extensions=(".iso", ".xex", ".zip"),
-        description="Redump Microsoft Xbox 360 (Collection)",
+        description="Redump Microsoft Xbox 360 (Particionado A-Z)",
     ),
     "switch": PlatformArchiveConfig(
         platform_code="switch",
-        default_identifier="switch-preservation",
+        default_identifier="Switch-Backups",
         accepted_extensions=(".nsp", ".xci", ".zip"),
-        description="Nintendo Switch Preservation Collection",
+        description="Nintendo Switch Preservation Backups (NSP/XCI)",
     ),
 }
 
@@ -365,7 +434,10 @@ def get_archive_catalog(
         size = int(item.get("size", 0)) if str(item.get("size", "0")).isdigit() else 0
         file_basename = Path(name).name
         clean_full_title = re.sub(
-            r"\.(zip|sfc|smc|chd|iso|cso|rvz|7z)$", "", file_basename, flags=re.IGNORECASE
+            r"\.(zip|sfc|smc|chd|iso|cso|rvz|7z|z64|n64|v64|pkg|xex|nsp|xci|wbfs)$",
+            "",
+            file_basename,
+            flags=re.IGNORECASE,
         )
         base_name, region, extra = parse_title_metadata(clean_full_title)
         ext = Path(name).suffix.lower()
@@ -650,7 +722,7 @@ def fetch_and_ingest_rom(
 
     Args:
         entry: Entrada do catálogo selecionada.
-        platform_code: Código da plataforma alvo (snes, ps1, ps2, psp, gc, dc).
+        platform_code: Código da plataforma alvo suportada.
         repo_root: Raiz opcional do repositório.
         console: Instância do Console para mensagens de feedback.
 
@@ -694,12 +766,12 @@ def resolve_initial_identifier(
 ) -> str:
     """Resolve o identificador de catálogo mais adequado para a plataforma e termo de busca.
 
-    Para plataformas com acervos particionados (como PS2 e PSP), roteia
-    dinamicamente para a partição alfabética ou volume correto com base
+    Para plataformas com acervos particionados (como PS2, PS3, Xbox 360, PSP e Wii),
+    roteia dinamicamente para a partição alfabética ou volume correto com base
     no termo de busca fornecido.
 
     Args:
-        platform_code: Código da plataforma ('snes', 'ps1', 'ps2', 'psp', 'gc', 'dc').
+        platform_code: Código da plataforma suportada.
         query: Termo de busca inicial opcional.
         custom_identifier: Identificador personalizado explícito fornecido pelo operador.
 
@@ -728,10 +800,29 @@ def resolve_initial_identifier(
         if first_char in PS2_ALPHABET_PARTS:
             return PS2_ALPHABET_PARTS[first_char]
 
+    elif plat == "ps3":
+        if first_char.isdigit():
+            return PS3_ALPHABET_PARTS.get("0", default_id)
+        if first_char in PS3_ALPHABET_PARTS:
+            return PS3_ALPHABET_PARTS[first_char]
+
+    elif plat == "xbox360":
+        if first_char.isdigit():
+            return XBOX360_ALPHABET_PARTS.get("0", default_id)
+        if first_char in XBOX360_ALPHABET_PARTS:
+            return XBOX360_ALPHABET_PARTS[first_char]
+
     elif plat == "psp":
         if "n" <= first_char <= "z":
             return PSP_PARTS.get("2", "psp-chd-zstd-redump-part2")
         return PSP_PARTS.get("1", "psp-chd-zstd-redump-part1")
+
+    elif plat == "wii":
+        if first_char >= "t":
+            return WII_PARTS.get("3", "Wii-p3-US-Arquivista")
+        if first_char >= "l":
+            return WII_PARTS.get("2", "Wii-p2-US-Arquivista")
+        return WII_PARTS.get("1", "Wii-p1-EU-Arquivista")
 
     return default_id
 
@@ -883,17 +974,23 @@ def render_controls_panel(platform_code: str = "snes") -> Panel:
         None.
     """
     extra_commands = ""
-    if platform_code == "ps2":
-        extra_commands = "[bold magenta]/letra <A-Z>[/bold magenta] Partição PS2  •  "
-    elif platform_code == "psp":
-        extra_commands = "[bold magenta]/parte <1|2>[/bold magenta] Partes PSP  •  "
+    if platform_code in ("ps2", "ps3", "xbox360"):
+        extra_commands = (
+            f"[bold magenta]/letra <A-Z>[/bold magenta] Partição {platform_code.upper()}  •  "
+        )
+    elif platform_code in ("psp", "wii"):
+        part_hint = "1-3" if platform_code == "wii" else "1|2"
+        extra_commands = (
+            f"[bold magenta]/parte <{part_hint}>[/bold magenta] Partes {platform_code.upper()}  •  "
+        )
 
+    plat_keys = "|".join(SUPPORTED_PLATFORMS.keys())
     text = (
         "[bold cyan][1-N][/bold cyan] Baixar seleção (ex: [cyan]2[/cyan] ou [cyan]1, 3[/cyan])  •  "
         "[bold yellow][n / p][/bold yellow] Próxima / Anterior  •  "
         "[bold green]<texto>[/bold green] Filtrar título\n"
         f"{extra_commands}"
-        "[bold magenta]/plat <snes|ps1|ps2|psp|gc|dc>[/bold magenta] Trocar plataforma  •  "
+        f"[bold magenta]/plat <{plat_keys}>[/bold magenta] Trocar plataforma  •  "
         "[bold cyan]/colecao <id>[/bold cyan] Trocar acervo  •  "
         "[bold red]sair (q)[/bold red] Fechar"
     )
@@ -916,7 +1013,7 @@ def run_interactive_fetcher(
     """Executa a interface interativa e moderna de busca, navegação e download de ROMs.
 
     Args:
-        platform_code: Código da plataforma (snes, ps1, ps2, psp, gc, dc).
+        platform_code: Código da plataforma suportada.
         query: Termo inicial opcional de pesquisa.
         identifier: Identificador personalizado opcional no Internet Archive.
         repo_root: Raiz opcional do repositório.
@@ -1020,6 +1117,69 @@ def run_interactive_fetcher(
                         )
                 except Exception:
                     pass
+            # Se não encontrou jogos na parte ativa e for Wii, verifica as demais partes
+            elif not matched_items and active_plat == "wii":
+                for part_key, part_id in WII_PARTS.items():
+                    if part_id == active_identifier:
+                        continue
+                    try:
+                        alt_cat = get_archive_catalog(
+                            identifier=part_id,
+                            platform_code=active_plat,
+                            repo_root=root,
+                        )
+                        alt_matches = [
+                            item
+                            for item in alt_cat
+                            if all(tok in item.title.lower() for tok in tokens)
+                        ]
+                        if alt_matches:
+                            active_identifier = part_id
+                            catalog = alt_cat
+                            matched_items = alt_matches
+                            c.print(
+                                f"\n[cyan]Títulos com '{current_query}' encontrados na Parte "
+                                f"{part_key} ({active_identifier}). Alternando acervo...[/cyan]"
+                            )
+                            break
+                    except Exception:
+                        pass
+            # Se não encontrou jogos na partição e for PS3/X360, verifica outras partes da letra
+            elif not matched_items and active_plat in ("ps3", "xbox360"):
+                prefix = (
+                    "sony_playstation3_"
+                    if active_plat == "ps3"
+                    else "microsoft_xbox360_"
+                )
+                req_char = tokens[0][0]
+                char_key = "numberssymbols" if req_char.isdigit() else req_char
+                # Tenta outras partes da mesma letra (ex.: _part2, _part3)
+                for part_num in range(1, 8):
+                    candidate_id = f"{prefix}{char_key}_part{part_num}"
+                    if candidate_id == active_identifier:
+                        continue
+                    try:
+                        alt_cat = get_archive_catalog(
+                            identifier=candidate_id,
+                            platform_code=active_plat,
+                            repo_root=root,
+                        )
+                        alt_matches = [
+                            item
+                            for item in alt_cat
+                            if all(tok in item.title.lower() for tok in tokens)
+                        ]
+                        if alt_matches:
+                            active_identifier = candidate_id
+                            catalog = alt_cat
+                            matched_items = alt_matches
+                            c.print(
+                                f"\n[cyan]Títulos com '{current_query}' encontrados em "
+                                f"'{active_identifier}'. Alternando acervo...[/cyan]"
+                            )
+                            break
+                    except Exception:
+                        pass
         else:
             matched_items = catalog
 
@@ -1139,19 +1299,31 @@ def run_interactive_fetcher(
                     c.print(f"[bold red]Plataforma inválida.[/bold red] Opções: {valid_str}")
                 continue
 
-            # Troca de partição alfabética do PS2
+            # Troca de partição alfabética (PS2, PS3, Xbox 360)
             if action in ("letra", "letter", "particao"):
-                if active_plat != "ps2":
-                    c.print("[yellow]O comando /letra é exclusivo para a plataforma PS2.[/yellow]")
+                if active_plat not in ("ps2", "ps3", "xbox360"):
+                    c.print(
+                        f"[yellow]O comando /letra não é aplicável para {active_plat.upper()}. "
+                        "(Disponível para PS2, PS3 e Xbox 360).[/yellow]"
+                    )
                     continue
                 target_letter = arg.lower().strip()
-                if target_letter in PS2_ALPHABET_PARTS:
-                    active_identifier = PS2_ALPHABET_PARTS[target_letter]
+                letter_map = (
+                    PS2_ALPHABET_PARTS
+                    if active_plat == "ps2"
+                    else (
+                        PS3_ALPHABET_PARTS
+                        if active_plat == "ps3"
+                        else XBOX360_ALPHABET_PARTS
+                    )
+                )
+                if target_letter in letter_map:
+                    active_identifier = letter_map[target_letter]
                     current_query = ""
                     current_page = 0
                     c.print(
-                        f"\n[cyan]Carregando partição '{target_letter.upper()}' de PS2 "
-                        f"({active_identifier})...[/cyan]"
+                        f"\n[cyan]Carregando partição '{target_letter.upper()}' de "
+                        f"{active_plat.upper()} ({active_identifier})...[/cyan]"
                     )
                     try:
                         catalog = get_archive_catalog(
@@ -1163,18 +1335,22 @@ def run_interactive_fetcher(
                     c.print("[yellow]Letra inválida. Escolha de A a Z ou 0.[/yellow]")
                 continue
 
-            # Troca de parte do acervo de PSP
+            # Troca de parte do acervo (PSP, Wii)
             if action in ("parte", "part"):
-                if active_plat != "psp":
-                    c.print("[yellow]O comando /parte é exclusivo para a plataforma PSP.[/yellow]")
+                if active_plat not in ("psp", "wii"):
+                    c.print(
+                        f"[yellow]O comando /parte não é aplicável para {active_plat.upper()}. "
+                        "(Disponível para PSP e Wii).[/yellow]"
+                    )
                     continue
                 part_code = arg.strip()
-                if part_code in PSP_PARTS:
-                    active_identifier = PSP_PARTS[part_code]
+                part_map = PSP_PARTS if active_plat == "psp" else WII_PARTS
+                if part_code in part_map:
+                    active_identifier = part_map[part_code]
                     current_query = ""
                     current_page = 0
                     c.print(
-                        f"\n[cyan]Carregando Parte {part_code} de PSP "
+                        f"\n[cyan]Carregando Parte {part_code} de {active_plat.upper()} "
                         f"({active_identifier})...[/cyan]"
                     )
                     try:
@@ -1184,7 +1360,12 @@ def run_interactive_fetcher(
                     except Exception as err:
                         c.print(f"[bold red]Erro ao carregar parte:[/bold red] {err}")
                 else:
-                    c.print("[yellow]Parte inválida. Escolha 1 (A-M) ou 2 (N-Z).[/yellow]")
+                    valid_range = (
+                        "1 (A-M) ou 2 (N-Z)"
+                        if active_plat == "psp"
+                        else "1 (#-K), 2 (L-S) ou 3 (T-Z)"
+                    )
+                    c.print(f"[yellow]Parte inválida. Escolha {valid_range}.[/yellow]")
                 continue
 
             # Troca de coleção remota

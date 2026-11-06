@@ -539,6 +539,28 @@ def test_resolve_initial_identifier() -> None:
     assert resolve_initial_identifier("psp", "god of war") == "psp-chd-zstd-redump-part1"
     assert resolve_initial_identifier("psp", "persona 3") == "psp-chd-zstd-redump-part2"
 
+    # Wii roteamento em partes
+    assert resolve_initial_identifier("wii", "mario") == "Wii-p2-US-Arquivista"
+    assert resolve_initial_identifier("wii", "zelda") == "Wii-p3-US-Arquivista"
+    assert resolve_initial_identifier("wii", "donkey") == "Wii-p1-EU-Arquivista"
+    assert resolve_initial_identifier("wii", "") == "Wii-p2-US-Arquivista"
+
+    # N64 acervo TOSEC
+    assert resolve_initial_identifier("n64", "mario") == "N64TOSEC"
+    assert resolve_initial_identifier("n64", "") == "N64TOSEC"
+
+    # PS3 roteamento alfabético
+    assert resolve_initial_identifier("ps3", "uncharted") == "sony_playstation3_u_part1"
+    assert resolve_initial_identifier("ps3", "") == "sony_playstation3_a_part1"
+
+    # Xbox 360 roteamento alfabético
+    assert resolve_initial_identifier("xbox360", "halo") == "microsoft_xbox360_h"
+    assert resolve_initial_identifier("xbox360", "") == "microsoft_xbox360_a_part1"
+
+    # Switch acervo de backups
+    assert resolve_initial_identifier("switch", "mario") == "Switch-Backups"
+    assert resolve_initial_identifier("switch", "") == "Switch-Backups"
+
 
 def test_get_archive_catalog_subfolder_names(mock_repo_root: Path) -> None:
     """Verifica se arquivos dentro de subpastas do acervo têm o prefixo limpo no título.
@@ -655,6 +677,20 @@ def test_run_interactive_fetcher_letra_and_parte_commands(
         platform_code="psp", repo_root=mock_repo_root, console=console
     )
     assert res_psp == []
+
+    # Simula troca de parte no Wii: '/parte 1', depois sai 'q'
+    mocker.patch("rich.prompt.Prompt.ask", side_effect=["/parte 1", "q"])
+    res_wii = run_interactive_fetcher(
+        platform_code="wii", repo_root=mock_repo_root, console=console
+    )
+    assert res_wii == []
+
+    # Simula troca de letra no PS3: '/letra u', depois sai 'q'
+    mocker.patch("rich.prompt.Prompt.ask", side_effect=["/letra u", "q"])
+    res_ps3 = run_interactive_fetcher(
+        platform_code="ps3", repo_root=mock_repo_root, console=console
+    )
+    assert res_ps3 == []
 
 
 def test_download_and_extract_rom_http_auth_error(
