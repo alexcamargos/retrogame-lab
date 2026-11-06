@@ -76,4 +76,59 @@
     <platform>dreamcast</platform>
     <theme>dreamcast</theme>
   </system>
+
+  <!-- Nintendo Wii -->
+  <system>
+    <name>wii</name>
+    <fullname>Nintendo Wii</fullname>
+    <path>%ROMPATH%/data/roms/wii</path>
+    <extension>.rvz .RVZ</extension>
+    <command>pwsh.exe -ExecutionPolicy Bypass -NoProfile -File "%ROMPATH%\scripts\launch.ps1" -Platform wii -RomPath "%ROM%"</command>
+    <platform>wii</platform>
+    <theme>wii</theme>
+  </system>
+
+  <!-- Nintendo 64 -->
+  <system>
+    <name>n64</name>
+    <fullname>Nintendo 64</fullname>
+    <path>%ROMPATH%/data/roms/n64</path>
+    <extension>.z64 .n64 .v64 .zip .Z64 .N64 .V64 .ZIP</extension>
+    <command>pwsh.exe -ExecutionPolicy Bypass -NoProfile -File "%ROMPATH%\scripts\launch.ps1" -Platform n64 -RomPath "%ROM%"</command>
+    <platform>n64</platform>
+    <theme>n64</theme>
+  </system>
+
+  <!-- Sony PlayStation 3 (Windows-only) -->
+  <system>
+    <name>ps3</name>
+    <fullname>Sony PlayStation 3</fullname>
+    <path>%ROMPATH%/data/roms/ps3</path>
+    <extension>.iso .pkg .ISO .PKG</extension>
+    <command>pwsh.exe -ExecutionPolicy Bypass -NoProfile -File "%ROMPATH%\scripts\launch.ps1" -Platform ps3 -RomPath "%ROM%"</command>
+    <platform>ps3</platform>
+    <theme>ps3</theme>
+  </system>
+
+  <!-- Microsoft Xbox 360 (Windows-only) -->
+  <system>
+    <name>xbox360</name>
+    <fullname>Microsoft Xbox 360</fullname>
+    <path>%ROMPATH%/data/roms/xbox360</path>
+    <extension>.iso .xex .ISO .XEX</extension>
+    <command>pwsh.exe -ExecutionPolicy Bypass -NoProfile -File "%ROMPATH%\scripts\launch.ps1" -Platform xbox360 -RomPath "%ROM%"</command>
+    <platform>xbox360</platform>
+    <theme>xbox360</theme>
+  </system>
+
+  <!-- Nintendo Switch (Windows-only) -->
+  <system>
+    <name>switch</name>
+    <fullname>Nintendo Switch</fullname>
+    <path>%ROMPATH%/data/roms/switch</path>
+    <extension>.nsp .xci .NSP .XCI</extension>
+    <command>pwsh.exe -ExecutionPolicy Bypass -NoProfile -File "%ROMPATH%\scripts\launch.ps1" -Platform switch -RomPath "%ROM%"</command>
+    <platform>switch</platform>
+    <theme>switch</theme>
+  </system>
 </systemList>

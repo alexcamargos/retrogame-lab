@@ -43,11 +43,14 @@ if (-not $SkipWinget) {
 # 2. Criação da Estrutura de Diretórios
 Write-Host "`n>>> Criando estrutura hierárquica..." -ForegroundColor Cyan
 $Folders = @(
-    "$DataDir\bios\ps1", "$DataDir\bios\ps2", "$DataDir\bios\dc",
+    "$DataDir\bios\ps1", "$DataDir\bios\ps2", "$DataDir\bios\dc", "$DataDir\bios\ps3", "$DataDir\bios\switch",
     "$DataDir\roms\snes", "$DataDir\roms\ps1", "$DataDir\roms\ps2", "$DataDir\roms\psp", "$DataDir\roms\gc", "$DataDir\roms\dc",
+    "$DataDir\roms\wii", "$DataDir\roms\n64", "$DataDir\roms\ps3", "$DataDir\roms\xbox360", "$DataDir\roms\switch",
     "$DataDir\saves\snes", "$DataDir\saves\ps1", "$DataDir\saves\ps2", "$DataDir\saves\psp", "$DataDir\saves\gc", "$DataDir\saves\dc",
+    "$DataDir\saves\wii", "$DataDir\saves\n64", "$DataDir\saves\ps3", "$DataDir\saves\xbox360", "$DataDir\saves\switch",
     "$DataDir\states",
     "$BinDir\retroarch", "$BinDir\duckstation", "$BinDir\pcsx2", "$BinDir\ppsspp", "$BinDir\dolphin", "$BinDir\flycast", "$BinDir\es-de",
+    "$BinDir\rpcs3", "$BinDir\xenia", "$BinDir\ryujinx",
     $ToolsDir
 )
 foreach ($Folder in $Folders) {
@@ -60,6 +63,10 @@ foreach ($Folder in $Folders) {
 New-Item -ItemType File -Path (Join-Path $BinDir "duckstation\portable.txt") -Force | Out-Null
 New-Item -ItemType File -Path (Join-Path $BinDir "pcsx2\portable.txt") -Force | Out-Null
 New-Item -ItemType File -Path (Join-Path $BinDir "dolphin\portable.txt") -Force | Out-Null
+New-Item -ItemType File -Path (Join-Path $BinDir "rpcs3\portable.txt") -Force | Out-Null
+New-Item -ItemType File -Path (Join-Path $BinDir "xenia\portable.txt") -Force | Out-Null
+$RyujinxPortable = Join-Path $BinDir "ryujinx\portable"
+if (-not (Test-Path $RyujinxPortable)) { New-Item -ItemType Directory -Path $RyujinxPortable -Force | Out-Null }
 $PpssppMemstick = Join-Path $BinDir "ppsspp\memstick"
 New-Item -ItemType Directory -Path $PpssppMemstick -Force | Out-Null
 
