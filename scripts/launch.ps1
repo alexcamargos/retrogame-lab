@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param (
     [Parameter(Mandatory = $true)]
-    [ValidateSet("snes", "ps1", "ps2", "psp", "gc", "dc")]
+    [ValidateSet("snes", "ps1", "ps2", "psp", "gc", "dc", "wii", "n64", "ps3", "xbox360", "switch")]
     [string]$Platform,
 
     [Parameter(Mandatory = $true)]
@@ -142,6 +142,74 @@ switch ($Platform) {
         $ArgList += $ResolvedRom
         if ($IsFullscreen) { $ArgList += "--fullscreen" }
     }
+    "wii" {
+        $DolphinBin = Get-ChildItem -Path (Join-Path $BinDir "dolphin") -Filter "Dolphin*.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notmatch "updater|setup|unins" } |
+            Select-Object -First 1
+        if (-not $DolphinBin) {
+            $Emulator = Join-Path $BinDir "dolphin\Dolphin.exe"
+        } else {
+            $Emulator = $DolphinBin.FullName
+        }
+        $ArgList += @("-b", "-e", $ResolvedRom)
+    }
+    "n64" {
+        $Emulator = Join-Path $BinDir "retroarch\retroarch.exe"
+        $CoreDir = Join-Path $BinDir "retroarch\cores"
+        $Core = Join-Path $CoreDir "mupen64plus_next_libretro.dll"
+        if (-not (Test-Path $Core)) {
+            Write-Host ">>> [AUTO-PROVISIONAMENTO] Core Libretro ausente ('$Core')." -ForegroundColor Yellow
+            Write-Host ">>> Baixando 'mupen64plus_next_libretro.dll' automaticamente do Buildbot oficial..." -ForegroundColor Cyan
+            if (-not (Test-Path $CoreDir)) { New-Item -ItemType Directory -Path $CoreDir -Force | Out-Null }
+            $TempZip = Join-Path $env:TEMP "mupen64plus_next_libretro.dll.zip"
+            try {
+                Invoke-WebRequest -Uri "https://buildbot.libretro.com/nightly/windows/x86_64/latest/mupen64plus_next_libretro.dll.zip" -OutFile $TempZip -MaximumRedirection 10 -UserAgent "Mozilla/5.0"
+                Expand-Archive -Path $TempZip -DestinationPath $CoreDir -Force
+                if (Test-Path $TempZip) { Remove-Item $TempZip -Force -ErrorAction SilentlyContinue }
+                Write-Host ">>> Core mupen64plus_next instalado com sucesso em '$Core'!" -ForegroundColor Green
+            } catch {
+                Write-Error "Falha ao provisionar core Libretro mupen64plus_next automaticamente: $($_.Exception.Message)"
+            }
+        }
+        $ArgList += @("-L", $Core, $ResolvedRom)
+        if ($IsFullscreen) { $ArgList += "--fullscreen" }
+    }
+    "ps3" {
+        $Rpcs3Bin = Get-ChildItem -Path (Join-Path $BinDir "rpcs3") -Filter "rpcs3*.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notmatch "updater|setup|unins" } |
+            Select-Object -First 1
+        if (-not $Rpcs3Bin) {
+            $Emulator = Join-Path $BinDir "rpcs3\rpcs3.exe"
+        } else {
+            $Emulator = $Rpcs3Bin.FullName
+        }
+        $ArgList += $ResolvedRom
+        if ($IsFullscreen) { $ArgList += "--no-gui" }
+    }
+    "xbox360" {
+        $XeniaBin = Get-ChildItem -Path (Join-Path $BinDir "xenia") -Filter "xenia*.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notmatch "updater|setup|unins" } |
+            Select-Object -First 1
+        if (-not $XeniaBin) {
+            $Emulator = Join-Path $BinDir "xenia\xenia.exe"
+        } else {
+            $Emulator = $XeniaBin.FullName
+        }
+        $ArgList += $ResolvedRom
+        if ($IsFullscreen) { $ArgList += "--fullscreen" }
+    }
+    "switch" {
+        $RyujinxBin = Get-ChildItem -Path (Join-Path $BinDir "ryujinx") -Filter "Ryujinx*.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notmatch "updater|setup|unins" } |
+            Select-Object -First 1
+        if (-not $RyujinxBin) {
+            $Emulator = Join-Path $BinDir "ryujinx\Ryujinx.exe"
+        } else {
+            $Emulator = $RyujinxBin.FullName
+        }
+        $ArgList += $ResolvedRom
+        if ($IsFullscreen) { $ArgList += "--fullscreen" }
+    }
 }
 
 # 2. Detecção Dinâmica de GPU (dGPU vs iGPU)
@@ -185,7 +253,7 @@ try {
     $Process = Start-Process -FilePath $Emulator -ArgumentList $EscapedArgs -PassThru
 
     # Aplicação segura de afinidade de P-cores se CPU híbrida for identificada
-    if ($Platform -in @("ps2", "gc")) {
+    if ($Platform -in @("ps2", "gc", "wii", "ps3", "xbox360", "switch")) {
         try {
             Start-Sleep -Milliseconds 150
             if (-not $Process.HasExited) {
