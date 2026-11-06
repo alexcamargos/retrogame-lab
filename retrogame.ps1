@@ -58,6 +58,16 @@ function Show-Help {
     Write-Host "                  Ex.: .\retrogame fetch-gc [-q zelda]"
     Write-Host "  fetch-dc        Atalho direto para busca interativa em Dreamcast (Redump CHD)"
     Write-Host "                  Ex.: .\retrogame fetch-dc [-q sonic]"
+    Write-Host "  fetch-wii       Atalho direto para busca interativa em Nintendo Wii (Redump RVZ)"
+    Write-Host "                  Ex.: .\retrogame fetch-wii [-q mario]"
+    Write-Host "  fetch-n64       Atalho direto para busca interativa em Nintendo 64 (No-Intro)"
+    Write-Host "                  Ex.: .\retrogame fetch-n64 [-q zelda]"
+    Write-Host "  fetch-ps3       Atalho direto para busca em PlayStation 3 (Windows-only)"
+    Write-Host "                  Ex.: .\retrogame fetch-ps3 [-q uncharted]"
+    Write-Host "  fetch-xbox360   Atalho direto para busca em Xbox 360 (Windows-only)"
+    Write-Host "                  Ex.: .\retrogame fetch-xbox360 [-q halo]"
+    Write-Host "  fetch-switch    Atalho direto para busca em Nintendo Switch (Windows-only)"
+    Write-Host "                  Ex.: .\retrogame fetch-switch [-q mario]"
     Write-Host "  info            Exibe o catálogo de plataformas suportadas e formatos aceitos"
     Write-Host "  version         Exibe a versão instalada do RetroGame Lab`n"
 
@@ -94,7 +104,7 @@ switch -Regex ($Command.ToLower()) {
         & uv run retrogame-lab fetch-roms @RemainingArgs
     }
     "^fetch$" {
-        if ($RemainingArgs.Count -gt 0 -and $RemainingArgs[0] -match "^(snes|ps1|ps2|psp|gc|dc)$") {
+        if ($RemainingArgs.Count -gt 0 -and $RemainingArgs[0] -match "^(snes|ps1|ps2|psp|gc|dc|wii|n64|ps3|xbox360|switch)$") {
             $Plat = $RemainingArgs[0]
             $QueryArgs = if ($RemainingArgs.Count -gt 1) { @("-q", ($RemainingArgs[1..($RemainingArgs.Count - 1)] -join " ")) } else { @() }
             & uv run retrogame-lab fetch-roms -p $Plat @QueryArgs
@@ -102,7 +112,7 @@ switch -Regex ($Command.ToLower()) {
             & uv run retrogame-lab fetch-roms @RemainingArgs
         }
     }
-    "^fetch[-_](snes|ps1|ps2|psp|gc|dc)$" {
+    "^fetch[-_](snes|ps1|ps2|psp|gc|dc|wii|n64|ps3|xbox360|switch)$" {
         $Plat = $Matches[1]
         & uv run retrogame-lab fetch-$Plat @RemainingArgs
     }
