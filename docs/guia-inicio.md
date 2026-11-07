@@ -298,11 +298,18 @@ Para que os emuladores leiam os mesmos arquivos sincronizados pelo Syncthing, co
    * Utilize **Cartao individual por jogo** ou **Memory Card em pasta**.
 
 ### 6.3 RetroArch (SNES / 2D)
+
+O script de provisionamento automatizado já injeta os diretórios de BIOS, saves e a playlist oficial do Super Nintendo pré-vinculada ao Snes9x. Devido à segurança da plataforma Android (restrição de namespace do linker nativo sem permissão de root no ADB), os binários de núcleos (.so) precisam ser baixados diretamente pelo processo do RetroArch no primeiro uso:
+
 1. Abra o RetroArch no Android.
-2. Va em **Configuracoes** $\rightarrow$ **Diretorio**:
-   * Gravacao / Salvar (*Savefile*): aponte para `/storage/emulated/0/RetroGames/saves/snes/`.
-   * Estados Salvos (*Savestate*): mantenha na pasta padrao interna do RetroArch (nunca aponte para `saves/` compartilhada).
-   * Sistema / BIOS: aponte para `/storage/emulated/0/RetroGames/bios/`.
+2. Vá em **Atualizador Online** (*Online Updater*):
+   * Toque em **Atualizar Arquivos de Informações dos Núcleos** (*Update Core Info Files*).
+   * Toque em **Baixar Núcleo** (*Core Downloader*) e selecione **Nintendo - SNES / SFC (Snes9x)**.
+3. Concluído o download, vá para a aba lateral do **Super Nintendo** já criada pelo provisionamento e execute qualquer jogo com 1 clique.
+4. *(Opcional / Confirmação)* Em **Configurações** $\rightarrow$ **Diretório**, confirme se:
+   * Gravação / Salvar (*Savefile*): aponta para `/storage/emulated/0/RetroGames/saves/snes/`.
+   * Estados Salvos (*Savestate*): mantido na pasta interna (nunca aponte para `saves/` compartilhada).
+   * Sistema / BIOS: aponta para `/storage/emulated/0/RetroGames/bios/`.
 
 ### 6.4 PPSSPP (PlayStation Portable)
 1. Abra o PPSSPP no Android.

@@ -111,7 +111,7 @@ Este script em PowerShell utiliza o **Android Debug Bridge (ADB)** para:
 4. Configurar whitelist de economia de bateria para o Syncthing (`dumpsys deviceidle`).
 5. Baixar e instalar automaticamente os APKs ARM64 compatíveis (com fallback para cache offline).
 6. Injetar o arquivo `.stignore` no diretório de saves do Android.
-7. Injetar arquivos de configuração otimizados (`retroarch.cfg`, `ppsspp.ini`, `Dolphin.ini`, `emu.cfg`, `duckstation_settings.ini`, `nethersx2_settings.ini`), provisionar o núcleo Libretro Snes9x com seus metadados e gerar a playlist automática de títulos.
+7. Injetar arquivos de configuração otimizados (`retroarch.cfg`, `ppsspp.ini`, `Dolphin.ini`, `emu.cfg`, `duckstation_settings.ini`, `nethersx2_settings.ini`) e gerar dinamicamente a playlist oficial de Super Nintendo pré-vinculada ao Snes9x.
 
 Salvo em `scripts/setup_android_emulators.ps1`:
 
@@ -418,11 +418,21 @@ if ($SyncthingInstalled) {
      ```
 5. **Configuração dos Emuladores no Android:**
    * Graças à **injeção automática de configurações** executada na etapa 7 do script ADB:
-     * **RetroArch:** Já inicializa com diretórios de BIOS (`RetroGames/bios/`), saves (`RetroGames/saves/snes/`) e ROMs (`RetroGames/roms/`) pré-configurados com backend Vulkan, núcleo Libretro Snes9x ARM64 injetado e playlist oficial de Super Nintendo gerada dinamicamente com os títulos da biblioteca.
+     * **RetroArch:** Já inicializa com diretórios de BIOS (`RetroGames/bios/`), saves (`RetroGames/saves/snes/`) e ROMs (`RetroGames/roms/`) pré-configurados com backend Vulkan e playlist oficial de Super Nintendo gerada dinamicamente com os títulos da biblioteca vinculados ao Snes9x (ver nota de segurança abaixo).
      * **PPSSPP:** Já inicializa com MemoryStick e `SAVEDATA` apontando para `RetroGames/saves/psp/` e diretório de ROMs em `RetroGames/roms/psp/`.
      * **Dolphin:** Já inicializa com caminhos de ISO em `RetroGames/roms/gc/` e backend gráfico Vulkan.
      * **Flycast:** Já inicializa com VMU em `RetroGames/saves/dc/`, BIOS em `RetroGames/bios/dc/` e ROMs em `RetroGames/roms/dc/`.
      * **DuckStation e NetherSX2:** O script disponibiliza os perfis padronizados em `/storage/emulated/0/RetroGames/config/`. Caso o Storage Access Framework (SAF) do Android exija permissão de escaneamento visual no primeiro boot, utilize a opção *Import Settings* apontando para o arquivo correspondente na pasta `config/` ou selecione os diretórios indicados.
+
+> [!IMPORTANT]
+> **Delimitação de Segurança Android sem Root (RetroArch e Núcleos Libretro):**  
+> O RetroGame Lab opera em dispositivos de fábrica **sem privilégios de root**. A partir do Android 10, o linker dinâmico do sistema operacional (`linker64`) proíbe o carregamento (`dlopen`) de código executável nativo (`.so`) a partir do armazenamento externo ou compartilhado (`/storage/emulated/0/...`), permitindo execução estritamente a partir do namespace interno da aplicação (`/data/user/0/<pacote>/`).  
+> Como o ADB sem root não tem permissão de escrita em diretórios privados de outros aplicativos, o script automatiza toda a configuração do RetroArch e gera a playlist do Super Nintendo pré-vinculada ao Snes9x, mas exige uma **ação única do usuário no primeiro boot** para que o próprio processo do RetroArch baixe o binário para seu namespace interno:  
+> 1. No RetroArch, acesse **Atualizador Online** (*Online Updater*).  
+> 2. Toque em **Atualizar Arquivos de Informações dos Núcleos** (*Update Core Info Files*).  
+> 3. Toque em **Baixar Núcleo** (*Core Downloader*).  
+> 4. Selecione **Nintendo - SNES / SFC (Snes9x)**.  
+> Uma vez baixado, todos os títulos da aba lateral do Super Nintendo abrirão imediatamente sem requerer qualquer outra configuração.
 
 ---
 
