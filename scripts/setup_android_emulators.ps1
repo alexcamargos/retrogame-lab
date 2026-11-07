@@ -9,9 +9,13 @@ $ErrorActionPreference = "Stop"
 $BaseDir = Split-Path -Parent $PSScriptRoot
 $ToolsDir = Join-Path $BaseDir "tools"
 $ApkCacheDir = Join-Path $BaseDir "tools\android_apks"
+$CoreCacheDir = Join-Path $BaseDir "tools\android_cores"
 
 if (-not (Test-Path $ApkCacheDir)) {
     New-Item -ItemType Directory -Path $ApkCacheDir -Force | Out-Null
+}
+if (-not (Test-Path $CoreCacheDir)) {
+    New-Item -ItemType Directory -Path $CoreCacheDir -Force | Out-Null
 }
 
 Write-Host ">>> Identificando conexões via ADB..." -ForegroundColor Cyan
@@ -261,13 +265,98 @@ if (Test-Path $AndroidTemplatesDir) {
         & adb @AdbArgs push $_.FullName "$TargetDevicePath/config/$($_.Name)" 2>$null | Out-Null
     }
 
-    # 7.2 Injeção Direta - RetroArch (Universal)
+    # 7.2 Injeção Direta - RetroArch (Universal e SNES)
     $RetroArchCfg = Join-Path $AndroidTemplatesDir "retroarch.cfg"
     if (Test-Path $RetroArchCfg) {
         Write-Host "Aplicando configuração: RetroArch..." -ForegroundColor Gray
-        & adb @AdbArgs shell "mkdir -p /storage/emulated/0/RetroArch /storage/emulated/0/Android/data/com.retroarch.aarch64/files" 2>$null | Out-Null
+        & adb @AdbArgs shell "mkdir -p /storage/emulated/0/RetroArch /storage/emulated/0/Android/data/com.retroarch.aarch64/files /storage/emulated/0/Android/data/com.retroarch.aarch64/files/cores /storage/emulated/0/Android/data/com.retroarch.aarch64/files/info /storage/emulated/0/RetroArch/playlists /storage/emulated/0/Android/data/com.retroarch.aarch64/files/playlists" 2>$null | Out-Null
         & adb @AdbArgs push $RetroArchCfg "/storage/emulated/0/RetroArch/retroarch.cfg" 2>$null | Out-Null
         & adb @AdbArgs push $RetroArchCfg "/storage/emulated/0/Android/data/com.retroarch.aarch64/files/retroarch.cfg" 2>$null | Out-Null
+
+        # Provisionamento Automático do Núcleo SNES (Snes9x)
+        $SnesCoreFile = Join-Path $CoreCacheDir "snes9x_libretro_android.so"
+        $SnesInfoFile = Join-Path $CoreCacheDir "snes9x_libretro.info"
+
+        if (-not (Test-Path $SnesCoreFile) -and -not $SkipDownload) {
+            Write-Host "Baixando núcleo Libretro Snes9x (ARM64)..." -ForegroundColor Gray
+            $CoreZip = Join-Path $CoreCacheDir "snes9x.zip"
+            try {
+                Invoke-WebRequest -Uri "http://buildbot.libretro.com/nightly/android/latest/arm64-v8a/snes9x_libretro_android.so.zip" -OutFile $CoreZip -MaximumRedirection 5 -UserAgent "Mozilla/5.0"
+                Expand-Archive -Path $CoreZip -DestinationPath $CoreCacheDir -Force
+                if (Test-Path $CoreZip) { Remove-Item $CoreZip -Force }
+            } catch {
+                Write-Warning "Não foi possível baixar o núcleo Snes9x online: $_"
+            }
+        }
+
+        if (-not (Test-Path $SnesInfoFile) -and -not $SkipDownload) {
+            Write-Host "Baixando metadados dos núcleos Libretro (info)..." -ForegroundColor Gray
+            $InfoZip = Join-Path $CoreCacheDir "info.zip"
+            $InfoTempDir = Join-Path $CoreCacheDir "info_temp"
+            try {
+                Invoke-WebRequest -Uri "http://buildbot.libretro.com/assets/frontend/info.zip" -OutFile $InfoZip -MaximumRedirection 5 -UserAgent "Mozilla/5.0"
+                Expand-Archive -Path $InfoZip -DestinationPath $InfoTempDir -Force
+                $ExtractedInfo = Join-Path $InfoTempDir "snes9x_libretro.info"
+                if (Test-Path $ExtractedInfo) {
+                    Move-Item -Path $ExtractedInfo -Destination $SnesInfoFile -Force
+                }
+                if (Test-Path $InfoZip) { Remove-Item $InfoZip -Force }
+                if (Test-Path $InfoTempDir) { Remove-Item $InfoTempDir -Recurse -Force }
+            } catch {
+                Write-Warning "Não foi possível baixar metadados dos núcleos online: $_"
+            }
+        }
+
+        if (Test-Path $SnesCoreFile) {
+            Write-Host "Injetando núcleo Snes9x no RetroArch Android..." -ForegroundColor Green
+            & adb @AdbArgs push $SnesCoreFile "/storage/emulated/0/Android/data/com.retroarch.aarch64/files/cores/snes9x_libretro_android.so" 2>$null | Out-Null
+        }
+        if (Test-Path $SnesInfoFile) {
+            & adb @AdbArgs push $SnesInfoFile "/storage/emulated/0/Android/data/com.retroarch.aarch64/files/info/snes9x_libretro.info" 2>$null | Out-Null
+        }
+
+        # Geração e Injeção Automática de Playlist de SNES
+        $LocalSnesRoms = @()
+        $LocalSnesDir = Join-Path $BaseDir "data\roms\snes"
+        if (Test-Path $LocalSnesDir) {
+            $LocalSnesRoms = @(Get-ChildItem -Path $LocalSnesDir -File | Where-Object { $_.Extension -in @(".sfc", ".smc", ".chd", ".zip") })
+        }
+
+        if ($LocalSnesRoms.Count -gt 0) {
+            Write-Host "Gerando playlist automática de Super Nintendo ($($LocalSnesRoms.Count) títulos)..." -ForegroundColor Gray
+            $PlaylistItems = @()
+            $TargetCorePath = "/storage/emulated/0/Android/data/com.retroarch.aarch64/files/cores/snes9x_libretro_android.so"
+            $TargetCoreName = "Nintendo - SNES / SFC (Snes9x)"
+            $DbName = "Nintendo - Super Nintendo Entertainment System.lpl"
+
+            foreach ($Rom in $LocalSnesRoms) {
+                $CleanLabel = $Rom.BaseName -replace "_", " "
+                $PlaylistItems += @{
+                    path      = "$TargetDevicePath/roms/snes/$($Rom.Name)"
+                    label     = $CleanLabel
+                    core_path = $TargetCorePath
+                    core_name = $TargetCoreName
+                    crc32     = "DETECT"
+                    db_name   = $DbName
+                }
+            }
+
+            $PlaylistObj = @{
+                version            = "1.5"
+                default_core_path  = $TargetCorePath
+                default_core_name  = $TargetCoreName
+                label_display_mode = 0
+                right_thumbnail_mode = 0
+                left_thumbnail_mode  = 0
+                sort_mode          = 0
+                items              = $PlaylistItems
+            }
+
+            $TempPlaylist = Join-Path $CoreCacheDir $DbName
+            $PlaylistObj | ConvertTo-Json -Depth 5 | Set-Content -Path $TempPlaylist -Encoding utf8
+            & adb @AdbArgs push $TempPlaylist "/storage/emulated/0/RetroArch/playlists/$DbName" 2>$null | Out-Null
+            & adb @AdbArgs push $TempPlaylist "/storage/emulated/0/Android/data/com.retroarch.aarch64/files/playlists/$DbName" 2>$null | Out-Null
+        }
     }
 
     # 7.3 Injeção Direta - PPSSPP (PSP)
