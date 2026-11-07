@@ -55,8 +55,8 @@ $Candidates = Get-ChildItem -Path $SourceDirectory -Include *.cue, *.gdi, *.iso,
 }
 
 foreach ($File in $Candidates) {
-    # Higieniza o nome do arquivo de saída (substitui espaços por '_' e remove aspas e caracteres especiais)
-    $BaseName = [System.IO.Path]::GetFileNameWithoutExtension($File.FullName)
+    # Higieniza o nome do arquivo de saída (converte para minúsculas, substitui espaços por '_' e remove aspas e caracteres especiais)
+    $BaseName = [System.IO.Path]::GetFileNameWithoutExtension($File.FullName).ToLower()
     $SanitizedBase = $BaseName -replace "['""`~^!?\:;*<>|#]", ""
     $SanitizedBase = $SanitizedBase -replace "\s+", "_"
     $SanitizedBase = $SanitizedBase -replace "_+", "_"
