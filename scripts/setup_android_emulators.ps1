@@ -273,49 +273,7 @@ if (Test-Path $AndroidTemplatesDir) {
         & adb @AdbArgs push $RetroArchCfg "/storage/emulated/0/RetroArch/retroarch.cfg" 2>$null | Out-Null
         & adb @AdbArgs push $RetroArchCfg "/storage/emulated/0/Android/data/com.retroarch.aarch64/files/retroarch.cfg" 2>$null | Out-Null
 
-        # Provisionamento Automático do Núcleo SNES (Snes9x)
-        $SnesCoreFile = Join-Path $CoreCacheDir "snes9x_libretro_android.so"
-        $SnesInfoFile = Join-Path $CoreCacheDir "snes9x_libretro.info"
-
-        if (-not (Test-Path $SnesCoreFile) -and -not $SkipDownload) {
-            Write-Host "Baixando núcleo Libretro Snes9x (ARM64)..." -ForegroundColor Gray
-            $CoreZip = Join-Path $CoreCacheDir "snes9x.zip"
-            try {
-                Invoke-WebRequest -Uri "http://buildbot.libretro.com/nightly/android/latest/arm64-v8a/snes9x_libretro_android.so.zip" -OutFile $CoreZip -MaximumRedirection 5 -UserAgent "Mozilla/5.0"
-                Expand-Archive -Path $CoreZip -DestinationPath $CoreCacheDir -Force
-                if (Test-Path $CoreZip) { Remove-Item $CoreZip -Force }
-            } catch {
-                Write-Warning "Não foi possível baixar o núcleo Snes9x online: $_"
-            }
-        }
-
-        if (-not (Test-Path $SnesInfoFile) -and -not $SkipDownload) {
-            Write-Host "Baixando metadados dos núcleos Libretro (info)..." -ForegroundColor Gray
-            $InfoZip = Join-Path $CoreCacheDir "info.zip"
-            $InfoTempDir = Join-Path $CoreCacheDir "info_temp"
-            try {
-                Invoke-WebRequest -Uri "http://buildbot.libretro.com/assets/frontend/info.zip" -OutFile $InfoZip -MaximumRedirection 5 -UserAgent "Mozilla/5.0"
-                Expand-Archive -Path $InfoZip -DestinationPath $InfoTempDir -Force
-                $ExtractedInfo = Join-Path $InfoTempDir "snes9x_libretro.info"
-                if (Test-Path $ExtractedInfo) {
-                    Move-Item -Path $ExtractedInfo -Destination $SnesInfoFile -Force
-                }
-                if (Test-Path $InfoZip) { Remove-Item $InfoZip -Force }
-                if (Test-Path $InfoTempDir) { Remove-Item $InfoTempDir -Recurse -Force }
-            } catch {
-                Write-Warning "Não foi possível baixar metadados dos núcleos online: $_"
-            }
-        }
-
-        if (Test-Path $SnesCoreFile) {
-            Write-Host "Injetando núcleo Snes9x no RetroArch Android..." -ForegroundColor Green
-            & adb @AdbArgs push $SnesCoreFile "/storage/emulated/0/Android/data/com.retroarch.aarch64/files/cores/snes9x_libretro_android.so" 2>$null | Out-Null
-        }
-        if (Test-Path $SnesInfoFile) {
-            & adb @AdbArgs push $SnesInfoFile "/storage/emulated/0/Android/data/com.retroarch.aarch64/files/info/snes9x_libretro.info" 2>$null | Out-Null
-        }
-
-        # Geração e Injeção Automática de Playlist de SNES
+        # Geração e Injeção Automática de Playlist de SNES (pré-vinculada ao Snes9x)
         $LocalSnesRoms = @()
         $LocalSnesDir = Join-Path $BaseDir "data\roms\snes"
         if (Test-Path $LocalSnesDir) {
@@ -357,6 +315,11 @@ if (Test-Path $AndroidTemplatesDir) {
             & adb @AdbArgs push $TempPlaylist "/storage/emulated/0/RetroArch/playlists/$DbName" 2>$null | Out-Null
             & adb @AdbArgs push $TempPlaylist "/storage/emulated/0/Android/data/com.retroarch.aarch64/files/playlists/$DbName" 2>$null | Out-Null
         }
+
+        Write-Host ">>> [Aviso RetroArch / SNES] Segurança Android (Linker W^X sem Root):" -ForegroundColor Cyan
+        Write-Host "    A playlist de SNES foi gerada e vinculada ao Snes9x com sucesso." -ForegroundColor Gray
+        Write-Host "    Por restrição do Android, o binário (.so) deve residir no namespace interno do app." -ForegroundColor Gray
+        Write-Host "    Etapa única necessária no celular: Menu Principal -> Atualizador Online -> Baixar Núcleo -> Nintendo - SNES / SFC (Snes9x)." -ForegroundColor Yellow
     }
 
     # 7.3 Injeção Direta - PPSSPP (PSP)
