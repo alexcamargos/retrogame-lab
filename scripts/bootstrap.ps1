@@ -94,6 +94,35 @@ if (-not (Test-Path $PpssppSaveData)) {
     }
 }
 
+# Vincula as pastas de saves do Dolphin (GC e Wii) aos diretórios centralizados via junção
+$DolphinUser = Join-Path $BinDir "dolphin\User"
+$DolphinGcSave = Join-Path $DolphinUser "GC"
+$DolphinWiiSave = Join-Path $DolphinUser "Wii\title"
+$TargetGcSave = Join-Path $DataDir "saves\gc"
+$TargetWiiSave = Join-Path $DataDir "saves\wii"
+
+if (-not (Test-Path $TargetGcSave)) { New-Item -ItemType Directory -Path $TargetGcSave -Force | Out-Null }
+if (-not (Test-Path $TargetWiiSave)) { New-Item -ItemType Directory -Path $TargetWiiSave -Force | Out-Null }
+if (-not (Test-Path $DolphinUser)) { New-Item -ItemType Directory -Path $DolphinUser -Force | Out-Null }
+$DolphinWiiParent = Join-Path $DolphinUser "Wii"
+if (-not (Test-Path $DolphinWiiParent)) { New-Item -ItemType Directory -Path $DolphinWiiParent -Force | Out-Null }
+
+if (-not (Test-Path $DolphinGcSave)) {
+    $BinDrive = (Split-Path (Resolve-Path $DolphinUser).Path -Qualifier)
+    $DataDrive = (Split-Path (Resolve-Path $TargetGcSave).Path -Qualifier)
+    if ($BinDrive -eq $DataDrive) {
+        cmd /c mklink /J "$DolphinGcSave" "$TargetGcSave" 2>$null | Out-Null
+    }
+}
+
+if (-not (Test-Path $DolphinWiiSave)) {
+    $BinDrive = (Split-Path (Resolve-Path $DolphinWiiParent).Path -Qualifier)
+    $DataDrive = (Split-Path (Resolve-Path $TargetWiiSave).Path -Qualifier)
+    if ($BinDrive -eq $DataDrive) {
+        cmd /c mklink /J "$DolphinWiiSave" "$TargetWiiSave" 2>$null | Out-Null
+    }
+}
+
 # 4. Injeção de Templates de Configuração Inicial (Cold Start Protection)
 if (Test-Path $TplDir) {
     Write-Host "`n>>> Injetando templates de configuração de saves e BIOS..." -ForegroundColor Cyan

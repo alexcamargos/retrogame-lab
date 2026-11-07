@@ -61,7 +61,7 @@ function Flatten-SingleDirectory {
 
     $Items = Get-ChildItem -Path $DirectoryPath -Force
     # Ignora arquivos de controle de portabilidade já criados pelo bootstrap
-    $FilteredItems = $Items | Where-Object { $_.Name -notin @("portable.txt", "settings.ini", "PCSX2.ini", "inis", "memstick", "cores") }
+    $FilteredItems = $Items | Where-Object { $_.Name -notin @("portable.txt", "settings.ini", "PCSX2.ini", "inis", "memstick", "cores", "User") }
 
     if ($FilteredItems.Count -eq 1 -and $FilteredItems[0].PSIsContainer) {
         $SubDir = $FilteredItems[0].FullName
@@ -426,6 +426,12 @@ foreach ($EmuName in $RemoteCatalog.Keys) {
         # Marcadores de portabilidade e ações específicas
         if ($EmuName -in @("duckstation", "pcsx2", "dolphin", "xenia", "rpcs3")) {
             New-Item -ItemType File -Path (Join-Path $TargetFolder "portable.txt") -Force | Out-Null
+            if ($EmuName -eq "dolphin") {
+                $DolphinUserCfg = Join-Path $TargetFolder "User\Config"
+                if (-not (Test-Path $DolphinUserCfg)) { New-Item -ItemType Directory -Path $DolphinUserCfg -Force | Out-Null }
+                $DolphinTpl = Join-Path $BaseDir "templates\config\Dolphin.ini"
+                if (Test-Path $DolphinTpl) { Copy-Item $DolphinTpl (Join-Path $DolphinUserCfg "Dolphin.ini") -Force }
+            }
         } elseif ($EmuName -eq "ryujinx") {
             $RyujinxPortable = Join-Path $TargetFolder "portable"
             if (-not (Test-Path $RyujinxPortable)) { New-Item -ItemType Directory -Path $RyujinxPortable -Force | Out-Null }
