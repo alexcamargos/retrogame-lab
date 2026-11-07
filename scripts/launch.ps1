@@ -17,6 +17,7 @@ param (
 $ErrorActionPreference = "Stop"
 $BaseDir = Split-Path -Parent $PSScriptRoot
 $BinDir  = Join-Path $BaseDir "bin"
+$DataDir = Join-Path $BaseDir "data"
 
 # Resolução de modo de tela: fullscreen ativo por padrão a menos que -Windowed seja acionado
 $IsFullscreen = $true
@@ -77,7 +78,8 @@ switch ($Platform) {
                 Write-Error "Falha ao provisionar core Libretro snes9x automaticamente: $($_.Exception.Message)"
             }
         }
-        $ArgList += @("-L", $Core, $ResolvedRom)
+        $SaveDir = Join-Path $DataDir "saves\snes"
+        $ArgList += @("-L", $Core, "-s", $SaveDir, $ResolvedRom)
         if ($IsFullscreen) { $ArgList += "--fullscreen" }
     }
     "ps1" {
@@ -171,7 +173,8 @@ switch ($Platform) {
                 Write-Error "Falha ao provisionar core Libretro mupen64plus_next automaticamente: $($_.Exception.Message)"
             }
         }
-        $ArgList += @("-L", $Core, $ResolvedRom)
+        $SaveDir = Join-Path $DataDir "saves\n64"
+        $ArgList += @("-L", $Core, "-s", $SaveDir, $ResolvedRom)
         if ($IsFullscreen) { $ArgList += "--fullscreen" }
     }
     "ps3" {
