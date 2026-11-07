@@ -16,7 +16,7 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from rich.console import Console
 from rich.table import Table
@@ -38,6 +38,9 @@ STIGNORE_SAVE_RULES: list[str] = [
     "*.state*",
     "*.s[0-9][0-9]",
     "*.nvram.bak",
+    "*.ppst",
+    "*.p2s",
+    "PPSSPP_STATE/",
     "",
     "// 2. Proibir Arquivos de Lock e Temporarios Ativos",
     "*.tmp*",
@@ -63,6 +66,9 @@ MANDATORY_IGNORE_PATTERNS: list[str] = [
     "*.state*",
     "*.s[0-9][0-9]",
     "*.nvram.bak",
+    "*.ppst",
+    "*.p2s",
+    "PPSSPP_STATE/",
     "*.tmp*",
     "*.lock*",
     "*.lck",
@@ -487,7 +493,7 @@ def check_syncthing_rest_api(
     try:
         with urllib.request.urlopen(req, timeout=2.0) as resp:
             if resp.status == 200:
-                return json.loads(resp.read().decode("utf-8"))
+                return cast(dict[str, Any], json.loads(resp.read().decode("utf-8")))
     except Exception:
         return None
     return None
@@ -1487,7 +1493,7 @@ def generate_android_syncthing_config(
     with contextlib.suppress(Exception):
         ET.indent(root, space="    ")
 
-    return ET.tostring(root, encoding="utf-8", xml_declaration=True).decode("utf-8")
+    return cast(str, ET.tostring(root, encoding="utf-8", xml_declaration=True).decode("utf-8"))
 
 
 def apply_android_syncthing_setup(
