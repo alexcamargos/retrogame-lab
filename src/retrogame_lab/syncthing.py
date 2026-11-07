@@ -199,7 +199,8 @@ class SyncthingValidationReport:
         windows_folders: Lista de pastas configuradas no Windows.
         windows_devices: Lista de dispositivos pareados no Windows.
         android_connected: Se há dispositivo Android acessível via ADB.
-        android_device_id: ID do dispositivo Android detectado via ADB.
+        android_adb_serial: Identificador serial do dispositivo Android no ADB.
+        android_device_id: ID do Syncthing registrado no dispositivo Android.
         android_package: Pacote do Syncthing instalado no Android.
         android_model: Modelo do smartphone Android.
         has_errors: Se foram identificados erros bloqueantes.
@@ -212,6 +213,7 @@ class SyncthingValidationReport:
     windows_folders: list[SyncthingFolderConfig] = field(default_factory=list)
     windows_devices: list[SyncthingDeviceInfo] = field(default_factory=list)
     android_connected: bool = False
+    android_adb_serial: str | None = None
     android_device_id: str | None = None
     android_package: str | None = None
     android_model: str | None = None
@@ -232,6 +234,69 @@ class SyncthingValidationReport:
 # ==============================================================================
 
 
+def is_valid_syncthing_device_id(device_id: str | None) -> bool:
+    """Valida se uma string possui a estrutura canônica de um Device ID do Syncthing.
+
+    Um Device ID do Syncthing é composto por 52 a 56 caracteres alfanuméricos base32
+    (ou 63 caracteres formatados em 8 blocos de 7 caracteres separados por hífens).
+    Identificadores ADB (seriais USB como '0091208971') são estritamente rejeitados.
+
+    Args:
+        device_id: String com o identificador a ser validado.
+
+    Returns:
+        True se o identificador for um Device ID válido do Syncthing, False caso contrário.
+
+    Raises:
+        None.
+    """
+    if not device_id or not isinstance(device_id, str):
+        return False
+
+    cleaned = device_id.strip()
+    raw = cleaned.replace("-", "").replace(" ", "").upper()
+    if len(raw) < 50 or len(raw) > 56:
+        return False
+
+    valid_chars = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+    return set(raw).issubset(valid_chars)
+
+
+def start_windows_syncthing_daemon() -> bool:
+    """Inicia o daemon do Syncthing em segundo plano sem abrir o navegador.
+
+    Args:
+        None.
+
+    Returns:
+        True se o processo foi iniciado ou já estava ativo, False caso contrário.
+
+    Raises:
+        None.
+    """
+    if is_windows_syncthing_running():
+        return True
+
+    bin_path = find_windows_syncthing_binary()
+    if not bin_path:
+        return False
+
+    try:
+        flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | getattr(
+            subprocess, "DETACHED_PROCESS", 0
+        )
+        subprocess.Popen(
+            [str(bin_path), "serve", "--no-browser"],
+            creationflags=flags,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+        )
+        return True
+    except Exception:
+        return False
+
+
 def find_windows_syncthing_binary() -> Path | None:
     """Localiza o binário syncthing.exe no PATH ou nos diretórios padrão do Windows.
 
@@ -250,9 +315,7 @@ def find_windows_syncthing_binary() -> Path | None:
 
     local_app_data = os.environ.get("LOCALAPPDATA")
     if local_app_data:
-        winget_link = (
-            Path(local_app_data) / "Microsoft" / "WinGet" / "Links" / "syncthing.exe"
-        )
+        winget_link = Path(local_app_data) / "Microsoft" / "WinGet" / "Links" / "syncthing.exe"
         if winget_link.is_file():
             return winget_link
 
@@ -381,9 +444,7 @@ def parse_windows_syncthing_config(
         v_type = versioning_elem.get("type") if versioning_elem is not None else None
 
         f_devices: list[str] = [
-            d_elem.get("id", "").strip()
-            for d_elem in f_elem.findall("device")
-            if d_elem.get("id")
+            d_elem.get("id", "").strip() for d_elem in f_elem.findall("device") if d_elem.get("id")
         ]
 
         folders.append(
@@ -838,7 +899,9 @@ def audit_android_syncthing(
     """
     items: list[ValidationItem] = []
     meta: dict[str, Any] = {
+        "adb_serial": None,
         "device_id": None,
+        "syncthing_device_id": None,
         "model": None,
         "abi": None,
         "installed_package": None,
@@ -863,6 +926,7 @@ def audit_android_syncthing(
         return items, meta
 
     target_device = device_id if device_id in devices else devices[0]
+    meta["adb_serial"] = target_device
     meta["device_id"] = target_device
 
     # Obter modelo e ABI
@@ -1105,10 +1169,19 @@ def run_syncthing_validation(
     if check_android:
         and_items, and_meta = audit_android_syncthing(root, device_id=device_id)
         report.items.extend(and_items)
-        report.android_connected = bool(and_meta.get("device_id"))
-        report.android_device_id = and_meta.get("device_id")
+        report.android_connected = bool(and_meta.get("adb_serial") or and_meta.get("device_id"))
+        report.android_adb_serial = and_meta.get("adb_serial") or and_meta.get("device_id")
         report.android_package = and_meta.get("installed_package")
         report.android_model = and_meta.get("model")
+
+        # Prioriza Device ID válido do Syncthing (se presente na lista de pareados do Windows)
+        android_syncthing_id = and_meta.get("syncthing_device_id")
+        if not android_syncthing_id and report.windows_devices:
+            for dev in report.windows_devices:
+                if dev.id != report.windows_device_id and is_valid_syncthing_device_id(dev.id):
+                    android_syncthing_id = dev.id
+                    break
+        report.android_device_id = android_syncthing_id
 
     return report
 
@@ -1202,11 +1275,33 @@ def apply_windows_syncthing_config(
     tree = ET.parse(cfg_path)
     root = tree.getroot()
 
-    # Detectar dispositivos existentes no nível raiz
-    existing_devices = [d.get("id") for d in root.findall("./device") if d.get("id")]
+    # Sanitização defensiva: expurga IDs inválidos no nível raiz e nas pastas
+    for d in list(root.findall("./device")):
+        dev_id = d.get("id", "").strip()
+        if not is_valid_syncthing_device_id(dev_id):
+            root.remove(d)
+            actions.append(f"Removido identificador inválido do config.xml ({dev_id})")
 
-    # Se informado um ID de Android e ele não constar na lista global de dispositivos, adiciona
-    if android_device_id and android_device_id not in existing_devices:
+    for f_elem in root.findall("./folder"):
+        for d in list(f_elem.findall("device")):
+            dev_id = d.get("id", "").strip()
+            if not is_valid_syncthing_device_id(dev_id):
+                f_elem.remove(d)
+                actions.append(f"Removido ID inválido ({dev_id}) da pasta {f_elem.get('label')}")
+
+    # Detectar dispositivos válidos existentes no nível raiz
+    existing_devices = [
+        d.get("id", "").strip()
+        for d in root.findall("./device")
+        if is_valid_syncthing_device_id(d.get("id"))
+    ]
+
+    # Se informado um ID de Android e for um Syncthing Device ID válido
+    if (
+        android_device_id
+        and is_valid_syncthing_device_id(android_device_id)
+        and android_device_id not in existing_devices
+    ):
         new_dev = ET.SubElement(
             root,
             "device",
@@ -1284,9 +1379,7 @@ def apply_windows_syncthing_config(
             v_type = v_spec["type"]
             actions.append(f"Configurado versionamento '{v_type}' (5 cópias) para '{label}'")
 
-        current_folder_devs = [
-            d.get("id") for d in found_folder.findall("device") if d.get("id")
-        ]
+        current_folder_devs = [d.get("id") for d in found_folder.findall("device") if d.get("id")]
         for dev_id in existing_devices:
             if dev_id and dev_id not in current_folder_devs:
                 d_elem = ET.SubElement(found_folder, "device", {"id": dev_id, "introducedBy": ""})
@@ -1564,9 +1657,11 @@ def render_syncthing_report(
     c.print("\n[bold cyan]Parâmetros do Cluster de Sincronização:[/bold cyan]")
     if report.windows_device_id:
         c.print(f"  • [green]ID Dispositivo Windows:[/green] {report.windows_device_id}")
+    if report.android_adb_serial:
+        desc = f"{report.android_model or 'Aparelho'} (Serial ADB: {report.android_adb_serial})"
+        c.print(f"  • [green]Dispositivo Android Conectado:[/green] {desc}")
     if report.android_device_id:
-        desc = f"{report.android_model} ({report.android_device_id})"
-        c.print(f"  • [green]Dispositivo Android Alvo:[/green] {desc}")
+        c.print(f"  • [green]ID Syncthing Pareado (Android):[/green] {report.android_device_id}")
 
     if report.has_errors:
         c.print("\n[bold red][!] Falhas impeditivas na configuração do Syncthing.[/bold red]")
