@@ -29,11 +29,13 @@ from retrogame_lab.syncthing import (
     find_windows_syncthing_config,
     generate_android_syncthing_config,
     get_connected_adb_devices,
+    is_valid_syncthing_device_id,
     is_windows_syncthing_running,
     parse_windows_syncthing_config,
     render_syncthing_report,
     run_adb_command,
     run_syncthing_validation,
+    start_windows_syncthing_daemon,
     validate_stignore_content,
 )
 
@@ -176,6 +178,58 @@ def test_is_windows_syncthing_running(mocker: MockerFixture) -> None:
 
     mocker.patch("subprocess.check_output", side_effect=Exception("tasklist error"))
     assert is_windows_syncthing_running() is False
+
+
+def test_is_valid_syncthing_device_id() -> None:
+    """Verifica a validação rigorosa de formato de Device ID do Syncthing.
+
+    Args:
+        None.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    valid_id = "AFMVTPS-CB2OY5G-NQ55K45-6LCQIU2-YAMHTS2-C4PGASG-QJB3RIY-DEUAHAM"
+    assert is_valid_syncthing_device_id(valid_id) is True
+
+    valid_raw = valid_id.replace("-", "")
+    assert is_valid_syncthing_device_id(valid_raw) is True
+
+    assert is_valid_syncthing_device_id("0091208971") is False
+    assert is_valid_syncthing_device_id("emulator-5554") is False
+    assert is_valid_syncthing_device_id("") is False
+    assert is_valid_syncthing_device_id(None) is False
+
+
+def test_start_windows_syncthing_daemon(mocker: MockerFixture) -> None:
+    """Verifica a inicialização desacoplada do processo do Syncthing.
+
+    Args:
+        mocker: Fixture do pytest-mock.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    mocker.patch("retrogame_lab.syncthing.is_windows_syncthing_running", return_value=True)
+    assert start_windows_syncthing_daemon() is True
+
+    mocker.patch("retrogame_lab.syncthing.is_windows_syncthing_running", return_value=False)
+    mocker.patch("retrogame_lab.syncthing.find_windows_syncthing_binary", return_value=None)
+    assert start_windows_syncthing_daemon() is False
+
+    mocker.patch(
+        "retrogame_lab.syncthing.find_windows_syncthing_binary",
+        return_value=Path("C:/bin/syncthing.exe"),
+    )
+    mock_popen = mocker.patch("subprocess.Popen")
+    assert start_windows_syncthing_daemon() is True
+    assert mock_popen.called
 
 
 def test_find_windows_syncthing_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -503,7 +557,8 @@ def test_apply_windows_syncthing_config(
     monkeypatch.setenv("LOCALAPPDATA", str(mock_repo_root))
     cfg_file = mock_repo_root / "Syncthing" / "config.xml"
 
-    actions = apply_windows_syncthing_config(mock_repo_root, android_device_id="DEV-ANDROID-999")
+    valid_android_id = "AFMVTPS-CB2OY5G-NQ55K45-6LCQIU2-YAMHTS2-C4PGASG-QJB3RIY-DEUAHAM"
+    actions = apply_windows_syncthing_config(mock_repo_root, android_device_id=valid_android_id)
 
     saves_dir = mock_repo_root / "data" / "saves"
     roms_dir = mock_repo_root / "data" / "roms"
@@ -519,13 +574,51 @@ def test_apply_windows_syncthing_config(
 
     _, _, folders, devices = parse_windows_syncthing_config(cfg_file)
     assert len(folders) == 3
-    assert any(d.id == "DEV-ANDROID-999" for d in devices)
+    assert any(d.id == valid_android_id for d in devices)
 
     saves_f = next(f for f in folders if f.label == "retrogames-saves")
     assert saves_f.versioning_type == "simple"
     assert saves_f.watcher_enabled is True
-    assert "DEV-ANDROID-999" in saves_f.devices
+    assert valid_android_id in saves_f.devices
     assert len(actions) > 0
+
+
+def test_apply_windows_syncthing_config_sanitizes_invalid_id(
+    mock_repo_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verifica o auto-expurgo de IDs de dispositivos inválidos (ex: serial ADB).
+
+    Args:
+        mock_repo_root: Fixture de raiz mockada.
+        monkeypatch: Fixture de variáveis de ambiente.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    monkeypatch.setenv("LOCALAPPDATA", str(mock_repo_root))
+    cfg_dir = mock_repo_root / "Syncthing"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    cfg_file = cfg_dir / "config.xml"
+
+    bad_xml = """<configuration version="44">
+    <folder id="retrogames-saves" label="retrogames-saves" path="c:\\saves" type="sendreceive">
+        <device id="0091208971" />
+    </folder>
+    <device id="0091208971" name="Dispositivo-Android" />
+    <gui enabled="true"><address>127.0.0.1:8384</address><apikey>key</apikey></gui>
+</configuration>"""
+    cfg_file.write_text(bad_xml, encoding="utf-8")
+
+    actions = apply_windows_syncthing_config(mock_repo_root, android_device_id="0091208971")
+
+    _, _, folders, devices = parse_windows_syncthing_config(cfg_file)
+    assert not any(d.id == "0091208971" for d in devices)
+    assert not any("0091208971" in f.devices for f in folders)
+    assert any("Removido identificador inválido" in a for a in actions)
 
 
 def test_generate_android_syncthing_config() -> None:
@@ -619,6 +712,7 @@ def test_run_syncthing_validation(mock_repo_root: Path, mocker: MockerFixture) -
             {"local_device_id": "WIN-123", "is_running": True},
         ),
     )
+    valid_android_id = "AFMVTPS-CB2OY5G-NQ55K45-6LCQIU2-YAMHTS2-C4PGASG-QJB3RIY-DEUAHAM"
     mocker.patch(
         "retrogame_lab.syncthing.audit_android_syncthing",
         return_value=(
@@ -627,7 +721,11 @@ def test_run_syncthing_validation(mock_repo_root: Path, mocker: MockerFixture) -
                     target="Android", category="Conexão", status=ValidationStatus.OK, message="OK"
                 )
             ],
-            {"device_id": "AND-456", "model": "Pixel"},
+            {
+                "adb_serial": "AND-456",
+                "syncthing_device_id": valid_android_id,
+                "model": "Pixel",
+            },
         ),
     )
 
@@ -635,7 +733,8 @@ def test_run_syncthing_validation(mock_repo_root: Path, mocker: MockerFixture) -
     assert report.windows_running is True
     assert report.windows_device_id == "WIN-123"
     assert report.android_connected is True
-    assert report.android_device_id == "AND-456"
+    assert report.android_adb_serial == "AND-456"
+    assert report.android_device_id == valid_android_id
     assert len(report.items) == 2
 
 
@@ -738,9 +837,46 @@ def test_cli_syncthing_apply(mock_repo_root: Path, mocker: MockerFixture) -> Non
         ),
     )
 
-    result = runner.invoke(
-        app, ["syncthing", "-p", str(mock_repo_root), "--apply", "--no-android"]
-    )
+    result = runner.invoke(app, ["syncthing", "-p", str(mock_repo_root), "--apply", "--no-android"])
     assert result.exit_code == 0
     assert "Aplicando auto-configuração" in result.stdout
     assert mock_apply_win.called
+
+
+def test_cli_syncthing_start(mock_repo_root: Path, mocker: MockerFixture) -> None:
+    """Verifica o acionamento do daemon via flag --start no CLI.
+
+    Args:
+        mock_repo_root: Raiz mockada do repositório.
+        mocker: Fixture do pytest-mock.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    mock_start = mocker.patch(
+        "retrogame_lab.cli.start_windows_syncthing_daemon",
+        return_value=True,
+    )
+    mocker.patch(
+        "retrogame_lab.cli.run_syncthing_validation",
+        return_value=SyncthingValidationReport(
+            items=[
+                ValidationItem(
+                    target="Windows", category="Binário", status=ValidationStatus.OK, message="OK"
+                )
+            ],
+            windows_running=False,
+            android_connected=False,
+        ),
+    )
+
+    result = runner.invoke(
+        app, ["syncthing", "-p", str(mock_repo_root), "--start", "--no-android"]
+    )
+    assert result.exit_code == 0
+    assert "Daemon iniciado em segundo plano" in result.stdout
+    assert mock_start.called
+
