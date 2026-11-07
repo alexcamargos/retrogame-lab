@@ -175,7 +175,29 @@ Inicia o emulador da plataforma selecionada aplicando perfilamento dinâmico de 
 * `pwsh -NoProfile -File scripts\launch.ps1 -Platform <plat> -RomPath <caminho> [-Windowed] [-GpuMode auto|igpu|dgpu]`
 * `uv run retrogame-lab launch <plat> <caminho> [--windowed] [--gpu-mode auto|igpu|dgpu]`
 
-### 6. Conversão Determinística de Mídias para CHD
+### 6. Gerenciamento e Provisionamento do Syncthing
+
+Valida o status do serviço no Windows e no Android via ADB, audita a consistência das 3 pastas obrigatórias (`retrogames-saves`, `retrogames-bios`, `retrogames-roms`), confere regras de exclusão do `.stignore` (barrando savestates `.state*`, `.ppst`, `.p2s`) e aplica configurações automaticamente:
+
+```powershell
+# Auditoria de conectividade e consistência do Syncthing (Windows + Android)
+.\retrogame syncthing
+
+# Auditoria iniciando o serviço em segundo plano no Windows se estiver parado
+.\retrogame syncthing --start
+
+# Aplicação automática de configurações de pastas e pareamento
+.\retrogame syncthing --apply
+
+# Saída estruturada em JSON (ideal para agentes e automações)
+.\retrogame syncthing --json
+```
+
+*Comandos alternativos diretos:*
+* `pwsh -NoProfile -File scripts\manage_syncthing.ps1 [-Apply] [-Start] [-NoAndroid]`
+* `uv run retrogame-lab syncthing [--apply] [--start] [--json]`
+
+### 7. Conversão Determinística de Mídias para CHD
 
 Compacta imagens de disco (`.cue`/`.bin`, `.iso`) para o formato `.chd`, diferenciando automaticamente faixas de áudio CD-DA de CD-ROM (`createcd`, setor de 2352 bytes) e trilhas de dados de DVD (`createdvd`, setor de 2048 bytes), higienizando o nome do arquivo final e limpando arquivos parciais em caso de falha.
 
@@ -188,9 +210,9 @@ Compacta imagens de disco (`.cue`/`.bin`, `.iso`) para o formato `.chd`, diferen
 * `pwsh -NoProfile -File scripts\convert_chd.ps1 -SourceDirectory <caminho> [-MediaType auto|cd|dvd]`
 * `uv run retrogame-lab convert-chd <caminho> [--media-type auto|cd|dvd]`
 
-### 7. Provisionamento do Dispositivo Android via ADB
+### 8. Provisionamento do Dispositivo Android via ADB
 
-Valida a conexão ADB, detecta a ABI do aparelho (assegurando compatibilidade ARM64), cria a árvore de diretórios `/storage/emulated/0/RetroGames/`, injeta as regras anti-conflito do `.stignore`, concede permissões de Scoped Storage (`MANAGE_EXTERNAL_STORAGE`) aos emuladores e adiciona o Syncthing à whitelist contra suspensão em segundo plano (Doze Mode).
+Valida a conexão ADB, detecta a ABI do aparelho (assegurando compatibilidade ARM64), cria a árvore de diretórios `/storage/emulated/0/RetroGames/`, injeta as regras anti-conflito do `.stignore`, concede permissões de Scoped Storage (`MANAGE_EXTERNAL_STORAGE`) aos emuladores, adiciona o Syncthing à whitelist contra suspensão em segundo plano (Doze Mode) e configura automaticamente RetroArch, PPSSPP, Dolphin e Flycast com playlist oficial de Super Nintendo.
 
 ```powershell
 # Provisionamento completo do Android conectado via USB
@@ -204,7 +226,7 @@ Valida a conexão ADB, detecta a ABI do aparelho (assegurando compatibilidade AR
 * `pwsh -NoProfile -File scripts\setup_android_emulators.ps1 [-DeviceId <id>] [-SkipDownload]`
 * `uv run retrogame-lab setup-android [--device-id <id>] [--skip-download]`
 
-### 8. Consulta de Metadados e Informações do Sistema
+### 9. Consulta de Metadados e Informações do Sistema
 
 ```powershell
 # Exibe a tabela completa de plataformas, extensões homologadas e emuladores
@@ -214,7 +236,7 @@ Valida a conexão ADB, detecta a ABI do aparelho (assegurando compatibilidade AR
 .\retrogame version
 ```
 
-### 9. Execução da Suíte de Testes e Qualidade de Código
+### 10. Execução da Suíte de Testes e Qualidade de Código
 
 O projeto adota padrões rigorosos de engenharia de software: **PEP 8 estrito**, **Google Style Docstrings**, suíte exclusiva com **`pytest`** (usando `pytest-mock` para mocks funcionais) e gerenciamento de dependências via **Astral `uv`**.
 
@@ -241,13 +263,16 @@ retrogame-lab/
 │   ├── duckstation/                # PS1 (portable.txt e settings.ini)
 │   ├── pcsx2/                      # PS2 (portable.txt e inis/PCSX2.ini)
 │   ├── ppsspp/                     # PSP (memstick/ linkado a data/saves/psp/SAVEDATA via junção)
-│   ├── retroarch/                  # SNES / 2D (retroarch.cfg portátil)
-│   └── flycast/                    # Dreamcast
+│   ├── retroarch/                  # SNES / N64 / 2D (retroarch.cfg portátil)
+│   ├── flycast/                    # Dreamcast
+│   ├── rpcs3/                      # PS3 (Windows-only, portable.txt ativo)
+│   ├── xenia/                      # Xbox 360 (Windows-only, portable.txt ativo)
+│   └── ryujinx/                    # Switch (Windows-only, pasta portable/)
 ├── data/                           # Segregação estrita do ciclo de vida dos dados
 │   ├── bios/                       # Firmwares oficiais (Sincronizado via Syncthing Send-Only)
 │   ├── roms/                       # Imagens de jogos compactadas (.chd, .rvz, .cso)
 │   ├── saves/                      # Saves in-game (.srm, .mcd, .ps2, .gci, .bin)
-│   │   └── .stignore               # Filtro anti-savestate (*.state*) e anti-locks
+│   │   └── .stignore               # Filtro anti-savestate (*.state*), locks e desktop-only
 │   └── states/                     # Savestates locais (isolados no .stignore)
 ├── docs/                           # Documentação técnica e especificações de engenharia
 │   ├── guia-inicio.md              # Guia de início e integração multiplataforma (Windows <-> Android)
@@ -255,9 +280,12 @@ retrogame-lab/
 │   └── specs-android.md            # Especificação técnica de sincronização com Android
 ├── scripts/                        # Automações determinísticas em PowerShell Core (pwsh)
 │   ├── bootstrap.ps1               # Provisionamento de pastas, templates e pacotes winget
+│   ├── download_emulators.ps1      # Download e extração automatizada de emuladores portáteis
 │   ├── launch.ps1                  # Lançador dinâmico com trava pré-voo e perfilamento de GPU/CPU
 │   ├── convert_chd.ps1             # Conversor inteligente CD vs DVD com higienização de saída
-│   ├── setup_android_emulators.ps1 # Provisionamento de pastas, permissões e APKs via ADB
+│   ├── setup_android_emulators.ps1 # Provisionamento de pastas, permissões, APKs e configs via ADB
+│   ├── manage_syncthing.ps1        # Validação, auditoria e provisionamento do Syncthing
+│   ├── fetch_roms.ps1              # Orquestrador interativo de busca e ingestão de acervos
 │   └── audit_library.ps1           # Wrapper de auditoria com saída em console ou JSON
 ├── src/
 │   └── retrogame_lab/              # Pacote Python canônico
@@ -266,12 +294,15 @@ retrogame-lab/
 │       ├── auditor.py              # Auditoria de hashes SHA-256, extensões e regras de saves
 │       ├── sanitizer.py            # Sanitização de nomenclatura (sem espaços e sem especiais)
 │       ├── ingestion.py            # Pipeline de validação e importação segura de ROMs
+│       ├── fetcher.py              # Cliente de busca, download e extração de acervos digitais
+│       ├── syncthing.py            # Auditoria e provisionamento automatizado do Syncthing
 │       └── cli.py                  # CLI Typer com rich tables e despacho para scripts
 ├── templates/                      # Templates pré-configurados injetados no bootstrap
-│   ├── config/                     # Configurações de DuckStation, PCSX2 e RetroArch
+│   ├── android/                    # Perfis otimizados para injeção via ADB
+│   ├── config/                     # Configurações de DuckStation, PCSX2, Dolphin e RetroArch
 │   ├── controllers/                # Perfis para 8BitDo Ultimate, DualSense e XInput
 │   └── es-de/                      # Configurações de rotas portáteis para o ES-DE
-├── tests/                          # Bateria de 55 testes unitários com pytest e pytest-mock
+├── tests/                          # Bateria de 121 testes unitários com pytest e pytest-mock
 ├── tools/                          # Utilitários portáteis e cache de instaladores
 │   └── android_apks/               # Cache local de APKs para o Android (.gitkeep)
 ├── AGENTS.md                       # Diretrizes, padrões e governança para agentes de IA
