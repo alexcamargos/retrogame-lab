@@ -90,7 +90,26 @@ pwsh -NoProfile -File scripts/convert_chd.ps1 -SourceDirectory <caminho_pasta> [
 
 ---
 
-### 1.6 Provisionamento Android via ADB
+### 1.6 Gerenciamento e Provisionamento do Syncthing
+Para validar o serviço, auditar pastas compartilhadas e sincronizar regras entre Windows e Android via ADB:
+
+```powershell
+# Auditoria de integridade do Syncthing (Windows + Android)
+pwsh -NoProfile -File scripts/manage_syncthing.ps1
+
+# Auditoria iniciando o serviço em segundo plano no Windows se estiver parado
+pwsh -NoProfile -File scripts/manage_syncthing.ps1 -Start
+
+# Aplicação automática de configurações de pastas e regras de sincronização
+pwsh -NoProfile -File scripts/manage_syncthing.ps1 -Apply
+
+# Execução direta via CLI Python com suporte a JSON
+uv run retrogame-lab syncthing [--apply] [--start] [--json]
+```
+
+---
+
+### 1.7 Provisionamento Android via ADB
 Para preparar um dispositivo móvel conectado via USB:
 
 ```powershell
@@ -103,10 +122,11 @@ pwsh -NoProfile -File scripts/setup_android_emulators.ps1 [-DeviceId <id>] [-Ski
   * Injeta o arquivo `.stignore` no dispositivo móvel para proteção anti-conflito.
   * Concede permissão de Scoped Storage `MANAGE_EXTERNAL_STORAGE` para os emuladores.
   * Configura whitelist de economia de bateria contra o Doze Mode no Syncthing.
+  * Injeta arquivos de configuração otimizados (`retroarch.cfg`, `ppsspp.ini`, `Dolphin.ini`, `emu.cfg`, `duckstation_settings.ini`, `nethersx2_settings.ini`) e gera playlist oficial de Super Nintendo pré-vinculada ao Snes9x.
 
 ---
 
-### 1.7 Bootstrap Inicial do Host Windows
+### 1.8 Bootstrap Inicial do Host Windows
 Para provisionar pastas e ferramentas no Windows 11:
 
 ```powershell
@@ -122,8 +142,8 @@ pwsh -NoProfile -File scripts/bootstrap.ps1
 ## 2. Protocolo de Proteção e Segurança de Saves
 
 1. **Nunca sincronizar Savestates:**
-   * Arquivos com padrão `*.state*`, `*.s01`, `*.nvram.bak` dependem de arquitetura (x86_64 vs ARM64) e causam corrupção de memória.
-   * Certifique-se de que `data/saves/.stignore` esteja sempre presente e ativo.
+   * Arquivos com padrão `*.state*`, `*.s01`, `*.nvram.bak`, `*.ppst*`, `*.p2s*` dependem de arquitetura (x86_64 vs ARM64) e causam corrupção de memória.
+   * Certifique-se de que `data/saves/.stignore` esteja sempre presente e ativo (incluindo isolamento de plataformas desktop `ps3/`, `xbox360/`, `switch/`).
 2. **Title-specific Memory Card Mandatório:**
    * Nunca criar ou orientar o uso de cartões compartilhados globais em PS1/PS2.
    * Utilizar exclusivamente `<Title>_<ID>.mcd` para PS1 e `<Title>_<ID>.ps2` para PS2.
