@@ -26,6 +26,7 @@ from retrogame_lab.syncthing import (
     apply_windows_syncthing_config,
     render_syncthing_report,
     run_syncthing_validation,
+    start_windows_syncthing_daemon,
 )
 
 # Configuração de encoding UTF-8 resiliente para Windows
@@ -1440,6 +1441,14 @@ def syncthing_cmd(
             help="Identificador do dispositivo Android no ADB (opcional).",
         ),
     ] = "",
+    start: Annotated[
+        bool,
+        typer.Option(
+            "--start",
+            "-s",
+            help="Inicia o daemon do Syncthing em segundo plano se estiver parado.",
+        ),
+    ] = False,
     json_output: Annotated[
         bool,
         typer.Option(
@@ -1458,6 +1467,7 @@ def syncthing_cmd(
         android: Se True, inclui validações e automações no Android via ADB.
         windows: Se True, inclui validações e automações no Windows.
         device_id: ID opcional do dispositivo Android no ADB.
+        start: Se True, inicia o daemon do Syncthing em segundo plano se estiver parado.
         json_output: Se True, formata a saída em JSON estruturado.
 
     Returns:
@@ -1478,6 +1488,11 @@ def syncthing_cmd(
         check_windows=windows,
         device_id=device_id,
     )
+
+    if start or (apply and not report.windows_running and windows):
+        started = start_windows_syncthing_daemon()
+        if started:
+            console.print("  [green]• [Windows][/green] Daemon iniciado em segundo plano.")
 
     if apply:
         console.print("\n[bold cyan]>>> Aplicando auto-configuração do Syncthing...[/bold cyan]")
@@ -1540,6 +1555,7 @@ def syncthing_cmd(
             },
             "android": {
                 "connected": report.android_connected,
+                "adb_serial": report.android_adb_serial,
                 "device_id": report.android_device_id,
                 "package": report.android_package,
                 "model": report.android_model,
