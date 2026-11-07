@@ -491,8 +491,7 @@ def test_run_interactive_fetcher_pagination_and_search(
     from retrogame_lab.fetcher import run_interactive_fetcher
 
     catalog = [
-        ArchiveRomEntry(f"Game_{i} (USA).zip", f"Game {i} (USA)", 100, f"url{i}")
-        for i in range(35)
+        ArchiveRomEntry(f"Game_{i} (USA).zip", f"Game {i} (USA)", 100, f"url{i}") for i in range(35)
     ]
     mocker.patch("retrogame_lab.fetcher.get_archive_catalog", return_value=catalog)
 
@@ -500,9 +499,7 @@ def test_run_interactive_fetcher_pagination_and_search(
     mocker.patch("rich.prompt.Prompt.ask", side_effect=["n", "p", "Game 10", "q"])
 
     console = Console(record=True)
-    res = run_interactive_fetcher(
-        platform_code="snes", repo_root=mock_repo_root, console=console
-    )
+    res = run_interactive_fetcher(platform_code="snes", repo_root=mock_repo_root, console=console)
     assert res == []
 
 
@@ -620,14 +617,10 @@ def test_find_ps2_partition_with_matches_cache(mock_repo_root: Path) -> None:
     ]
     cache_s.write_text(json.dumps(dummy_s), encoding="utf-8")
 
-    found = find_ps2_partition_with_matches(
-        query="colossus", repo_root=mock_repo_root
-    )
+    found = find_ps2_partition_with_matches(query="colossus", repo_root=mock_repo_root)
     assert found == "ps2-redump-usa-chd-part-S"
 
-    found_empty = find_ps2_partition_with_matches(
-        query="", repo_root=mock_repo_root
-    )
+    found_empty = find_ps2_partition_with_matches(query="", repo_root=mock_repo_root)
     assert found_empty is None
 
 
@@ -652,9 +645,7 @@ def test_run_interactive_fetcher_letra_and_parte_commands(
     catalog_s = [ArchiveRomEntry("Shadow (USA).chd", "Shadow (USA)", 100, "url1")]
     catalog_part2 = [ArchiveRomEntry("Tekken (USA).chd", "Tekken (USA)", 200, "url2")]
 
-    def fake_catalog(
-        identifier: str, platform_code: str, **kwargs: Any
-    ) -> list[ArchiveRomEntry]:
+    def fake_catalog(identifier: str, platform_code: str, **kwargs: Any) -> list[ArchiveRomEntry]:
         if "part-S" in identifier:
             return catalog_s
         if "part2" in identifier:
@@ -771,7 +762,7 @@ def test_load_env_credentials_and_headers(
     env_content = (
         "# Arquivo de configuracao\n"
         "IA_ACCESS_KEY=my_access_key_123\n"
-        "IA_SECRET_KEY=\"my_secret_key_456\"\n"
+        'IA_SECRET_KEY="my_secret_key_456"\n'
         "IA_COOKIE='logged-in-user=test@user; logged-in-sig=sig123'\n"
     )
     (tmp_path / ".env").write_text(env_content, encoding="utf-8")
@@ -784,5 +775,3 @@ def test_load_env_credentials_and_headers(
     headers = get_ia_auth_headers(repo_root=tmp_path)
     assert headers["Authorization"] == "LOW my_access_key_123:my_secret_key_456"
     assert "logged-in-sig=sig123" in headers["Cookie"]
-
-

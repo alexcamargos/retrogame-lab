@@ -306,16 +306,16 @@ def audit_roms(roms_dir: Path) -> AuditSummary:
         # Regra 2: PS1 e Dreamcast exigem CHD em vez de CUE/BIN/GDI/CDI desmembrado
         if platform_code in ("ps1", "dc") and ext in (".cue", ".bin", ".iso", ".gdi", ".cdi"):
             summary.issues.append(
-                    AuditIssue(
-                        category="ROMs",
-                        severity=Severity.WARNING,
-                        message=(
-                            f"Mídia de disco não compactada em {platform.name}: '{rom_file.name}'. "
-                            "Execute scripts/convert_chd.ps1 para gerar uma imagem unificada .chd."
-                        ),
-                        file_path=rom_file,
-                    )
+                AuditIssue(
+                    category="ROMs",
+                    severity=Severity.WARNING,
+                    message=(
+                        f"Mídia de disco não compactada em {platform.name}: '{rom_file.name}'. "
+                        "Execute scripts/convert_chd.ps1 para gerar uma imagem unificada .chd."
+                    ),
+                    file_path=rom_file,
                 )
+            )
 
         # Regra 3: PS2 pode ser compactado para CHD (createdvd)
         if platform_code == "ps2" and ext == ".iso":

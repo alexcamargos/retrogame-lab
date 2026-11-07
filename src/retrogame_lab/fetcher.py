@@ -484,9 +484,7 @@ def search_catalog(
         return catalog[:limit]
 
     tokens = [t.lower() for t in query.strip().split() if t.strip()]
-    filtered = [
-        item for item in catalog if all(token in item.title.lower() for token in tokens)
-    ]
+    filtered = [item for item in catalog if all(token in item.title.lower() for token in tokens)]
     return filtered[:limit]
 
 
@@ -663,9 +661,7 @@ def download_and_extract_rom(
         raise RuntimeError(f"Falha durante o download de '{entry.title}': {err}") from err
 
     plat_info = SUPPORTED_PLATFORMS.get(platform_code.lower())
-    accepted_exts = (
-        plat_info.accepted_extensions if plat_info else (".sfc", ".smc", ".chd", ".iso")
-    )
+    accepted_exts = plat_info.accepted_extensions if plat_info else (".sfc", ".smc", ".chd", ".iso")
     inner_target_exts = tuple(ext for ext in accepted_exts if ext != ".zip") or (
         ".sfc",
         ".smc",
@@ -888,9 +884,7 @@ def find_ps2_partition_with_matches(
             priority_order.append(ident)
 
     if console:
-        console.print(
-            f"[dim]Procurando '{query}' nas demais partições de PS2...[/dim]"
-        )
+        console.print(f"[dim]Procurando '{query}' nas demais partições de PS2...[/dim]")
 
     for ident in priority_order:
         metadata_url = f"https://archive.org/metadata/{ident}/files"
@@ -1061,9 +1055,7 @@ def run_interactive_fetcher(
         if current_query.strip():
             tokens = [t.lower() for t in current_query.strip().split() if t.strip()]
             matched_items = [
-                item
-                for item in catalog
-                if all(tok in item.title.lower() for tok in tokens)
+                item for item in catalog if all(tok in item.title.lower() for tok in tokens)
             ]
             # Se não encontrou jogos na partição ativa e for PS2, busca em outras partições
             if not matched_items and active_plat == "ps2":
@@ -1103,9 +1095,7 @@ def run_interactive_fetcher(
                         repo_root=root,
                     )
                     alt_matches = [
-                        item
-                        for item in alt_cat
-                        if all(tok in item.title.lower() for tok in tokens)
+                        item for item in alt_cat if all(tok in item.title.lower() for tok in tokens)
                     ]
                     if alt_matches:
                         active_identifier = alt_part
@@ -1146,11 +1136,7 @@ def run_interactive_fetcher(
                         pass
             # Se não encontrou jogos na partição e for PS3/X360, verifica outras partes da letra
             elif not matched_items and active_plat in ("ps3", "xbox360"):
-                prefix = (
-                    "sony_playstation3_"
-                    if active_plat == "ps3"
-                    else "microsoft_xbox360_"
-                )
+                prefix = "sony_playstation3_" if active_plat == "ps3" else "microsoft_xbox360_"
                 req_char = tokens[0][0]
                 char_key = "numberssymbols" if req_char.isdigit() else req_char
                 # Tenta outras partes da mesma letra (ex.: _part2, _part3)
@@ -1311,11 +1297,7 @@ def run_interactive_fetcher(
                 letter_map = (
                     PS2_ALPHABET_PARTS
                     if active_plat == "ps2"
-                    else (
-                        PS3_ALPHABET_PARTS
-                        if active_plat == "ps3"
-                        else XBOX360_ALPHABET_PARTS
-                    )
+                    else (PS3_ALPHABET_PARTS if active_plat == "ps3" else XBOX360_ALPHABET_PARTS)
                 )
                 if target_letter in letter_map:
                     active_identifier = letter_map[target_letter]
