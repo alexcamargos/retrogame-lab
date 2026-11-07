@@ -80,6 +80,8 @@ def test_validate_stignore_content_missing_rules(tmp_path: Path) -> None:
     is_valid, missing = validate_stignore_content(stignore)
     assert is_valid is False
     assert "*.s[0-9][0-9]" in missing
+    assert "*.ppst" in missing
+    assert "PPSSPP_STATE/" in missing
     assert "ps3/" in missing
 
 

@@ -4,6 +4,9 @@
 *.state*
 *.s[0-9][0-9]
 *.nvram.bak
+*.ppst
+*.p2s
+PPSSPP_STATE/
 
 // 2. Proibir Arquivos de Lock e Temporarios Ativos
 *.tmp*
