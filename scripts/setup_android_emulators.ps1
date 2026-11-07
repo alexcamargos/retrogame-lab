@@ -88,6 +88,7 @@ $Directories = @(
     "$TargetDevicePath/saves/ps1",
     "$TargetDevicePath/saves/ps2",
     "$TargetDevicePath/saves/psp",
+    "$TargetDevicePath/saves/psp/PSP/SAVEDATA",
     "$TargetDevicePath/saves/gc",
     "$TargetDevicePath/saves/dc",
     "$TargetDevicePath/saves/wii",
@@ -110,6 +111,9 @@ if (Test-Path $LocalStIgnore) {
 *.state*
 *.s[0-9][0-9]
 *.nvram.bak
+*.ppst
+*.p2s
+PPSSPP_STATE/
 *.tmp*
 *.lock*
 *.lck
