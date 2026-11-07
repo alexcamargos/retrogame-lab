@@ -111,7 +111,7 @@ Este script em PowerShell utiliza o **Android Debug Bridge (ADB)** para:
 4. Configurar whitelist de economia de bateria para o Syncthing (`dumpsys deviceidle`).
 5. Baixar e instalar automaticamente os APKs ARM64 compatíveis (com fallback para cache offline).
 6. Injetar o arquivo `.stignore` no diretório de saves do Android.
-7. Injetar arquivos de configuração otimizados (`retroarch.cfg`, `ppsspp.ini`, `Dolphin.ini`, `emu.cfg`, `duckstation_settings.ini`, `nethersx2_settings.ini`) pré-configurando diretórios de ROMs, BIOS, saves e backend gráfico Vulkan.
+7. Injetar arquivos de configuração otimizados (`retroarch.cfg`, `ppsspp.ini`, `Dolphin.ini`, `emu.cfg`, `duckstation_settings.ini`, `nethersx2_settings.ini`), provisionar o núcleo Libretro Snes9x com seus metadados e gerar a playlist automática de títulos.
 
 Salvo em `scripts/setup_android_emulators.ps1`:
 
@@ -418,7 +418,7 @@ if ($SyncthingInstalled) {
      ```
 5. **Configuração dos Emuladores no Android:**
    * Graças à **injeção automática de configurações** executada na etapa 7 do script ADB:
-     * **RetroArch:** Já inicializa com diretórios de BIOS (`RetroGames/bios/`), saves (`RetroGames/saves/snes/`) e ROMs (`RetroGames/roms/`) pré-configurados com backend Vulkan.
+     * **RetroArch:** Já inicializa com diretórios de BIOS (`RetroGames/bios/`), saves (`RetroGames/saves/snes/`) e ROMs (`RetroGames/roms/`) pré-configurados com backend Vulkan, núcleo Libretro Snes9x ARM64 injetado e playlist oficial de Super Nintendo gerada dinamicamente com os títulos da biblioteca.
      * **PPSSPP:** Já inicializa com MemoryStick e `SAVEDATA` apontando para `RetroGames/saves/psp/` e diretório de ROMs em `RetroGames/roms/psp/`.
      * **Dolphin:** Já inicializa com caminhos de ISO em `RetroGames/roms/gc/` e backend gráfico Vulkan.
      * **Flycast:** Já inicializa com VMU em `RetroGames/saves/dc/`, BIOS em `RetroGames/bios/dc/` e ROMs em `RetroGames/roms/dc/`.
