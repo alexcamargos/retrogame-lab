@@ -432,7 +432,7 @@ def audit_saves(saves_dir: Path) -> AuditSummary:
         is_state = bool(
             re.search(r"\.state.*$", name_lower)
             or re.search(r"\.s\d{2}$", name_lower)
-            or name_lower.endswith(".nvram.bak")
+            or name_lower.endswith((".nvram.bak", ".ppst", ".p2s"))
         )
         if is_state:
             summary.issues.append(

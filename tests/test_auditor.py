@@ -263,6 +263,8 @@ def test_audit_saves_violations(tmp_path: Path) -> None:
     # 1. Savestate proibido -> ERROR
     (ps1_saves / "crash_bandicoot.state").write_text("state", encoding="utf-8")
     (ps1_saves / "metal_gear.s01").write_text("state", encoding="utf-8")
+    (ps1_saves / "crisis_core.ppst").write_text("state", encoding="utf-8")
+    (ps1_saves / "god_of_war.p2s").write_text("state", encoding="utf-8")
     # 2. Arquivo de lock -> WARNING
     (ps1_saves / "duckstation.lock").write_text("lock", encoding="utf-8")
     # 3. Memory Card global compartilhado -> ERROR
@@ -273,13 +275,14 @@ def test_audit_saves_violations(tmp_path: Path) -> None:
     (ps1_saves / "megaman_s01.srm").write_text("valid", encoding="utf-8")
 
     summary = audit_saves(saves_dir)
-    assert summary.total_scanned == 7
+    assert summary.total_scanned == 9
 
     errors = [i for i in summary.issues if i.severity == Severity.ERROR]
     warnings = [i for i in summary.issues if i.severity == Severity.WARNING]
 
-    # crash_bandicoot.state, metal_gear.s01, shared_card_1.mcd, mcd002.ps2
-    assert len(errors) == 4
+    # crash_bandicoot.state, metal_gear.s01, crisis_core.ppst,
+    # god_of_war.p2s, shared_card_1.mcd, mcd002.ps2
+    assert len(errors) == 6
     assert len(warnings) == 1  # lock
 
 
