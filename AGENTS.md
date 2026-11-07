@@ -64,6 +64,9 @@ winget install --id Astral-sh.uv -e --source winget --silent --accept-package-ag
 > * **Dolphin:** Criar arquivo vazio `bin/dolphin/portable.txt`.
 > * **RetroArch:** Fornecer `bin/retroarch/retroarch.cfg` configurado com caminhos relativos (sem `portable.ini`).
 > * **PPSSPP:** Garantir a pasta `bin/ppsspp/memstick/`.
+> * **RPCS3:** Criar arquivo vazio `bin/rpcs3/portable.txt`.
+> * **Xenia:** Criar arquivo vazio `bin/xenia/portable.txt`.
+> * **Ryujinx:** Criar diretório `bin/ryujinx/portable/`.
 
 ---
 
@@ -92,8 +95,8 @@ winget install --id Astral-sh.uv -e --source winget --silent --accept-package-ag
 A perda de saves por colisão de sincronização é o problema mais crítico de ecossistemas híbridos. Todo agente deve impor as seguintes regras:
 
 1. **Proibição Estrita de Sincronizar Savestates:**
-   * Savestates (`.state`, `.s01`, `.nvram.bak`) são atrelados a registradores de CPU e builds binárias (x86_64 vs ARM64). Sincronizá-los provoca falhas graves.
-   * Manter sempre o arquivo `.stignore` em `data/saves/.stignore` contendo `*.state*`, `*.tmp*`, `*.lock*`, `*.lck`, `*.wal`, `*.shm` e `(?d).syncthing.*`.
+   * Savestates (`.state`, `.s01`, `.nvram.bak`, `.ppst`, `.p2s`) são atrelados a registradores de CPU e builds binárias (x86_64 vs ARM64). Sincronizá-los provoca falhas graves.
+   * Manter sempre o arquivo `.stignore` em `data/saves/.stignore` contendo `*.state*`, `*.ppst*`, `*.p2s*`, `*.tmp*`, `*.lock*`, `*.lck`, `*.wal`, `*.shm` e `(?d).syncthing.*`, além do isolamento das plataformas desktop (`ps3/`, `xbox360/`, `switch/`).
 2. **Padrão de Cartão de Memória Individual por Jogo (*Title-specific Memory Card*):**
    * **Proibição:** É estritamente vedado configurar cartões de memória compartilhados globais (ex.: um único `shared_card_1.mcd` ou `Mcd001.ps2` para toda a biblioteca).
    * **Padrão Homologado:**
@@ -101,6 +104,8 @@ A perda de saves por colisão de sincronização é o problema mais crítico de 
      * **PS2 (PCSX2 / NetherSX2):** Cartão individual por título (`data/saves/ps2/<Title>_<ID>.ps2`) ou *Folder Memory Card*.
      * **SNES:** Arquivo `.srm` com nome idêntico à ROM em `data/saves/snes/<NomeDaRom>.srm`.
      * **GameCube (Dolphin):** Modo GCI individual / Pastas de Região em `data/saves/gc/`.
+     * **Wii (Dolphin):** Pastas de títulos e saves nativos em `data/saves/wii/`.
+     * **Nintendo 64 (RetroArch):** Arquivos `.sra`/`.fla`/`.eep`/`.mpk` em `data/saves/n64/`.
      * **Dreamcast (Flycast):** VMU padrão (`data/saves/dc/vms0.bin`).
 3. **Protocolo de Encerramento e Flush de Disco:**
    * Emuladores mantêm dados de save em buffer de RAM enquanto estão abertos. Instrua o usuário ou automações a **fechar o emulador** antes de alternar de dispositivo.
