@@ -24,6 +24,7 @@ bin/
 tools/*.exe
 tools/llvm-mingw/
 tools/android_apks/*.apk
+tools/android_cores/
 
 # Caches e diretórios de execução voláteis
 scratch/
