@@ -325,7 +325,7 @@ if (Test-Path $AndroidTemplatesDir) {
         if ($LocalSnesRoms.Count -gt 0) {
             Write-Host "Gerando playlist automática de Super Nintendo ($($LocalSnesRoms.Count) títulos)..." -ForegroundColor Gray
             $PlaylistItems = @()
-            $TargetCorePath = "/storage/emulated/0/Android/data/com.retroarch.aarch64/files/cores/snes9x_libretro_android.so"
+            $TargetCorePath = "/data/user/0/com.retroarch.aarch64/cores/snes9x_libretro_android.so"
             $TargetCoreName = "Nintendo - SNES / SFC (Snes9x)"
             $DbName = "Nintendo - Super Nintendo Entertainment System.lpl"
 
