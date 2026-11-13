@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param (
     [Parameter(Mandatory = $true)]
     [string]$SourceDirectory,
@@ -45,10 +45,11 @@ $Candidates = Get-ChildItem -Path $SourceDirectory -Include *.cue, *.gdi, *.iso,
         if (-not $HasDescriptor) {
             $HasDescriptor = Get-ChildItem -Path $Dir -Filter "*.gdi" -ErrorAction SilentlyContinue | Select-Object -First 1
         }
-        if ($HasDescriptor) {
-            # Arquivo .bin é uma trilha de dados/áudio já referenciada pelo .cue ou .gdi
-            return $false
+        if (-not $HasDescriptor) {
+            Write-Warning "Ignorando $($_.Name): arquivo .bin sem descritor .cue/.gdi associado."
         }
+        # Arquivo .bin não deve ser passado diretamente ao chdman createcd sem descritor
+        return $false
     }
 
     return $true

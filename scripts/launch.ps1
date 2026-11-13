@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param (
     [Parameter(Mandatory = $true)]
     [ValidateSet("snes", "ps1", "ps2", "psp", "gc", "dc", "wii", "n64", "ps3", "xbox360", "switch")]
@@ -52,9 +52,19 @@ if ($RomLeaf -match "[\s'""`~^!?\:;*<>|#]" -or $RomLeaf -cne $RomLeaf.ToLower())
     Write-Host ">>> Normalizando automaticamente para: '$NewLeaf'..." -ForegroundColor Cyan
 
     if ($RomLeaf -cne $NewLeaf) {
-        Rename-Item -Path $ResolvedRom -NewName $NewLeaf -Force
+        if (($RomLeaf -ine $NewLeaf) -and (Test-Path -LiteralPath $NewRomPath)) {
+            Write-Warning "Colisão ao normalizar '$RomLeaf': '$NewLeaf' já existe. Mantendo nome original."
+        } else {
+            if ($RomLeaf -ieq $NewLeaf) {
+                $TempLeaf = "$RomLeaf.tmp_$PID"
+                Rename-Item -LiteralPath $ResolvedRom -NewName $TempLeaf
+                Rename-Item -LiteralPath (Join-Path $RomItem.DirectoryName $TempLeaf) -NewName $NewLeaf
+            } else {
+                Rename-Item -LiteralPath $ResolvedRom -NewName $NewLeaf
+            }
+            $ResolvedRom = (Resolve-Path $NewRomPath).Path
+        }
     }
-    $ResolvedRom = (Resolve-Path $NewRomPath).Path
 }
 
 # 1. Resolução Dinâmica de Executáveis e Montagem de Argumentos
@@ -242,7 +252,7 @@ if (-not (Test-Path $Emulator)) {
 
 Push-Location (Split-Path $Emulator)
 try {
-    Write-Host ">>> Executando $Platform [$RomPath]..." -ForegroundColor Cyan
+    Write-Host ">>> Executando $Platform [$ResolvedRom]..." -ForegroundColor Cyan
 
     # Encapsula argumentos que contêm espaços para evitar fragmentação no Start-Process
     $EscapedArgs = $ArgList | ForEach-Object {

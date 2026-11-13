@@ -1,7 +1,8 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param (
     [switch]$SkipWinget = $false,
-    [switch]$DownloadEmulators = $false
+    [switch]$DownloadEmulators = $false,
+    [switch]$ForceTemplates = $false
 )
 
 $ErrorActionPreference = "Stop"
@@ -124,23 +125,29 @@ if (-not (Test-Path $DolphinWiiSave)) {
 }
 
 # 4. Injeção de Templates de Configuração Inicial (Cold Start Protection)
+function Copy-TemplateIfNeeded {
+    param (
+        [string]$SourcePath,
+        [string]$DestinationPath,
+        [switch]$ForceOverwrite
+    )
+    if (-not (Test-Path $SourcePath)) { return }
+    $DestDir = Split-Path -Parent $DestinationPath
+    if (-not (Test-Path $DestDir)) {
+        New-Item -ItemType Directory -Path $DestDir -Force | Out-Null
+    }
+    if (-not (Test-Path $DestinationPath) -or $ForceOverwrite) {
+        Copy-Item $SourcePath $DestinationPath -Force
+    }
+}
+
 if (Test-Path $TplDir) {
     Write-Host "`n>>> Injetando templates de configuração de saves e BIOS..." -ForegroundColor Cyan
-    if (Test-Path "$TplDir\retroarch.cfg") { Copy-Item "$TplDir\retroarch.cfg" "$BinDir\retroarch\" -Force }
-    if (Test-Path "$TplDir\duckstation_settings.ini") { Copy-Item "$TplDir\duckstation_settings.ini" "$BinDir\duckstation\settings.ini" -Force }
-    if (Test-Path "$TplDir\PCSX2.ini") { 
-        $Pcsx2Inis = Join-Path $BinDir "pcsx2\inis"
-        if (-not (Test-Path $Pcsx2Inis)) { New-Item -ItemType Directory -Path $Pcsx2Inis -Force | Out-Null }
-        Copy-Item "$TplDir\PCSX2.ini" "$Pcsx2Inis\PCSX2.ini" -Force 
-    }
-    if (Test-Path "$TplDir\Dolphin.ini") {
-        $DolphinCfg = Join-Path $BinDir "dolphin\User\Config"
-        if (-not (Test-Path $DolphinCfg)) { New-Item -ItemType Directory -Path $DolphinCfg -Force | Out-Null }
-        Copy-Item "$TplDir\Dolphin.ini" "$DolphinCfg\Dolphin.ini" -Force
-    }
-    if (Test-Path "$TplDir\emu.cfg") {
-        Copy-Item "$TplDir\emu.cfg" "$BinDir\flycast\emu.cfg" -Force
-    }
+    Copy-TemplateIfNeeded "$TplDir\retroarch.cfg" "$BinDir\retroarch\retroarch.cfg" -ForceOverwrite:$ForceTemplates
+    Copy-TemplateIfNeeded "$TplDir\duckstation_settings.ini" "$BinDir\duckstation\settings.ini" -ForceOverwrite:$ForceTemplates
+    Copy-TemplateIfNeeded "$TplDir\PCSX2.ini" "$BinDir\pcsx2\inis\PCSX2.ini" -ForceOverwrite:$ForceTemplates
+    Copy-TemplateIfNeeded "$TplDir\Dolphin.ini" "$BinDir\dolphin\User\Config\Dolphin.ini" -ForceOverwrite:$ForceTemplates
+    Copy-TemplateIfNeeded "$TplDir\emu.cfg" "$BinDir\flycast\emu.cfg" -ForceOverwrite:$ForceTemplates
 }
 
 # 5. Verificação de Utilitários de Linha de Comando (tools/)

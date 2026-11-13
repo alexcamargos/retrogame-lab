@@ -3,7 +3,8 @@ param (
     [string[]]$Emulators = @("retroarch", "duckstation", "pcsx2", "ppsspp", "dolphin", "flycast", "rpcs3", "xenia", "ryujinx", "nethersx2"),
     [switch]$CheckOnly = $false,
     [switch]$Update = $false,
-    [switch]$Force = $false
+    [switch]$Force = $false,
+    [switch]$ForceTemplates = $false
 )
 
 $ErrorActionPreference = "Stop"
@@ -415,6 +416,7 @@ if ($CheckOnly) {
 
 # 4. Execução de Download / Atualização
 Write-Host "`n>>> Processando instalação/atualização de emuladores..." -ForegroundColor Cyan
+$FailedEmulators = @()
 
 foreach ($EmuName in $RemoteCatalog.Keys) {
     $Info = $RemoteCatalog[$EmuName]
@@ -475,7 +477,10 @@ foreach ($EmuName in $RemoteCatalog.Keys) {
                     $DolphinUserCfg = Join-Path $TargetFolder "User\Config"
                     if (-not (Test-Path $DolphinUserCfg)) { New-Item -ItemType Directory -Path $DolphinUserCfg -Force | Out-Null }
                     $DolphinTpl = Join-Path $BaseDir "templates\config\Dolphin.ini"
-                    if (Test-Path $DolphinTpl) { Copy-Item $DolphinTpl (Join-Path $DolphinUserCfg "Dolphin.ini") -Force }
+                    $DolphinIniDest = Join-Path $DolphinUserCfg "Dolphin.ini"
+                    if ((Test-Path $DolphinTpl) -and (-not (Test-Path $DolphinIniDest) -or $ForceTemplates)) {
+                        Copy-Item $DolphinTpl $DolphinIniDest -Force
+                    }
                 }
             } elseif ($EmuName -eq "ryujinx") {
                 $RyujinxPortable = Join-Path $TargetFolder "portable"
@@ -493,7 +498,8 @@ foreach ($EmuName in $RemoteCatalog.Keys) {
         Write-Host ">>> $($Info.Name) atualizado para $($Info.RemoteVersion) com sucesso!" -ForegroundColor Green
 
     } catch {
-        Write-Error "Falha ao processar o emulador '$EmuName': $($_.Exception.Message)"
+        Write-Warning "Falha ao processar o emulador '$EmuName': $($_.Exception.Message)"
+        $FailedEmulators += $EmuName
     }
 }
 
@@ -537,4 +543,8 @@ foreach ($Emu in @("retroarch", "duckstation", "pcsx2", "ppsspp", "dolphin", "fl
     } else {
         Write-Host "  [PENDENTE] $Emu -> Nenhum executável encontrado em '$Folder'" -ForegroundColor Yellow
     }
+}
+
+if ($FailedEmulators.Count -gt 0) {
+    Write-Error "Falha no download/atualização de: $($FailedEmulators -join ', ')"
 }
