@@ -220,7 +220,7 @@ O script realiza automaticamente todas as configuracoes criticas de sistema:
 3. **Injecao de Seguranca:** Grava o arquivo `/storage/emulated/0/RetroGames/saves/.stignore` para impedir o envio de savestates e arquivos de trava.
 4. **Bypass de Scoped Storage:** Concede a permissao especial `MANAGE_EXTERNAL_STORAGE` para os pacotes dos emuladores via `appops`, permitindo leitura e gravacao direta em `/storage/emulated/0/RetroGames/`.
 5. **Whitelist de Bateria (Doze Mode):** Adiciona os pacotes do Syncthing a lista de isencao de economia de energia (`dumpsys deviceidle whitelist`), garantindo sincronizacao em segundo plano com a tela apagada.
-6. **Instalacao de Emuladores:** Baixa e instala as versoes oficiais ARM64 de RetroArch, PPSSPP, Dolphin e Flycast (e instala DuckStation e NetherSX2 caso os APKs estejam presentes na pasta `tools/android_apks/`).
+6. **Instalacao de Emuladores:** Baixa e instala as versoes oficiais ARM64 de RetroArch, PPSSPP, Dolphin, Flycast e NetherSX2 Classic (e instala DuckStation caso o APK esteja presente na pasta `tools/android_apks/`).
 7. **Injecao de Configuracoes Automaticas:** Injeta os templates otimizados (`retroarch.cfg`, `ppsspp.ini`, `Dolphin.ini`, `emu.cfg`, `duckstation_settings.ini`, `nethersx2_settings.ini`) diretamente nas pastas de dados dos emuladores e espelha copias de seguranca em `/storage/emulated/0/RetroGames/config/`.
 
 ---
