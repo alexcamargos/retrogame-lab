@@ -292,15 +292,15 @@ def parse_title_metadata(raw_title: str) -> tuple[str, str, str]:
 
     for tag in flat_tags:
         lower = tag.lower()
-        if any(r in lower for r in ("usa", "america")):
+        if re.search(r"\b(usa|america)\b", lower):
             region = "USA"
-        elif any(r in lower for r in ("europe", "eur", "pal")):
+        elif re.search(r"\b(europe|eur|pal)\b", lower):
             region = "EUR"
-        elif any(r in lower for r in ("japan", "jpn", "ja")):
+        elif re.search(r"\b(japan|jpn|jp|ja)\b", lower):
             region = "JPN"
-        elif any(r in lower for r in ("brazil", "brz", "bra", "pt")):
+        elif re.search(r"\b(brazil|brz|bra|pt-br|pt)\b", lower):
             region = "BRA"
-        elif any(r in lower for r in ("world", "wld")):
+        elif re.search(r"\b(world|wld)\b", lower):
             region = "WLD"
         else:
             extra_parts.append(tag)
@@ -1270,24 +1270,29 @@ def run_interactive_fetcher(
             if action in ("plat", "plataforma") or action in SUPPORTED_PLATFORMS:
                 target_plat = action if action in SUPPORTED_PLATFORMS else arg.lower()
                 if target_plat in SUPPORTED_PLATFORMS:
-                    active_plat = target_plat
-                    active_identifier = resolve_initial_identifier(
-                        platform_code=active_plat,
+                    target_identifier = resolve_initial_identifier(
+                        platform_code=target_plat,
                         query="",
                         custom_identifier=None,
                     )
-                    current_query = ""
-                    current_page = 0
                     c.print(
                         f"\n[cyan]Carregando acervo de {target_plat.upper()} "
-                        f"({active_identifier})...[/cyan]"
+                        f"({target_identifier})...[/cyan]"
                     )
                     try:
-                        catalog = get_archive_catalog(
-                            identifier=active_identifier, platform_code=active_plat, repo_root=root
+                        new_catalog = get_archive_catalog(
+                            identifier=target_identifier,
+                            platform_code=target_plat,
+                            repo_root=root,
                         )
                     except Exception as err:
                         c.print(f"[bold red]Falha ao carregar catálogo:[/bold red] {err}")
+                    else:
+                        active_plat = target_plat
+                        active_identifier = target_identifier
+                        catalog = new_catalog
+                        current_query = ""
+                        current_page = 0
                 else:
                     valid_str = ", ".join(SUPPORTED_PLATFORMS.keys())
                     c.print(f"[bold red]Plataforma inválida.[/bold red] Opções: {valid_str}")
@@ -1308,19 +1313,24 @@ def run_interactive_fetcher(
                     else (PS3_ALPHABET_PARTS if active_plat == "ps3" else XBOX360_ALPHABET_PARTS)
                 )
                 if target_letter in letter_map:
-                    active_identifier = letter_map[target_letter]
-                    current_query = ""
-                    current_page = 0
+                    target_identifier = letter_map[target_letter]
                     c.print(
                         f"\n[cyan]Carregando partição '{target_letter.upper()}' de "
-                        f"{active_plat.upper()} ({active_identifier})...[/cyan]"
+                        f"{active_plat.upper()} ({target_identifier})...[/cyan]"
                     )
                     try:
-                        catalog = get_archive_catalog(
-                            identifier=active_identifier, platform_code=active_plat, repo_root=root
+                        new_catalog = get_archive_catalog(
+                            identifier=target_identifier,
+                            platform_code=active_plat,
+                            repo_root=root,
                         )
                     except Exception as err:
                         c.print(f"[bold red]Erro ao carregar partição:[/bold red] {err}")
+                    else:
+                        active_identifier = target_identifier
+                        catalog = new_catalog
+                        current_query = ""
+                        current_page = 0
                 else:
                     c.print("[yellow]Letra inválida. Escolha de A a Z ou 0.[/yellow]")
                 continue
@@ -1336,19 +1346,24 @@ def run_interactive_fetcher(
                 part_code = arg.strip()
                 part_map = PSP_PARTS if active_plat == "psp" else WII_PARTS
                 if part_code in part_map:
-                    active_identifier = part_map[part_code]
-                    current_query = ""
-                    current_page = 0
+                    target_identifier = part_map[part_code]
                     c.print(
                         f"\n[cyan]Carregando Parte {part_code} de {active_plat.upper()} "
-                        f"({active_identifier})...[/cyan]"
+                        f"({target_identifier})...[/cyan]"
                     )
                     try:
-                        catalog = get_archive_catalog(
-                            identifier=active_identifier, platform_code=active_plat, repo_root=root
+                        new_catalog = get_archive_catalog(
+                            identifier=target_identifier,
+                            platform_code=active_plat,
+                            repo_root=root,
                         )
                     except Exception as err:
                         c.print(f"[bold red]Erro ao carregar parte:[/bold red] {err}")
+                    else:
+                        active_identifier = target_identifier
+                        catalog = new_catalog
+                        current_query = ""
+                        current_page = 0
                 else:
                     valid_range = (
                         "1 (A-M) ou 2 (N-Z)"
@@ -1361,18 +1376,20 @@ def run_interactive_fetcher(
             # Troca de coleção remota
             if action in ("colecao", "collection"):
                 if arg:
-                    active_identifier = arg
-                    current_query = ""
-                    current_page = 0
-                    c.print(
-                        f"\n[cyan]Carregando coleção personalizada '{active_identifier}'...[/cyan]"
-                    )
+                    c.print(f"\n[cyan]Carregando coleção personalizada '{arg}'...[/cyan]")
                     try:
-                        catalog = get_archive_catalog(
-                            identifier=active_identifier, platform_code=active_plat, repo_root=root
+                        new_catalog = get_archive_catalog(
+                            identifier=arg,
+                            platform_code=active_plat,
+                            repo_root=root,
                         )
                     except Exception as err:
                         c.print(f"[bold red]Erro ao consultar coleção:[/bold red] {err}")
+                    else:
+                        active_identifier = arg
+                        catalog = new_catalog
+                        current_query = ""
+                        current_page = 0
                 continue
 
             # Limpar filtro
@@ -1391,14 +1408,19 @@ def run_interactive_fetcher(
         is_numeric_selection = False
         selected_numbers: list[int] = []
 
-        raw_parts = user_input.replace(";", ",").split(",")
-        for part in raw_parts:
-            part_str = part.strip()
-            if part_str.isdigit():
-                num = int(part_str)
-                if 1 <= num <= len(page_items):
-                    selected_numbers.append(num)
-                    is_numeric_selection = True
+        raw_parts = [p.strip() for p in user_input.replace(";", ",").split(",") if p.strip()]
+        if raw_parts and all(part.isdigit() for part in raw_parts):
+            parsed_nums = [int(part) for part in raw_parts]
+            out_of_range = [n for n in parsed_nums if n < 1 or n > len(page_items)]
+            if not out_of_range:
+                selected_numbers = parsed_nums
+                is_numeric_selection = True
+            elif len(raw_parts) > 1:
+                c.print(
+                    f"[yellow]Índice(s) inválido(s) para a página atual "
+                    f"(1-{len(page_items)}): {out_of_range}.[/yellow]"
+                )
+                continue
 
         if is_numeric_selection and selected_numbers:
             target_entries = [page_items[n - 1] for n in selected_numbers]

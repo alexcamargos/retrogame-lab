@@ -929,4 +929,92 @@ def test_download_and_extract_rom_uses_copyfileobj(
     assert copy_spy.call_count == 1
 
 
+def test_parse_title_metadata_avoids_substring_false_positives() -> None:
+    """Garante que tags como (Encrypted) ou (Ninja) não sejam confundidas com BRA ou JPN.
+
+    Args:
+        None.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    from retrogame_lab.fetcher import parse_title_metadata
+
+    clean, region, extra = parse_title_metadata("Game Title (Encrypted) (Ninja)")
+    assert clean == "Game Title"
+    assert region == "Global"
+    assert extra == "Encrypted, Ninja"
+
+    _, region_br, _ = parse_title_metadata("Super Bomberman (Pt-Br)")
+    assert region_br == "BRA"
+
+    _, region_jp, _ = parse_title_metadata("Chrono Trigger (JP)")
+    assert region_jp == "JPN"
+
+
+def test_run_interactive_fetcher_rollback_on_switch_error(
+    mock_repo_root: Path,
+    mocker: MockerFixture,
+) -> None:
+    """Garante que active_plat e catalog não fiquem dessincronizados em falha de /plat ou /colecao.
+
+    Args:
+        mock_repo_root: Fixture de raiz mockada do repositório.
+        mocker: Fixture do pytest-mock.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    from retrogame_lab.fetcher import run_interactive_fetcher
+
+    snes_entries = [
+        ArchiveRomEntry(
+            filename="Super Mario World (USA).zip",
+            title="Super Mario World (USA)",
+            size_bytes=1024,
+            download_url="https://archive.org/download/nointro-snes/smw.zip",
+            clean_title="Super Mario World",
+            region_tag="USA",
+            extension=".zip",
+        )
+    ]
+
+    def fake_catalog(
+        identifier: str,
+        platform_code: str,
+        repo_root: Path | None = None,
+        force_refresh: bool = False,
+    ) -> list[ArchiveRomEntry]:
+        if platform_code == "ps1" or identifier == "broken-col":
+            raise RuntimeError("Erro de rede simulado")
+        return snes_entries
+
+    mocker.patch("retrogame_lab.fetcher.get_archive_catalog", side_effect=fake_catalog)
+    mocker.patch(
+        "rich.prompt.Prompt.ask",
+        side_effect=["/plat ps1", "/colecao broken-col", "1, 99", "q"],
+    )
+
+    console = Console(record=True, width=120)
+    result = run_interactive_fetcher(
+        platform_code="snes",
+        repo_root=mock_repo_root,
+        console=console,
+    )
+
+    output = console.export_text()
+    assert result == []
+    assert "Falha ao carregar catálogo" in output
+    assert "Erro ao consultar coleção" in output
+    assert "Índice(s) inválido(s)" in output
+    assert "Super Nintendo Entertainment System" in output
+
+
+
 
