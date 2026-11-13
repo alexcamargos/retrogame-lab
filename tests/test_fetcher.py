@@ -849,3 +849,84 @@ def test_render_controls_panel_shows_navigation_shortcuts() -> None:
     assert "Próxima / Anterior" in rendered
 
 
+def test_get_archive_catalog_sanitizes_cache_identifier(
+    mock_repo_root: Path,
+    mocker: MockerFixture,
+) -> None:
+    """Garante que identificadores com '/' sejam sanitizados ao gravar cache local.
+
+    Args:
+        mock_repo_root: Fixture de raiz mockada do repositório.
+        mocker: Fixture do pytest-mock.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    mock_response_data = {"result": [{"name": "Game (USA).sfc", "size": "1024"}]}
+    mock_resp = mocker.MagicMock()
+    mock_resp.read.return_value = json.dumps(mock_response_data).encode("utf-8")
+    mock_resp.__enter__.return_value = mock_resp
+    mock_resp.__exit__.return_value = None
+    mocker.patch("urllib.request.urlopen", return_value=mock_resp)
+
+    catalog = get_archive_catalog(
+        identifier="custom/subcollection",
+        platform_code="snes",
+        repo_root=mock_repo_root,
+    )
+
+    assert len(catalog) == 1
+    cache_file = mock_repo_root / "scratch" / "cache_custom_subcollection_files.json"
+    assert cache_file.is_file()
+
+
+def test_download_and_extract_rom_uses_copyfileobj(
+    tmp_path: Path,
+    mocker: MockerFixture,
+) -> None:
+    """Garante extração de ZIP via stream com shutil.copyfileobj.
+
+    Args:
+        tmp_path: Diretório temporário do pytest.
+        mocker: Fixture do pytest-mock.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w") as zf:
+        zf.writestr("Super Metroid (USA).sfc", b"ROMDATA" * 16)
+    zip_bytes = zip_buffer.getvalue()
+
+    mock_resp = mocker.MagicMock()
+    mock_resp.headers = {"Content-Length": str(len(zip_bytes))}
+    mock_resp.read.side_effect = [zip_bytes, b""]
+    mock_resp.__enter__.return_value = mock_resp
+    mock_resp.__exit__.return_value = None
+    mocker.patch("urllib.request.urlopen", return_value=mock_resp)
+
+    copy_spy = mocker.spy(
+        __import__("retrogame_lab.fetcher", fromlist=["shutil"]).shutil,
+        "copyfileobj",
+    )
+
+    entry = ArchiveRomEntry(
+        filename="Super Metroid (USA).zip",
+        title="Super Metroid (USA)",
+        size_bytes=len(zip_bytes),
+        download_url="https://archive.org/download/nointro-snes/Super%20Metroid%20(USA).zip",
+    )
+    out = download_and_extract_rom(entry, tmp_path, platform_code="snes")
+
+    assert out.name == "Super Metroid (USA).sfc"
+    assert out.read_bytes() == b"ROMDATA" * 16
+    assert copy_spy.call_count == 1
+
+
+

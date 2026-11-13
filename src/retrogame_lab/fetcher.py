@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -390,7 +391,8 @@ def get_archive_catalog(
     root = repo_root or find_repo_root()
     cache_dir = root / "scratch"
     cache_dir.mkdir(parents=True, exist_ok=True)
-    cache_file = cache_dir / f"cache_{identifier}_files.json"
+    safe_id = re.sub(r"[^a-zA-Z0-9._-]", "_", identifier)
+    cache_file = cache_dir / f"cache_{safe_id}_files.json"
 
     files_data: list[dict[str, Any]] = []
 
@@ -696,7 +698,7 @@ def download_and_extract_rom(
                     zf.open(extracted_name) as source_file,
                     open(extracted_path, "wb") as dest_file,
                 ):
-                    dest_file.write(source_file.read())
+                    shutil.copyfileobj(source_file, dest_file, length=65536)
 
             temp_archive_path.unlink(missing_ok=True)
             return extracted_path
@@ -985,7 +987,8 @@ def render_controls_panel(platform_code: str = "snes") -> Panel:
 
     plat_keys = "|".join(SUPPORTED_PLATFORMS.keys())
     text = (
-        "[bold cyan]\\[1-N][/bold cyan] Baixar seleção (ex: [cyan]2[/cyan] ou [cyan]1, 3[/cyan])  •  "
+        "[bold cyan]\\[1-N][/bold cyan] Baixar seleção "
+        "(ex: [cyan]2[/cyan] ou [cyan]1, 3[/cyan])  •  "
         "[bold yellow]\\[n / p][/bold yellow] Próxima / Anterior  •  "
         "[bold green]<texto>[/bold green] Filtrar título\n"
         f"{extra_commands}"
