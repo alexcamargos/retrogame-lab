@@ -88,20 +88,20 @@ def test_supported_platforms_metadata() -> None:
     Raises:
         None.
     """
-    expected_codes = {
+    expected_order = [
         "snes",
         "ps1",
-        "ps2",
-        "psp",
-        "gc",
-        "dc",
-        "wii",
         "n64",
-        "ps3",
+        "dc",
+        "ps2",
+        "gc",
+        "psp",
         "xbox360",
+        "ps3",
+        "wii",
         "switch",
-    }
-    assert set(SUPPORTED_PLATFORMS.keys()) == expected_codes
+    ]
+    assert list(SUPPORTED_PLATFORMS.keys()) == expected_order
 
     for code, info in SUPPORTED_PLATFORMS.items():
         assert info.code == code
