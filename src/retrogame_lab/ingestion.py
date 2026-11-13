@@ -77,8 +77,17 @@ def import_rom(
     target_dir.mkdir(parents=True, exist_ok=True)
 
     destination_path = target_dir / sanitized_name
-    if destination_path.exists() and destination_path.resolve() != source_path.resolve():
-        raise FileExistsError(f"O arquivo de destino já existe na biblioteca: {destination_path}")
+    if destination_path.exists():
+        if destination_path.resolve() != source_path.resolve():
+            raise FileExistsError(
+                f"O arquivo de destino já existe na biblioteca: {destination_path}"
+            )
+        if source_path.name == sanitized_name:
+            return destination_path
+        temp_path = destination_path.with_name(f"{source_path.name}.tmp_import")
+        source_path.rename(temp_path)
+        temp_path.rename(destination_path)
+        return destination_path
 
     # 4. Ingestão física (cópia ou movimentação)
     if move:

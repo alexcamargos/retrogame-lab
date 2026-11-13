@@ -9,6 +9,8 @@ import os
 import re
 from pathlib import Path
 
+from retrogame_lab.config import INVALID_FILENAME_CHARS_PATTERN
+
 
 def sanitize_filename(filename: str) -> str:
     """Higieniza o nome de um arquivo substituindo espaços por '_' e convertendo para minúsculas.
@@ -54,11 +56,11 @@ def sanitize_filename(filename: str) -> str:
     stem = stem.lower()
     matched_ext = matched_ext.lower()
 
-    # 2. Remove aspas simples, duplas, crases e caracteres especiais inválidos
-    stem = re.sub(r"['\"`\~\^\!\?\:\;\*\<\>\|\#]", "", stem)
-
-    # 3. Converte qualquer sequência de espaços em '_'
+    # 2. Converte qualquer sequência de espaços em '_'
     stem = re.sub(r"\s+", "_", stem)
+
+    # 3. Remove aspas simples, duplas, crases e caracteres especiais inválidos
+    stem = re.sub(INVALID_FILENAME_CHARS_PATTERN, "", stem)
 
     # 4. Colapsa múltiplos sublinhados consecutivos em um único
     stem = re.sub(r"_+", "_", stem)
@@ -119,6 +121,9 @@ def sanitize_directory(target_dir: Path, dry_run: bool = True) -> list[tuple[Pat
         sanitized_name = sanitize_filename(file_path.name)
         if file_path.name != sanitized_name:
             new_path = file_path.with_name(sanitized_name)
+            is_case_only = file_path.name.lower() == sanitized_name.lower()
+            if new_path.exists() and not is_case_only:
+                continue
             changes.append((file_path, new_path))
             if not dry_run:
                 try:

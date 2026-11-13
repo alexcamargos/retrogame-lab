@@ -245,3 +245,24 @@ def test_import_rom_wii_and_n64_and_switch(tmp_path: Path, mock_repo_root: Path)
     dest_switch = import_rom(switch_valid, "switch", repo_root=mock_repo_root)
     assert dest_switch.name == "super_mario_odyssey.nsp"
     assert dest_switch.parent == mock_repo_root / "data" / "roms" / "switch"
+
+
+def test_import_rom_same_file_idempotent(mock_repo_root: Path) -> None:
+    """Garante que reimportar um arquivo já no destino não gere SameFileError.
+
+    Args:
+        mock_repo_root: Fixture de raiz mockada.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    existing = mock_repo_root / "data" / "roms" / "snes" / "chrono_trigger.sfc"
+    existing.write_text("rom", encoding="utf-8")
+
+    result = import_rom(existing, "snes", move=False, repo_root=mock_repo_root)
+    assert result == existing
+    assert existing.read_text(encoding="utf-8") == "rom"
+

@@ -204,3 +204,27 @@ def test_sanitize_directory_ignores_dotfiles(tmp_path: Path) -> None:
     assert len(changes) == 0
     assert stignore.exists()
     assert gitkeep.exists()
+
+
+def test_sanitize_directory_skips_collision(tmp_path: Path) -> None:
+    """Garante que colisão entre arquivo existente e nome sanitizado não gere FileExistsError.
+
+    Args:
+        tmp_path: Diretório temporário fornecido pelo pytest.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    clean = tmp_path / "mario_world.sfc"
+    clean.write_text("clean", encoding="utf-8")
+    dirty = tmp_path / "mario world.sfc"
+    dirty.write_text("dirty", encoding="utf-8")
+
+    changes = sanitize_directory(tmp_path, dry_run=False)
+    assert changes == []
+    assert clean.exists()
+    assert dirty.exists()
+
