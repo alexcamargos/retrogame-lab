@@ -1,6 +1,6 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param (
-    [string[]]$Emulators = @("retroarch", "duckstation", "pcsx2", "ppsspp", "dolphin", "flycast", "rpcs3", "xenia", "ryujinx"),
+    [string[]]$Emulators = @("retroarch", "duckstation", "pcsx2", "ppsspp", "dolphin", "flycast", "rpcs3", "xenia", "ryujinx", "nethersx2"),
     [switch]$CheckOnly = $false,
     [switch]$Update = $false,
     [switch]$Force = $false
@@ -10,6 +10,7 @@ $ErrorActionPreference = "Stop"
 $BaseDir = Split-Path -Parent $PSScriptRoot
 $BinDir  = Join-Path $BaseDir "bin"
 $DataDir = Join-Path $BaseDir "data"
+$ApkCacheDir = Join-Path $BaseDir "tools\android_apks"
 $TempDir = Join-Path $BaseDir "tools\temp_downloads"
 $VersionsFile = Join-Path $BinDir ".versions.json"
 
@@ -173,9 +174,15 @@ foreach ($Emu in $Emulators) {
     $EmuName = $Emu.ToLower().Trim()
     $TargetFolder = Join-Path $BinDir $EmuName
 
-    $ExistingExe = Get-ChildItem -Path $TargetFolder -Filter "*.exe" -Recurse -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -notmatch "updater|setup|unins|vcredist" } |
-        Select-Object -First 1
+    if ($EmuName -eq "nethersx2") {
+        $ExistingExe = Get-ChildItem -Path $ApkCacheDir -Filter "*nether*.apk" -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+    } else {
+        $ExistingExe = Get-ChildItem -Path $TargetFolder -Filter "*.exe" -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notmatch "updater|setup|unins|vcredist" } |
+            Select-Object -First 1
+    }
 
     $InstalledVer = if ($LocalManifest.PSObject.Properties[$EmuName]) {
         $LocalManifest.$EmuName.version
@@ -303,7 +310,7 @@ foreach ($Emu in $Emulators) {
             }
 
             "xenia" {
-                $Release = Invoke-RestMethod -Uri "https://api.github.com/repos/xenia-canary/xenia-canary-releases/latest" -Headers $Headers
+                $Release = Invoke-RestMethod -Uri "https://api.github.com/repos/xenia-canary/xenia-canary-releases/releases/latest" -Headers $Headers
                 $Asset = $Release.assets | Where-Object { $_.name -match "xenia_canary\.zip$" } | Select-Object -First 1
                 if (-not $Asset) {
                     $Asset = $Release.assets | Where-Object { $_.name -match "xenia.*\.zip$" } | Select-Object -First 1
@@ -320,7 +327,7 @@ foreach ($Emu in $Emulators) {
             }
 
             "ryujinx" {
-                $Release = Invoke-RestMethod -Uri "https://api.github.com/repos/Ryubing/Ryujinx/releases/latest" -Headers $Headers
+                $Release = Invoke-RestMethod -Uri "https://git.ryujinx.app/api/v1/repos/Ryubing/Ryujinx/releases/latest" -Headers $Headers
                 $Asset = $Release.assets | Where-Object { $_.name -match "win_x64\.zip$" } | Select-Object -First 1
                 if (-not $Asset) {
                     $Asset = $Release.assets | Where-Object { $_.name -match "windows.*x64.*\.zip$" } | Select-Object -First 1
@@ -332,6 +339,23 @@ foreach ($Emu in $Emulators) {
                     Url = $Asset.browser_download_url
                     Archive = "ryujinx.zip"
                     Type = "zip"
+                    ExistingExe = $ExistingExe
+                }
+            }
+
+            "nethersx2" {
+                $Release = Invoke-RestMethod -Uri "https://api.github.com/repos/Trixarian/NetherSX2-classic/releases/latest" -Headers $Headers
+                $Asset = $Release.assets | Where-Object { $_.name -match "\.apk$" } | Select-Object -First 1
+                if (-not $Asset) {
+                    throw "Nenhum arquivo .apk encontrado na release '$($Release.tag_name)' de Trixarian/NetherSX2-classic."
+                }
+                $RemoteCatalog[$EmuName] = [ordered]@{
+                    Name = "NetherSX2 Classic (PS2 - Android APK)"
+                    RemoteVersion = $Release.tag_name
+                    InstalledVersion = $InstalledVer
+                    Url = $Asset.browser_download_url
+                    Archive = $Asset.name
+                    Type = "apk"
                     ExistingExe = $ExistingExe
                 }
             }
@@ -418,28 +442,50 @@ foreach ($EmuName in $RemoteCatalog.Keys) {
     $ArchiveFile = Join-Path $TempDir $Info.Archive
 
     try {
-        Write-Host "Baixando $($Info.Name) ($($Info.RemoteVersion))..." -ForegroundColor Cyan
-        Invoke-WebRequest -Uri $Info.Url -OutFile $ArchiveFile -MaximumRedirection 10 -UserAgent "Mozilla/5.0"
-        Expand-ArchivePortable -ArchiveFile $ArchiveFile -DestinationPath $TargetFolder
-        Flatten-SingleDirectory -DirectoryPath $TargetFolder
-
-        # Marcadores de portabilidade e ações específicas
-        if ($EmuName -in @("duckstation", "pcsx2", "dolphin", "xenia", "rpcs3")) {
-            New-Item -ItemType File -Path (Join-Path $TargetFolder "portable.txt") -Force | Out-Null
-            if ($EmuName -eq "dolphin") {
-                $DolphinUserCfg = Join-Path $TargetFolder "User\Config"
-                if (-not (Test-Path $DolphinUserCfg)) { New-Item -ItemType Directory -Path $DolphinUserCfg -Force | Out-Null }
-                $DolphinTpl = Join-Path $BaseDir "templates\config\Dolphin.ini"
-                if (Test-Path $DolphinTpl) { Copy-Item $DolphinTpl (Join-Path $DolphinUserCfg "Dolphin.ini") -Force }
+        if ($Info.Type -eq "apk") {
+            if (-not (Test-Path $ApkCacheDir)) {
+                New-Item -ItemType Directory -Path $ApkCacheDir -Force | Out-Null
             }
-        } elseif ($EmuName -eq "ryujinx") {
-            $RyujinxPortable = Join-Path $TargetFolder "portable"
-            if (-not (Test-Path $RyujinxPortable)) { New-Item -ItemType Directory -Path $RyujinxPortable -Force | Out-Null }
-        } elseif ($EmuName -eq "ppsspp") {
-            $PpssppMemstick = Join-Path $TargetFolder "memstick"
-            New-Item -ItemType Directory -Path $PpssppMemstick -Force | Out-Null
-        } elseif ($EmuName -eq "retroarch") {
-            Install-RetroArchCores -RetroArchFolder $TargetFolder -ForceDownload:$Force
+            $TargetApk = Join-Path $ApkCacheDir $Info.Archive
+            Write-Host "Baixando $($Info.Name) ($($Info.RemoteVersion))..." -ForegroundColor Cyan
+            Invoke-WebRequest -Uri $Info.Url -OutFile $ArchiveFile -MaximumRedirection 10 -UserAgent "Mozilla/5.0"
+            if (-not (Test-Path $ArchiveFile) -or (Get-Item $ArchiveFile).Length -lt 1024) {
+                throw "Download do APK '$($Info.Archive)' falhou ou resultou em arquivo inválido."
+            }
+            Get-ChildItem -Path $ApkCacheDir -Filter "*nether*.apk" -ErrorAction SilentlyContinue |
+                Where-Object { $_.FullName -ne $TargetApk } |
+                Remove-Item -Force -ErrorAction SilentlyContinue
+            Move-Item -Path $ArchiveFile -Destination $TargetApk -Force
+        } else {
+            Write-Host "Baixando $($Info.Name) ($($Info.RemoteVersion))..." -ForegroundColor Cyan
+            Invoke-WebRequest -Uri $Info.Url -OutFile $ArchiveFile -MaximumRedirection 10 -UserAgent "Mozilla/5.0"
+            $HeadBytes = Get-Content -Path $ArchiveFile -AsByteStream -TotalCount 64 -ErrorAction SilentlyContinue
+            $HeadText = if ($HeadBytes) { [System.Text.Encoding]::UTF8.GetString($HeadBytes).TrimStart() } else { "" }
+            if ($HeadText -match "^(?i)(<!doctype|<html)") {
+                Remove-Item -Path $ArchiveFile -Force -ErrorAction SilentlyContinue
+                throw "O servidor retornou uma página HTML (possível verificação anti-bot) em vez do arquivo binário. Baixe manualmente pelo navegador em '$($Info.Url)' e extraia em '$TargetFolder'."
+            }
+            Expand-ArchivePortable -ArchiveFile $ArchiveFile -DestinationPath $TargetFolder
+            Flatten-SingleDirectory -DirectoryPath $TargetFolder
+
+            # Marcadores de portabilidade e ações específicas
+            if ($EmuName -in @("duckstation", "pcsx2", "dolphin", "xenia", "rpcs3")) {
+                New-Item -ItemType File -Path (Join-Path $TargetFolder "portable.txt") -Force | Out-Null
+                if ($EmuName -eq "dolphin") {
+                    $DolphinUserCfg = Join-Path $TargetFolder "User\Config"
+                    if (-not (Test-Path $DolphinUserCfg)) { New-Item -ItemType Directory -Path $DolphinUserCfg -Force | Out-Null }
+                    $DolphinTpl = Join-Path $BaseDir "templates\config\Dolphin.ini"
+                    if (Test-Path $DolphinTpl) { Copy-Item $DolphinTpl (Join-Path $DolphinUserCfg "Dolphin.ini") -Force }
+                }
+            } elseif ($EmuName -eq "ryujinx") {
+                $RyujinxPortable = Join-Path $TargetFolder "portable"
+                if (-not (Test-Path $RyujinxPortable)) { New-Item -ItemType Directory -Path $RyujinxPortable -Force | Out-Null }
+            } elseif ($EmuName -eq "ppsspp") {
+                $PpssppMemstick = Join-Path $TargetFolder "memstick"
+                New-Item -ItemType Directory -Path $PpssppMemstick -Force | Out-Null
+            } elseif ($EmuName -eq "retroarch") {
+                Install-RetroArchCores -RetroArchFolder $TargetFolder -ForceDownload:$Force
+            }
         }
 
         # Registra a versão instalada no manifesto local
@@ -456,15 +502,27 @@ if (Test-Path $TempDir) {
     Remove-Item -Path $TempDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-Write-Host "`n=== Verificação Final dos Executáveis em bin/ ===" -ForegroundColor Green
+Write-Host "`n=== Verificação Final dos Executáveis em bin/ e APKs ===" -ForegroundColor Green
 $UpdatedManifest = Get-InstalledVersionsManifest
-foreach ($Emu in @("retroarch", "duckstation", "pcsx2", "ppsspp", "dolphin", "flycast", "rpcs3", "xenia", "ryujinx")) {
+foreach ($Emu in @("retroarch", "duckstation", "pcsx2", "ppsspp", "dolphin", "flycast", "rpcs3", "xenia", "ryujinx", "nethersx2")) {
+    $Ver = if ($UpdatedManifest.PSObject.Properties[$Emu]) { $UpdatedManifest.$Emu.version } else { "presente" }
+
+    if ($Emu -eq "nethersx2") {
+        $Apk = Get-ChildItem -Path $ApkCacheDir -Filter "*nether*.apk" -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+        if ($Apk) {
+            Write-Host "  [OK] $Emu ($Ver) -> $($Apk.Name) (Android APK)" -ForegroundColor Green
+        } else {
+            Write-Host "  [PENDENTE] $Emu -> Nenhum APK encontrado em '$ApkCacheDir'" -ForegroundColor Yellow
+        }
+        continue
+    }
+
     $Folder = Join-Path $BinDir $Emu
     $Exe = Get-ChildItem -Path $Folder -Filter "*.exe" -Recurse -ErrorAction SilentlyContinue |
         Where-Object { $_.Name -notmatch "updater|setup|unins|vcredist" } |
         Select-Object -First 1
-
-    $Ver = if ($UpdatedManifest.PSObject.Properties[$Emu]) { $UpdatedManifest.$Emu.version } else { "presente" }
 
     if ($Exe) {
         if ($Emu -eq "retroarch") {
