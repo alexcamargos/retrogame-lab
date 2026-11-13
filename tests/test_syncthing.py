@@ -882,3 +882,71 @@ def test_cli_syncthing_start(mock_repo_root: Path, mocker: MockerFixture) -> Non
     assert "Daemon iniciado em segundo plano" in result.stdout
     assert mock_start.called
 
+
+def test_parse_windows_syncthing_config_uses_binary_and_avoids_remote_fallback(
+    tmp_path: Path,
+    mocker: MockerFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Garante uso do binário resolvido e evita assumir device remoto como local.
+
+    Args:
+        tmp_path: Diretório temporário.
+        mocker: Fixture do pytest-mock.
+        monkeypatch: Fixture de variáveis de ambiente.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    cfg = tmp_path / "config.xml"
+    cfg.write_text(
+        '<configuration version="44">'
+        "<gui><address>127.0.0.1:9999</address><apikey>abc</apikey></gui>"
+        '<device id="AAAAAAA-AAAAAAA-AAAAAAA-AAAAAAA-AAAAAAA-AAAAAAA-AAAAAAA-AAAAAAA"'
+        ' name="Phone"/>'
+        '<device id="BBBBBBB-BBBBBBB-BBBBBBB-BBBBBBB-BBBBBBB-BBBBBBB-BBBBBBB-BBBBBBB"'
+        ' name="MyPC"/>'
+        "</configuration>",
+        encoding="utf-8",
+    )
+    fake_bin = tmp_path / "syncthing.exe"
+    mocker.patch("retrogame_lab.syncthing.find_windows_syncthing_binary", return_value=fake_bin)
+    mocker.patch("subprocess.check_output", side_effect=OSError("fail"))
+    monkeypatch.setenv("COMPUTERNAME", "MyPC")
+
+    from retrogame_lab.syncthing import _extract_gui_port
+
+    _, local_id, _, _ = parse_windows_syncthing_config(cfg)
+    assert local_id == "BBBBBBB-BBBBBBB-BBBBBBB-BBBBBBB-BBBBBBB-BBBBBBB-BBBBBBB-BBBBBBB"
+    assert _extract_gui_port(cfg) == 9999
+
+
+def test_apply_windows_syncthing_config_generates_random_apikey(
+    mock_repo_root: Path,
+    mocker: MockerFixture,
+) -> None:
+    """Garante que um config.xml novo não utilize chave de API estática.
+
+    Args:
+        mock_repo_root: Raiz mockada do repositório.
+        mocker: Fixture do pytest-mock.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    cfg = mock_repo_root / "config.xml"
+    mocker.patch("retrogame_lab.syncthing.find_windows_syncthing_config", return_value=cfg)
+    mocker.patch("retrogame_lab.syncthing.find_windows_syncthing_binary", return_value=None)
+    mocker.patch("retrogame_lab.syncthing.is_windows_syncthing_running", return_value=False)
+
+    apply_windows_syncthing_config(mock_repo_root)
+    content = cfg.read_text(encoding="utf-8")
+    assert "syncthing-retrogame-lab-default-key" not in content
+
+

@@ -8,6 +8,7 @@ automática de configurações para o cliente desktop e Syncthing-Fork no Androi
 import contextlib
 import json
 import os
+import secrets
 import shutil
 import subprocess
 import urllib.error
@@ -423,15 +424,24 @@ def parse_windows_syncthing_config(
 
     # Identificar o dispositivo local via syncthing device-id se disponível
     local_device_id = None
+    syncthing_bin = find_windows_syncthing_binary()
+    dev_id_cmd = [str(syncthing_bin) if syncthing_bin else "syncthing", "device-id"]
     with contextlib.suppress(Exception):
         dev_id_out = subprocess.check_output(
-            ["syncthing", "device-id"], text=True, stderr=subprocess.DEVNULL
+            dev_id_cmd, text=True, stderr=subprocess.DEVNULL
         ).strip()
         if dev_id_out:
             local_device_id = dev_id_out
 
     if not local_device_id and devices:
-        local_device_id = devices[0].id
+        if len(devices) == 1:
+            local_device_id = devices[0].id
+        else:
+            host_name = os.environ.get("COMPUTERNAME", "").strip().lower()
+            for dev in devices:
+                if host_name and dev.name.strip().lower() == host_name:
+                    local_device_id = dev.id
+                    break
 
     # Pastas globais (filhas diretas de <configuration>)
     folders: list[SyncthingFolderConfig] = []
@@ -467,6 +477,31 @@ def parse_windows_syncthing_config(
         )
 
     return api_key, local_device_id, folders, devices
+
+
+def _extract_gui_port(config_path: Path, default: int = 8384) -> int:
+    """Extrai a porta da GUI/REST configurada no config.xml do Syncthing.
+
+    Args:
+        config_path: Caminho para o arquivo config.xml.
+        default: Porta padrão caso não seja possível extrair.
+
+    Returns:
+        Número da porta TCP configurada.
+
+    Raises:
+        None.
+    """
+    try:
+        root = ET.parse(config_path).getroot()
+        addr_elem = root.find(".//gui/address")
+        if addr_elem is not None and addr_elem.text and ":" in addr_elem.text:
+            port_str = addr_elem.text.strip().rsplit(":", 1)[1]
+            if port_str.isdigit():
+                return int(port_str)
+    except Exception:
+        pass
+    return default
 
 
 def check_syncthing_rest_api(
@@ -623,9 +658,10 @@ def audit_windows_syncthing(repo_root: Path) -> tuple[list[ValidationItem], dict
             folders_by_label = {f.label: f for f in folders}
 
             # 4. API REST
+            gui_port = _extract_gui_port(cfg_path)
             if api_key:
                 if running:
-                    api_resp = check_syncthing_rest_api(api_key)
+                    api_resp = check_syncthing_rest_api(api_key, port=gui_port)
                     meta["api_status"] = api_resp
                     if api_resp:
                         uptime_s = api_resp.get("uptime", 0)
@@ -634,7 +670,7 @@ def audit_windows_syncthing(repo_root: Path) -> tuple[list[ValidationItem], dict
                                 target="Windows",
                                 category="API REST",
                                 status=ValidationStatus.OK,
-                                message="API REST respondendo na porta 8384.",
+                                message=f"API REST respondendo na porta {gui_port}.",
                                 details=f"Uptime: {uptime_s}s | ID: {local_dev_id}",
                             )
                         )
@@ -644,7 +680,7 @@ def audit_windows_syncthing(repo_root: Path) -> tuple[list[ValidationItem], dict
                                 target="Windows",
                                 category="API REST",
                                 status=ValidationStatus.WARNING,
-                                message="Porta 8384 não respondeu à chave de API.",
+                                message=f"Porta {gui_port} não respondeu à chave de API.",
                             )
                         )
                 else:
@@ -749,7 +785,7 @@ def audit_windows_syncthing(repo_root: Path) -> tuple[list[ValidationItem], dict
                 )
             )
         else:
-            cfg_p = Path(cfg_folder.path).resolve()
+            cfg_p = Path(cfg_folder.path).expanduser().resolve()
             if cfg_p != f_path.resolve():
                 items.append(
                     ValidationItem(
@@ -1263,10 +1299,11 @@ def apply_windows_syncthing_config(
     if not cfg_path.is_file():
         # Cria um esqueleto XML limpo se ainda não existir
         cfg_path.parent.mkdir(parents=True, exist_ok=True)
-        base_xml = """<configuration version="44">
+        generated_key = secrets.token_urlsafe(24)
+        base_xml = f"""<configuration version="44">
     <gui enabled="true" tls="false">
         <address>127.0.0.1:8384</address>
-        <apikey>syncthing-retrogame-lab-default-key</apikey>
+        <apikey>{generated_key}</apikey>
     </gui>
 </configuration>"""
         cfg_path.write_text(base_xml, encoding="utf-8")
@@ -1402,9 +1439,10 @@ def apply_windows_syncthing_config(
     api_key_elem = root.find(".//gui/apikey")
     if api_key_elem is not None and api_key_elem.text and is_windows_syncthing_running():
         key = api_key_elem.text.strip()
+        gui_port = _extract_gui_port(cfg_path)
         with contextlib.suppress(Exception):
             req = urllib.request.Request(
-                "http://127.0.0.1:8384/rest/system/restart",
+                f"http://127.0.0.1:{gui_port}/rest/system/restart",
                 data=b"{}",
                 headers={"X-API-Key": key, "Content-Type": "application/json"},
                 method="POST",
@@ -1484,7 +1522,6 @@ def generate_android_syncthing_config(
     )
     addr = ET.SubElement(dev_elem, "address")
     addr.text = "dynamic"
-    ET.SubElement(dev_elem, "autoAcceptFolders").text = "true"
 
     # GUI Android
     gui = ET.SubElement(root, "gui", {"enabled": "true", "tls": "false"})
