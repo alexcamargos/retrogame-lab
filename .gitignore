@@ -25,11 +25,14 @@ tools/*.exe
 tools/llvm-mingw/
 tools/android_apks/*.apk
 tools/android_cores/
+tools/temp_downloads/
 
 # Caches e diretórios de execução voláteis
 scratch/
 .vscode/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .coverage
 htmlcov/
 *.log
