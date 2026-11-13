@@ -2,7 +2,8 @@
 param (
     [string]$DeviceId = "",
     [string]$TargetDevicePath = "/storage/emulated/0/RetroGames",
-    [switch]$SkipDownload = $false
+    [switch]$SkipDownload = $false,
+    [switch]$ForceTemplates = $false
 )
 
 $ErrorActionPreference = "Stop"
@@ -97,6 +98,9 @@ $Directories = @(
     "$TargetDevicePath/saves/dc",
     "$TargetDevicePath/saves/wii",
     "$TargetDevicePath/saves/n64",
+    "$TargetDevicePath/saves/.stfolder",
+    "$TargetDevicePath/roms/.stfolder",
+    "$TargetDevicePath/bios/.stfolder",
     "$TargetDevicePath/config",
     "$TargetDevicePath/states"
 )
@@ -272,6 +276,23 @@ foreach ($Pkg in $NetherPackages) {
 }
 
 # 7. Injeção de Arquivos de Configuração Específicos para Android
+function Push-AndroidConfigIfNeeded {
+    param (
+        [string]$LocalPath,
+        [string]$RemotePath,
+        [switch]$ForceOverwrite
+    )
+    if (-not (Test-Path $LocalPath)) { return }
+    if (-not $ForceOverwrite) {
+        $ExistsOut = (& adb @AdbArgs shell "[ -f '$RemotePath' ] && echo 'exists' || echo 'missing'") | Out-String
+        if ($ExistsOut -match "exists") { return }
+    }
+    $PushOut = (& adb @AdbArgs push $LocalPath $RemotePath 2>&1) | Out-String
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "Não foi possível gravar '$RemotePath' via ADB (restrição de Scoped Storage Android 13+/14+): $($PushOut.Trim()). Utilize o perfil salvo em '$TargetDevicePath/config/'."
+    }
+}
+
 Write-Host "`n>>> Injetando configurações automáticas dos emuladores no Android..." -ForegroundColor Cyan
 $AndroidTemplatesDir = Join-Path $BaseDir "templates\android"
 
@@ -287,8 +308,8 @@ if (Test-Path $AndroidTemplatesDir) {
     if (Test-Path $RetroArchCfg) {
         Write-Host "Aplicando configuração: RetroArch..." -ForegroundColor Gray
         & adb @AdbArgs shell "mkdir -p /storage/emulated/0/RetroArch /storage/emulated/0/Android/data/com.retroarch.aarch64/files /storage/emulated/0/Android/data/com.retroarch.aarch64/files/cores /storage/emulated/0/Android/data/com.retroarch.aarch64/files/info /storage/emulated/0/RetroArch/playlists /storage/emulated/0/Android/data/com.retroarch.aarch64/files/playlists" 2>$null | Out-Null
-        & adb @AdbArgs push $RetroArchCfg "/storage/emulated/0/RetroArch/retroarch.cfg" 2>$null | Out-Null
-        & adb @AdbArgs push $RetroArchCfg "/storage/emulated/0/Android/data/com.retroarch.aarch64/files/retroarch.cfg" 2>$null | Out-Null
+        Push-AndroidConfigIfNeeded $RetroArchCfg "/storage/emulated/0/RetroArch/retroarch.cfg" -ForceOverwrite:$ForceTemplates
+        Push-AndroidConfigIfNeeded $RetroArchCfg "/storage/emulated/0/Android/data/com.retroarch.aarch64/files/retroarch.cfg" -ForceOverwrite:$ForceTemplates
 
         # Geração e Injeção Automática de Playlists (SNES e Nintendo 64)
         $RetroArchPlaylists = @(
@@ -362,8 +383,8 @@ if (Test-Path $AndroidTemplatesDir) {
     if (Test-Path $PpssppIni) {
         Write-Host "Aplicando configuração: PPSSPP..." -ForegroundColor Gray
         & adb @AdbArgs shell "mkdir -p /storage/emulated/0/PSP/SYSTEM /storage/emulated/0/Android/data/org.ppsspp.ppsspp/files/PSP/SYSTEM" 2>$null | Out-Null
-        & adb @AdbArgs push $PpssppIni "/storage/emulated/0/PSP/SYSTEM/ppsspp.ini" 2>$null | Out-Null
-        & adb @AdbArgs push $PpssppIni "/storage/emulated/0/Android/data/org.ppsspp.ppsspp/files/PSP/SYSTEM/ppsspp.ini" 2>$null | Out-Null
+        Push-AndroidConfigIfNeeded $PpssppIni "/storage/emulated/0/PSP/SYSTEM/ppsspp.ini" -ForceOverwrite:$ForceTemplates
+        Push-AndroidConfigIfNeeded $PpssppIni "/storage/emulated/0/Android/data/org.ppsspp.ppsspp/files/PSP/SYSTEM/ppsspp.ini" -ForceOverwrite:$ForceTemplates
     }
 
     # 7.4 Injeção Direta - Dolphin (GameCube/Wii)
@@ -371,8 +392,8 @@ if (Test-Path $AndroidTemplatesDir) {
     if (Test-Path $DolphinIni) {
         Write-Host "Aplicando configuração: Dolphin..." -ForegroundColor Gray
         & adb @AdbArgs shell "mkdir -p /storage/emulated/0/dolphin-emu/Config /storage/emulated/0/Android/data/org.dolphinemu.dolphinemu/files/Config" 2>$null | Out-Null
-        & adb @AdbArgs push $DolphinIni "/storage/emulated/0/dolphin-emu/Config/Dolphin.ini" 2>$null | Out-Null
-        & adb @AdbArgs push $DolphinIni "/storage/emulated/0/Android/data/org.dolphinemu.dolphinemu/files/Config/Dolphin.ini" 2>$null | Out-Null
+        Push-AndroidConfigIfNeeded $DolphinIni "/storage/emulated/0/dolphin-emu/Config/Dolphin.ini" -ForceOverwrite:$ForceTemplates
+        Push-AndroidConfigIfNeeded $DolphinIni "/storage/emulated/0/Android/data/org.dolphinemu.dolphinemu/files/Config/Dolphin.ini" -ForceOverwrite:$ForceTemplates
     }
 
     # 7.5 Injeção Direta - Flycast (Dreamcast)
@@ -380,10 +401,10 @@ if (Test-Path $AndroidTemplatesDir) {
     if (Test-Path $FlycastCfg) {
         Write-Host "Aplicando configuração: Flycast..." -ForegroundColor Gray
         & adb @AdbArgs shell "mkdir -p /storage/emulated/0/Flycast" 2>$null | Out-Null
-        & adb @AdbArgs push $FlycastCfg "/storage/emulated/0/Flycast/emu.cfg" 2>$null | Out-Null
+        Push-AndroidConfigIfNeeded $FlycastCfg "/storage/emulated/0/Flycast/emu.cfg" -ForceOverwrite:$ForceTemplates
         foreach ($Pkg in @("com.flycast.emulator", "com.flyinghead.flycast")) {
             & adb @AdbArgs shell "mkdir -p /storage/emulated/0/Android/data/$Pkg/files" 2>$null | Out-Null
-            & adb @AdbArgs push $FlycastCfg "/storage/emulated/0/Android/data/$Pkg/files/emu.cfg" 2>$null | Out-Null
+            Push-AndroidConfigIfNeeded $FlycastCfg "/storage/emulated/0/Android/data/$Pkg/files/emu.cfg" -ForceOverwrite:$ForceTemplates
         }
     }
 
@@ -392,14 +413,14 @@ if (Test-Path $AndroidTemplatesDir) {
     if (Test-Path $DuckSettings) {
         Write-Host "Aplicando configuração: DuckStation..." -ForegroundColor Gray
         & adb @AdbArgs shell "mkdir -p /storage/emulated/0/Android/data/com.github.stenzek.duckstation/files" 2>$null | Out-Null
-        & adb @AdbArgs push $DuckSettings "/storage/emulated/0/Android/data/com.github.stenzek.duckstation/files/settings.ini" 2>$null | Out-Null
+        Push-AndroidConfigIfNeeded $DuckSettings "/storage/emulated/0/Android/data/com.github.stenzek.duckstation/files/settings.ini" -ForceOverwrite:$ForceTemplates
     }
     $NetherSettings = Join-Path $AndroidTemplatesDir "nethersx2_settings.ini"
     if (Test-Path $NetherSettings) {
         Write-Host "Aplicando configuração: NetherSX2..." -ForegroundColor Gray
         foreach ($Pkg in @("com.theemulatorapp.nethersx2", "xyz.nethersx2.android", "xyz.aethersx2.android")) {
             & adb @AdbArgs shell "mkdir -p /storage/emulated/0/Android/data/$Pkg/files" 2>$null | Out-Null
-            & adb @AdbArgs push $NetherSettings "/storage/emulated/0/Android/data/$Pkg/files/PCSX2.ini" 2>$null | Out-Null
+            Push-AndroidConfigIfNeeded $NetherSettings "/storage/emulated/0/Android/data/$Pkg/files/PCSX2.ini" -ForceOverwrite:$ForceTemplates
         }
     }
     Write-Host "Injeção de configurações concluída." -ForegroundColor Green
