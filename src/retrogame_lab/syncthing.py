@@ -1129,7 +1129,7 @@ def audit_android_syncthing(
     saves_android_stignore = f"{SYNCTHING_MANAGED_FOLDERS['saves']['android_path']}/.stignore"
     ret_cat, cat_out, _ = run_adb_command(["shell", "cat", saves_android_stignore], target_device)
 
-    if ret_cat == 0 and "state" in cat_out:
+    if ret_cat == 0:
         lines = [
             line.strip()
             for line in cat_out.splitlines()
@@ -1564,9 +1564,13 @@ def apply_android_syncthing_setup(
     # 1. Criar estrutura de diretórios e marcadores .stfolder no Android
     for spec in SYNCTHING_MANAGED_FOLDERS.values():
         p = spec["android_path"]
-        run_adb_command(["shell", "mkdir", "-p", p], target_device)
-        run_adb_command(["shell", "mkdir", "-p", f"{p}/.stfolder"], target_device)
-        actions.append(f"Criada pasta e marcador .stfolder em {p}/")
+        c1, _, e1 = run_adb_command(["shell", "mkdir", "-p", p], target_device)
+        c2, _, e2 = run_adb_command(["shell", "mkdir", "-p", f"{p}/.stfolder"], target_device)
+        if c1 == 0 and c2 == 0:
+            actions.append(f"Criada pasta e marcador .stfolder em {p}/")
+        else:
+            err_msg = (e2 or e1).strip()
+            actions.append(f"Aviso: Falha ao criar pasta/marcador em {p}/ ({err_msg})")
 
     # 2. Injetar data/saves/.stignore no Android
     saves_dir = get_saves_dir(repo_root)
@@ -1630,15 +1634,21 @@ def apply_android_syncthing_setup(
             target_device,
         )
         dest_cfg = "/storage/emulated/0/RetroGames/config/syncthing_android_config.xml"
-        run_adb_command(["push", str(local_xml_path), dest_cfg], target_device)
+        c_cfg, _, e_cfg = run_adb_command(["push", str(local_xml_path), dest_cfg], target_device)
 
         dest_down = "/storage/emulated/0/Download/syncthing_android_config.xml"
-        run_adb_command(["push", str(local_xml_path), dest_down], target_device)
+        c_down, _, e_down = run_adb_command(["push", str(local_xml_path), dest_down], target_device)
 
-        actions.append(
-            "Gerado arquivo de auto-configuração do Syncthing em "
-            "/storage/emulated/0/RetroGames/config/syncthing_android_config.xml e Download/"
-        )
+        if c_cfg == 0 and c_down == 0:
+            actions.append(
+                "Gerado arquivo de auto-configuração do Syncthing em "
+                "/storage/emulated/0/RetroGames/config/syncthing_android_config.xml e Download/"
+            )
+        else:
+            err_msg = (e_cfg or e_down).strip()
+            actions.append(
+                f"Aviso: Falha parcial ao enviar syncthing_android_config.xml ({err_msg})"
+            )
 
     # 5. Iniciar o app Syncthing no Android
     if installed_pkg:

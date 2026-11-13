@@ -950,3 +950,43 @@ def test_apply_windows_syncthing_config_generates_random_apikey(
     assert "syncthing-retrogame-lab-default-key" not in content
 
 
+def test_audit_android_syncthing_empty_stignore_and_push_failure(
+    mock_repo_root: Path,
+    mocker: MockerFixture,
+) -> None:
+    """Garante diagnóstico preciso de .stignore vazio e captura de erro de push ADB.
+
+    Args:
+        mock_repo_root: Raiz mockada do repositório.
+        mocker: Fixture do pytest-mock.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    mocker.patch("retrogame_lab.syncthing.get_connected_adb_devices", return_value=["phone-001"])
+
+    def mock_adb(args: list[str], dev: str = "") -> tuple[int, str, str]:
+        cmd_str = " ".join(args)
+        if "cat" in cmd_str and ".stignore" in cmd_str:
+            return 0, "", ""
+        if "push" in cmd_str and "syncthing_android_config.xml" in cmd_str:
+            return 1, "", "permission denied"
+        return 0, "", ""
+
+    mocker.patch("retrogame_lab.syncthing.run_adb_command", side_effect=mock_adb)
+
+    items, meta = audit_android_syncthing(mock_repo_root)
+    assert meta["stignore_ok"] is False
+    assert any("regras faltantes" in i.message for i in items)
+
+    actions = apply_android_syncthing_setup(
+        mock_repo_root,
+        windows_device_id="WIN-123",
+    )
+    assert any("Falha parcial ao enviar syncthing_android_config.xml" in a for a in actions)
+
+
+
