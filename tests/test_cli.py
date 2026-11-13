@@ -643,3 +643,75 @@ def test_cli_fetch_roms_generic(
     _, kwargs = mock_fetcher.call_args
     assert kwargs["platform_code"] == "ps1"
     assert kwargs["query"] == "crash"
+
+
+def test_cli_syncthing_apply_json_is_valid_json(
+    mocker: MockerFixture,
+    mock_repo_root: Path,
+) -> None:
+    """Garante que syncthing --apply --json emita apenas JSON válido em stdout.
+
+    Args:
+        mocker: Fixture do pytest-mock.
+        mock_repo_root: Fixture de raiz mockada.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    import json
+
+    from retrogame_lab.syncthing import SyncthingValidationReport
+
+    mocker.patch(
+        "retrogame_lab.cli.run_syncthing_validation",
+        return_value=SyncthingValidationReport(windows_running=True, android_connected=False),
+    )
+    mocker.patch("retrogame_lab.cli.apply_windows_syncthing_config", return_value=["Ação OK"])
+
+    res = runner.invoke(
+        app, ["syncthing", "-p", str(mock_repo_root), "--apply", "--no-android", "--json"]
+    )
+    assert res.exit_code == 0
+    parsed = json.loads(res.stdout)
+    assert parsed["windows"]["running"] is True
+
+
+def test_cli_syncthing_start_refreshes_report(
+    mocker: MockerFixture,
+    mock_repo_root: Path,
+) -> None:
+    """Garante revalidação do status após iniciar o daemon com --start.
+
+    Args:
+        mocker: Fixture do pytest-mock.
+        mock_repo_root: Fixture de raiz mockada.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    from retrogame_lab.syncthing import SyncthingValidationReport
+
+    mock_val = mocker.patch(
+        "retrogame_lab.cli.run_syncthing_validation",
+        side_effect=[
+            SyncthingValidationReport(windows_running=False),
+            SyncthingValidationReport(windows_running=True),
+        ],
+    )
+    mocker.patch("retrogame_lab.cli.start_windows_syncthing_daemon", return_value=True)
+
+    res = runner.invoke(
+        app, ["syncthing", "-p", str(mock_repo_root), "--start", "--no-android", "--json"]
+    )
+    assert res.exit_code == 0
+    assert mock_val.call_count == 2
+    import json
+
+    assert json.loads(res.stdout)["windows"]["running"] is True
+

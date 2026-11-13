@@ -153,6 +153,7 @@ def audit(
         console.print(f"[bold red]Erro:[/bold red] {err}")
         raise typer.Exit(code=1) from err
 
+    _ = full
     report = run_full_audit(resolved_root)
 
     if json_output:
@@ -436,6 +437,42 @@ def import_rom_cmd(
         raise typer.Exit(code=1) from err
 
 
+def _run_fetch_platform(
+    platform_code: str,
+    query: str | None,
+    identifier: str | None,
+) -> None:
+    """Executa o fetcher interativo para uma plataforma resolvendo a raiz do repositório.
+
+    Args:
+        platform_code: Código da plataforma homologada.
+        query: Termo opcional para pré-filtrar títulos.
+        identifier: Identificador alternativo da coleção no Internet Archive.
+
+    Returns:
+        None.
+
+    Raises:
+        typer.Exit: Se a plataforma for inválida.
+    """
+    try:
+        resolved_root = find_repo_root()
+    except FileNotFoundError:
+        resolved_root = Path.cwd()
+
+    try:
+        run_interactive_fetcher(
+            platform_code=platform_code,
+            query=query,
+            identifier=identifier,
+            repo_root=resolved_root,
+            console=console,
+        )
+    except ValueError as err:
+        console.print(f"[bold red]Erro:[/bold red] {err}")
+        raise typer.Exit(code=1) from err
+
+
 @app.command(name="fetch-roms")
 def fetch_roms_cmd(
     platform: Annotated[
@@ -479,517 +516,53 @@ def fetch_roms_cmd(
     Raises:
         typer.Exit: Se a plataforma for inválida.
     """
-    try:
-        resolved_root = find_repo_root()
-    except FileNotFoundError:
-        resolved_root = Path.cwd()
-
-    try:
-        run_interactive_fetcher(
-            platform_code=platform,
-            query=query,
-            identifier=identifier,
-            repo_root=resolved_root,
-            console=console,
-        )
-    except ValueError as err:
-        console.print(f"[bold red]Erro:[/bold red] {err}")
-        raise typer.Exit(code=1) from err
-
-
-@app.command(name="fetch-snes")
-def fetch_snes_cmd(
-    query: Annotated[
-        str | None,
-        typer.Option(
-            "--query",
-            "-q",
-            help="Termo de pesquisa opcional para pré-filtrar os jogos de SNES.",
-        ),
-    ] = None,
-    identifier: Annotated[
-        str | None,
-        typer.Option(
-            "--identifier",
-            "-i",
-            help="Identificador alternativo de coleção no Internet Archive.",
-        ),
-    ] = None,
-) -> None:
-    """Atalho direto: busca, seleciona e ingere jogos de SNES do acervo No-Intro.
-
-    Args:
-        query: Termo opcional para pré-filtrar títulos do acervo.
-        identifier: Identificador alternativo de coleção.
-
-    Returns:
-        None.
-
-    Raises:
-        None.
-    """
-    try:
-        resolved_root = find_repo_root()
-    except FileNotFoundError:
-        resolved_root = Path.cwd()
-
-    run_interactive_fetcher(
-        platform_code="snes",
-        query=query,
-        identifier=identifier,
-        repo_root=resolved_root,
-        console=console,
-    )
-
-
-@app.command(name="fetch-ps1")
-def fetch_ps1_cmd(
-    query: Annotated[
-        str | None,
-        typer.Option(
-            "--query",
-            "-q",
-            help="Termo de pesquisa opcional para pré-filtrar os jogos de PS1.",
-        ),
-    ] = None,
-    identifier: Annotated[
-        str | None,
-        typer.Option(
-            "--identifier",
-            "-i",
-            help="Identificador alternativo de coleção no Internet Archive.",
-        ),
-    ] = None,
-) -> None:
-    """Atalho direto: busca, seleciona e ingere jogos de PlayStation 1 do acervo Redump.
-
-    Args:
-        query: Termo opcional para pré-filtrar títulos do acervo.
-        identifier: Identificador alternativo de coleção.
-
-    Returns:
-        None.
-
-    Raises:
-        None.
-    """
-    try:
-        resolved_root = find_repo_root()
-    except FileNotFoundError:
-        resolved_root = Path.cwd()
-
-    run_interactive_fetcher(
-        platform_code="ps1",
-        query=query,
-        identifier=identifier,
-        repo_root=resolved_root,
-        console=console,
-    )
-
-
-@app.command(name="fetch-ps2")
-def fetch_ps2_cmd(
-    query: Annotated[
-        str | None,
-        typer.Option(
-            "--query",
-            "-q",
-            help="Termo de pesquisa opcional para pré-filtrar os jogos de PS2.",
-        ),
-    ] = None,
-    identifier: Annotated[
-        str | None,
-        typer.Option(
-            "--identifier",
-            "-i",
-            help="Identificador alternativo de coleção no Internet Archive.",
-        ),
-    ] = None,
-) -> None:
-    """Atalho direto: busca, seleciona e ingere jogos de PlayStation 2 do acervo Redump.
-
-    Args:
-        query: Termo opcional para pré-filtrar títulos do acervo.
-        identifier: Identificador alternativo de coleção.
-
-    Returns:
-        None.
-
-    Raises:
-        None.
-    """
-    try:
-        resolved_root = find_repo_root()
-    except FileNotFoundError:
-        resolved_root = Path.cwd()
-
-    run_interactive_fetcher(
-        platform_code="ps2",
-        query=query,
-        identifier=identifier,
-        repo_root=resolved_root,
-        console=console,
-    )
-
-
-@app.command(name="fetch-psp")
-def fetch_psp_cmd(
-    query: Annotated[
-        str | None,
-        typer.Option(
-            "--query",
-            "-q",
-            help="Termo de pesquisa opcional para pré-filtrar os jogos de PSP.",
-        ),
-    ] = None,
-    identifier: Annotated[
-        str | None,
-        typer.Option(
-            "--identifier",
-            "-i",
-            help="Identificador alternativo de coleção no Internet Archive.",
-        ),
-    ] = None,
-) -> None:
-    """Atalho direto: busca, seleciona e ingere jogos de PlayStation Portable do acervo Redump.
-
-    Args:
-        query: Termo opcional para pré-filtrar títulos do acervo.
-        identifier: Identificador alternativo de coleção.
-
-    Returns:
-        None.
-
-    Raises:
-        None.
-    """
-    try:
-        resolved_root = find_repo_root()
-    except FileNotFoundError:
-        resolved_root = Path.cwd()
-
-    run_interactive_fetcher(
-        platform_code="psp",
-        query=query,
-        identifier=identifier,
-        repo_root=resolved_root,
-        console=console,
-    )
-
-
-@app.command(name="fetch-gc")
-def fetch_gc_cmd(
-    query: Annotated[
-        str | None,
-        typer.Option(
-            "--query",
-            "-q",
-            help="Termo de pesquisa opcional para pré-filtrar os jogos de GameCube.",
-        ),
-    ] = None,
-    identifier: Annotated[
-        str | None,
-        typer.Option(
-            "--identifier",
-            "-i",
-            help="Identificador alternativo de coleção no Internet Archive.",
-        ),
-    ] = None,
-) -> None:
-    """Atalho direto: busca, seleciona e ingere jogos de Nintendo GameCube do acervo Redump RVZ.
-
-    Args:
-        query: Termo opcional para pré-filtrar títulos do acervo.
-        identifier: Identificador alternativo de coleção.
-
-    Returns:
-        None.
-
-    Raises:
-        None.
-    """
-    try:
-        resolved_root = find_repo_root()
-    except FileNotFoundError:
-        resolved_root = Path.cwd()
-
-    run_interactive_fetcher(
-        platform_code="gc",
-        query=query,
-        identifier=identifier,
-        repo_root=resolved_root,
-        console=console,
-    )
-
-
-@app.command(name="fetch-dc")
-def fetch_dc_cmd(
-    query: Annotated[
-        str | None,
-        typer.Option(
-            "--query",
-            "-q",
-            help="Termo de pesquisa opcional para pré-filtrar os jogos de Dreamcast.",
-        ),
-    ] = None,
-    identifier: Annotated[
-        str | None,
-        typer.Option(
-            "--identifier",
-            "-i",
-            help="Identificador alternativo de coleção no Internet Archive.",
-        ),
-    ] = None,
-) -> None:
-    """Atalho direto: busca, seleciona e ingere jogos de Sega Dreamcast do acervo Redump CHD.
-
-    Args:
-        query: Termo opcional para pré-filtrar títulos do acervo.
-        identifier: Identificador alternativo de coleção.
-
-    Returns:
-        None.
-
-    Raises:
-        None.
-    """
-    try:
-        resolved_root = find_repo_root()
-    except FileNotFoundError:
-        resolved_root = Path.cwd()
-
-    run_interactive_fetcher(
-        platform_code="dc",
-        query=query,
-        identifier=identifier,
-        repo_root=resolved_root,
-        console=console,
-    )
-
-
-@app.command(name="fetch-wii")
-def fetch_wii_cmd(
-    query: Annotated[
-        str | None,
-        typer.Option(
-            "--query",
-            "-q",
-            help="Termo de pesquisa opcional para pré-filtrar os jogos de Nintendo Wii.",
-        ),
-    ] = None,
-    identifier: Annotated[
-        str | None,
-        typer.Option(
-            "--identifier",
-            "-i",
-            help="Identificador alternativo de coleção no Internet Archive.",
-        ),
-    ] = None,
-) -> None:
-    """Atalho direto: busca, seleciona e ingere jogos de Nintendo Wii do acervo RVZ.
-
-    Args:
-        query: Termo opcional para pré-filtrar títulos do acervo.
-        identifier: Identificador alternativo de coleção.
-
-    Returns:
-        None.
-
-    Raises:
-        None.
-    """
-    try:
-        resolved_root = find_repo_root()
-    except FileNotFoundError:
-        resolved_root = Path.cwd()
-
-    run_interactive_fetcher(
-        platform_code="wii",
-        query=query,
-        identifier=identifier,
-        repo_root=resolved_root,
-        console=console,
-    )
-
-
-@app.command(name="fetch-n64")
-def fetch_n64_cmd(
-    query: Annotated[
-        str | None,
-        typer.Option(
-            "--query",
-            "-q",
-            help="Termo de pesquisa opcional para pré-filtrar os jogos de Nintendo 64.",
-        ),
-    ] = None,
-    identifier: Annotated[
-        str | None,
-        typer.Option(
-            "--identifier",
-            "-i",
-            help="Identificador alternativo de coleção no Internet Archive.",
-        ),
-    ] = None,
-) -> None:
-    """Atalho direto: busca, seleciona e ingere jogos de Nintendo 64 do acervo No-Intro.
-
-    Args:
-        query: Termo opcional para pré-filtrar títulos do acervo.
-        identifier: Identificador alternativo de coleção.
-
-    Returns:
-        None.
-
-    Raises:
-        None.
-    """
-    try:
-        resolved_root = find_repo_root()
-    except FileNotFoundError:
-        resolved_root = Path.cwd()
-
-    run_interactive_fetcher(
-        platform_code="n64",
-        query=query,
-        identifier=identifier,
-        repo_root=resolved_root,
-        console=console,
-    )
-
-
-@app.command(name="fetch-ps3")
-def fetch_ps3_cmd(
-    query: Annotated[
-        str | None,
-        typer.Option(
-            "--query",
-            "-q",
-            help="Termo de pesquisa opcional para pré-filtrar os jogos de PlayStation 3.",
-        ),
-    ] = None,
-    identifier: Annotated[
-        str | None,
-        typer.Option(
-            "--identifier",
-            "-i",
-            help="Identificador alternativo de coleção no Internet Archive.",
-        ),
-    ] = None,
-) -> None:
-    """Atalho direto: busca, seleciona e ingere jogos de PlayStation 3 (Windows-only).
-
-    Args:
-        query: Termo opcional para pré-filtrar títulos do acervo.
-        identifier: Identificador alternativo de coleção.
-
-    Returns:
-        None.
-
-    Raises:
-        None.
-    """
-    try:
-        resolved_root = find_repo_root()
-    except FileNotFoundError:
-        resolved_root = Path.cwd()
-
-    run_interactive_fetcher(
-        platform_code="ps3",
-        query=query,
-        identifier=identifier,
-        repo_root=resolved_root,
-        console=console,
-    )
-
-
-@app.command(name="fetch-xbox360")
-def fetch_xbox360_cmd(
-    query: Annotated[
-        str | None,
-        typer.Option(
-            "--query",
-            "-q",
-            help="Termo de pesquisa opcional para pré-filtrar os jogos de Xbox 360.",
-        ),
-    ] = None,
-    identifier: Annotated[
-        str | None,
-        typer.Option(
-            "--identifier",
-            "-i",
-            help="Identificador alternativo de coleção no Internet Archive.",
-        ),
-    ] = None,
-) -> None:
-    """Atalho direto: busca, seleciona e ingere jogos de Microsoft Xbox 360 (Windows-only).
-
-    Args:
-        query: Termo opcional para pré-filtrar títulos do acervo.
-        identifier: Identificador alternativo de coleção.
-
-    Returns:
-        None.
-
-    Raises:
-        None.
-    """
-    try:
-        resolved_root = find_repo_root()
-    except FileNotFoundError:
-        resolved_root = Path.cwd()
-
-    run_interactive_fetcher(
-        platform_code="xbox360",
-        query=query,
-        identifier=identifier,
-        repo_root=resolved_root,
-        console=console,
-    )
-
-
-@app.command(name="fetch-switch")
-def fetch_switch_cmd(
-    query: Annotated[
-        str | None,
-        typer.Option(
-            "--query",
-            "-q",
-            help="Termo de pesquisa opcional para pré-filtrar os jogos de Nintendo Switch.",
-        ),
-    ] = None,
-    identifier: Annotated[
-        str | None,
-        typer.Option(
-            "--identifier",
-            "-i",
-            help="Identificador alternativo de coleção no Internet Archive.",
-        ),
-    ] = None,
-) -> None:
-    """Atalho direto: busca, seleciona e ingere jogos de Nintendo Switch (Windows-only).
-
-    Args:
-        query: Termo opcional para pré-filtrar títulos do acervo.
-        identifier: Identificador alternativo de coleção.
-
-    Returns:
-        None.
-
-    Raises:
-        None.
-    """
-    try:
-        resolved_root = find_repo_root()
-    except FileNotFoundError:
-        resolved_root = Path.cwd()
-
-    run_interactive_fetcher(
-        platform_code="switch",
-        query=query,
-        identifier=identifier,
-        repo_root=resolved_root,
-        console=console,
-    )
+    _run_fetch_platform(platform, query, identifier)
+
+
+def _make_fetch_shortcut(platform_code: str, help_text: str) -> None:
+    """Registra dinamicamente um subcomando fetch-<plataforma> na CLI."""
+
+    def _cmd(
+        query: Annotated[
+            str | None,
+            typer.Option(
+                "--query",
+                "-q",
+                help=(
+                    f"Termo de pesquisa opcional para pré-filtrar os jogos de "
+                    f"{platform_code.upper()}."
+                ),
+            ),
+        ] = None,
+        identifier: Annotated[
+            str | None,
+            typer.Option(
+                "--identifier",
+                "-i",
+                help="Identificador alternativo de coleção no Internet Archive.",
+            ),
+        ] = None,
+    ) -> None:
+        _run_fetch_platform(platform_code, query, identifier)
+
+    _cmd.__doc__ = help_text
+    app.command(name=f"fetch-{platform_code}")(_cmd)
+
+
+for _plat_code, _plat_desc in (
+    ("snes", "Atalho direto: busca, seleciona e ingere jogos de SNES do acervo No-Intro."),
+    ("ps1", "Atalho direto: busca, seleciona e ingere jogos de PlayStation 1 do acervo Redump."),
+    ("ps2", "Atalho direto: busca, seleciona e ingere jogos de PlayStation 2 do acervo Redump."),
+    ("psp", "Atalho direto: busca, seleciona e ingere jogos de PSP do acervo Redump."),
+    ("gc", "Atalho direto: busca, seleciona e ingere jogos de GameCube do acervo Redump RVZ."),
+    ("dc", "Atalho direto: busca, seleciona e ingere jogos de Dreamcast do acervo Redump CHD."),
+    ("wii", "Atalho direto: busca, seleciona e ingere jogos de Nintendo Wii do acervo RVZ."),
+    ("n64", "Atalho direto: busca, seleciona e ingere jogos de Nintendo 64 do acervo No-Intro."),
+    ("ps3", "Atalho direto: busca, seleciona e ingere jogos de PlayStation 3 (Windows-only)."),
+    ("xbox360", "Atalho direto: busca, seleciona e ingere jogos de Xbox 360 (Windows-only)."),
+    ("switch", "Atalho direto: busca, seleciona e ingere jogos de Nintendo Switch (Windows-only)."),
+):
+    _make_fetch_shortcut(_plat_code, _plat_desc)
 
 
 def run_pwsh_script(script_name: str, args: list[str]) -> int:
@@ -1489,13 +1062,19 @@ def syncthing_cmd(
         device_id=device_id,
     )
 
+    needs_refresh = False
     if start or (apply and not report.windows_running and windows):
         started = start_windows_syncthing_daemon()
         if started:
-            console.print("  [green]• [Windows][/green] Daemon iniciado em segundo plano.")
+            needs_refresh = True
+            if not json_output:
+                console.print("  [green]• [Windows][/green] Daemon iniciado em segundo plano.")
 
     if apply:
-        console.print("\n[bold cyan]>>> Aplicando auto-configuração do Syncthing...[/bold cyan]")
+        if not json_output:
+            console.print(
+                "\n[bold cyan]>>> Aplicando auto-configuração do Syncthing...[/bold cyan]"
+            )
 
         if windows:
             try:
@@ -1503,10 +1082,12 @@ def syncthing_cmd(
                     repo_root=resolved_root,
                     android_device_id=report.android_device_id,
                 )
-                for act in win_actions:
-                    console.print(f"  [green]• [Windows][/green] {act}")
+                if not json_output:
+                    for act in win_actions:
+                        console.print(f"  [green]• [Windows][/green] {act}")
             except Exception as err:
-                console.print(f"  [bold red]• [Windows] Falha ao aplicar:[/bold red] {err}")
+                if not json_output:
+                    console.print(f"  [bold red]• [Windows] Falha ao aplicar:[/bold red] {err}")
 
         if android and report.android_connected:
             try:
@@ -1515,13 +1096,18 @@ def syncthing_cmd(
                     device_id=device_id,
                     windows_device_id=report.windows_device_id,
                 )
-                for act in and_actions:
-                    console.print(f"  [green]• [Android][/green] {act}")
+                if not json_output:
+                    for act in and_actions:
+                        console.print(f"  [green]• [Android][/green] {act}")
             except Exception as err:
-                console.print(f"  [bold red]• [Android] Falha ao provisionar:[/bold red] {err}")
-        elif android and not report.android_connected:
+                if not json_output:
+                    console.print(f"  [bold red]• [Android] Falha ao provisionar:[/bold red] {err}")
+        elif android and not report.android_connected and not json_output:
             console.print("  [yellow]• [Android] Ignorado: Dispositivo ADB não conectado.[/yellow]")
 
+        needs_refresh = True
+
+    if needs_refresh:
         report = run_syncthing_validation(
             repo_root=resolved_root,
             check_android=android,
