@@ -167,47 +167,19 @@ XBOX360_ALPHABET_PARTS: dict[str, str] = {
 
 # Catálogo de coleções canônicas de preservação (No-Intro, TOSEC e Redump) por plataforma
 PLATFORM_ARCHIVE_CONFIGS: dict[str, PlatformArchiveConfig] = {
+    # 4ª Geração (16-bit)
     "snes": PlatformArchiveConfig(
         platform_code="snes",
         default_identifier="nointro-snes",
         accepted_extensions=(".sfc", ".smc", ".zip"),
         description="No-Intro Super Nintendo Entertainment System",
     ),
+    # 5ª Geração (32/64-bit)
     "ps1": PlatformArchiveConfig(
         platform_code="ps1",
         default_identifier="chd_psx",
         accepted_extensions=(".chd", ".zip"),
         description="Redump Sony PlayStation 1 (USA CHD Collection)",
-    ),
-    "ps2": PlatformArchiveConfig(
-        platform_code="ps2",
-        default_identifier="ps2-redump-usa-chd-part-A",
-        accepted_extensions=(".chd", ".iso", ".zip"),
-        description="Redump Sony PlayStation 2 (USA CHD Collection - Particionado A-Z)",
-    ),
-    "psp": PlatformArchiveConfig(
-        platform_code="psp",
-        default_identifier="psp-chd-zstd-redump-part1",
-        accepted_extensions=(".cso", ".chd", ".iso", ".zip"),
-        description="Redump Sony PlayStation Portable (CHD-ZSTD Part 1 A-M)",
-    ),
-    "gc": PlatformArchiveConfig(
-        platform_code="gc",
-        default_identifier="first-party-dolphin-rvz",
-        accepted_extensions=(".rvz", ".zip"),
-        description="Redump Nintendo GameCube (RVZ Collection)",
-    ),
-    "dc": PlatformArchiveConfig(
-        platform_code="dc",
-        default_identifier="karous-eng",
-        accepted_extensions=(".chd", ".zip"),
-        description="Redump Sega Dreamcast 1G1R (CHD Collection)",
-    ),
-    "wii": PlatformArchiveConfig(
-        platform_code="wii",
-        default_identifier="Wii-p2-US-Arquivista",
-        accepted_extensions=(".rvz", ".iso", ".zip"),
-        description="Redump Nintendo Wii (RVZ US Collection - Particionado L-S)",
     ),
     "n64": PlatformArchiveConfig(
         platform_code="n64",
@@ -215,11 +187,31 @@ PLATFORM_ARCHIVE_CONFIGS: dict[str, PlatformArchiveConfig] = {
         accepted_extensions=(".z64", ".n64", ".v64", ".zip"),
         description="TOSEC Nintendo 64 Collection",
     ),
-    "ps3": PlatformArchiveConfig(
-        platform_code="ps3",
-        default_identifier="sony_playstation3_a_part1",
-        accepted_extensions=(".iso", ".pkg", ".zip"),
-        description="Redump Sony PlayStation 3 (Particionado A-Z)",
+    # 6ª Geração (128-bit)
+    "dc": PlatformArchiveConfig(
+        platform_code="dc",
+        default_identifier="karous-eng",
+        accepted_extensions=(".chd", ".zip"),
+        description="Redump Sega Dreamcast 1G1R (CHD Collection)",
+    ),
+    "ps2": PlatformArchiveConfig(
+        platform_code="ps2",
+        default_identifier="ps2-redump-usa-chd-part-A",
+        accepted_extensions=(".chd", ".iso", ".zip"),
+        description="Redump Sony PlayStation 2 (USA CHD Collection - Particionado A-Z)",
+    ),
+    "gc": PlatformArchiveConfig(
+        platform_code="gc",
+        default_identifier="first-party-dolphin-rvz",
+        accepted_extensions=(".rvz", ".zip"),
+        description="Redump Nintendo GameCube (RVZ Collection)",
+    ),
+    # 7ª Geração (Portátil & HD)
+    "psp": PlatformArchiveConfig(
+        platform_code="psp",
+        default_identifier="psp-chd-zstd-redump-part1",
+        accepted_extensions=(".cso", ".chd", ".iso", ".zip"),
+        description="Redump Sony PlayStation Portable (CHD-ZSTD Part 1 A-M)",
     ),
     "xbox360": PlatformArchiveConfig(
         platform_code="xbox360",
@@ -227,6 +219,19 @@ PLATFORM_ARCHIVE_CONFIGS: dict[str, PlatformArchiveConfig] = {
         accepted_extensions=(".iso", ".xex", ".zip"),
         description="Redump Microsoft Xbox 360 (Particionado A-Z)",
     ),
+    "ps3": PlatformArchiveConfig(
+        platform_code="ps3",
+        default_identifier="sony_playstation3_a_part1",
+        accepted_extensions=(".iso", ".pkg", ".zip"),
+        description="Redump Sony PlayStation 3 (Particionado A-Z)",
+    ),
+    "wii": PlatformArchiveConfig(
+        platform_code="wii",
+        default_identifier="Wii-p2-US-Arquivista",
+        accepted_extensions=(".rvz", ".iso", ".zip"),
+        description="Redump Nintendo Wii (RVZ US Collection - Particionado L-S)",
+    ),
+    # 8ª Geração (Híbrido)
     "switch": PlatformArchiveConfig(
         platform_code="switch",
         default_identifier="Switch-Backups",
@@ -980,8 +985,8 @@ def render_controls_panel(platform_code: str = "snes") -> Panel:
 
     plat_keys = "|".join(SUPPORTED_PLATFORMS.keys())
     text = (
-        "[bold cyan][1-N][/bold cyan] Baixar seleção (ex: [cyan]2[/cyan] ou [cyan]1, 3[/cyan])  •  "
-        "[bold yellow][n / p][/bold yellow] Próxima / Anterior  •  "
+        "[bold cyan]\\[1-N][/bold cyan] Baixar seleção (ex: [cyan]2[/cyan] ou [cyan]1, 3[/cyan])  •  "
+        "[bold yellow]\\[n / p][/bold yellow] Próxima / Anterior  •  "
         "[bold green]<texto>[/bold green] Filtrar título\n"
         f"{extra_commands}"
         f"[bold magenta]/plat <{plat_keys}>[/bold magenta] Trocar plataforma  •  "

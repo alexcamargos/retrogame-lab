@@ -775,3 +775,77 @@ def test_load_env_credentials_and_headers(
     headers = get_ia_auth_headers(repo_root=tmp_path)
     assert headers["Authorization"] == "LOW my_access_key_123:my_secret_key_456"
     assert "logged-in-sig=sig123" in headers["Cookie"]
+
+
+def test_render_header_panel_platform_order() -> None:
+    """Garante que o cabeçalho do fetcher exiba as plataformas em ordem cronológica por geração.
+
+    Args:
+        None.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    from rich.console import Console
+
+    from retrogame_lab.fetcher import PLATFORM_ARCHIVE_CONFIGS, render_header_panel
+
+    expected_order = [
+        "SNES",
+        "PS1",
+        "N64",
+        "DC",
+        "PS2",
+        "GC",
+        "PSP",
+        "XBOX360",
+        "PS3",
+        "WII",
+        "SWITCH",
+    ]
+    assert [code.upper() for code in PLATFORM_ARCHIVE_CONFIGS] == expected_order
+
+    panel = render_header_panel(
+        platform_code="wii",
+        identifier="Wii-p2-US-Arquivista",
+        total_items=456,
+        description="Redump Nintendo Wii",
+    )
+    console = Console(width=120, force_terminal=False)
+    with console.capture() as capture:
+        console.print(panel)
+    rendered = capture.get()
+
+    positions = [rendered.index(f" {label} ") for label in expected_order]
+    assert positions == sorted(positions)
+
+
+def test_render_controls_panel_shows_navigation_shortcuts() -> None:
+    """Garante que os atalhos de paginação e seleção sejam renderizados sem perda pelo Rich.
+
+    Args:
+        None.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    from rich.console import Console
+
+    from retrogame_lab.fetcher import render_controls_panel
+
+    console = Console(width=140, force_terminal=False)
+    with console.capture() as capture:
+        console.print(render_controls_panel("switch"))
+    rendered = capture.get()
+
+    assert "[1-N]" in rendered
+    assert "[n / p]" in rendered
+    assert "Próxima / Anterior" in rendered
+
+
