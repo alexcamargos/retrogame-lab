@@ -1016,5 +1016,81 @@ def test_run_interactive_fetcher_rollback_on_switch_error(
     assert "Super Nintendo Entertainment System" in output
 
 
+def test_search_alternative_partitions_psp_wii_ps3(
+    mock_repo_root: Path,
+    mocker: MockerFixture,
+) -> None:
+    """Valida busca automática em partições alternativas para PSP, Wii e PS3.
+
+    Args:
+        mock_repo_root: Fixture de raiz mockada do repositório.
+        mocker: Fixture do pytest-mock.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    from retrogame_lab.fetcher import _search_alternative_partitions
+
+    def fake_catalog(
+        identifier: str,
+        platform_code: str,
+        repo_root: Path | None = None,
+        force_refresh: bool = False,
+    ) -> list[ArchiveRomEntry]:
+        if identifier == "psp-chd-zstd-redump-part2":
+            return [
+                ArchiveRomEntry(
+                    filename="Tekken 6 (USA).chd",
+                    title="Tekken 6 (USA)",
+                    size_bytes=1024,
+                    download_url="https://archive.org/download/psp/tekken6.chd",
+                )
+            ]
+        if identifier == "Wii-p3-US-Arquivista":
+            return [
+                ArchiveRomEntry(
+                    filename="Xenoblade Chronicles (USA).rvz",
+                    title="Xenoblade Chronicles (USA)",
+                    size_bytes=2048,
+                    download_url="https://archive.org/download/wii/xeno.rvz",
+                )
+            ]
+        if identifier == "sony_playstation3_g_part2":
+            return [
+                ArchiveRomEntry(
+                    filename="God of War III (USA).iso",
+                    title="God of War III (USA)",
+                    size_bytes=4096,
+                    download_url="https://archive.org/download/ps3/gow3.iso",
+                )
+            ]
+        return []
+
+    mocker.patch("retrogame_lab.fetcher.get_archive_catalog", side_effect=fake_catalog)
+    console = Console(record=True)
+
+    psp_res = _search_alternative_partitions(
+        "psp", "psp-chd-zstd-redump-part1", "tekken", mock_repo_root, console
+    )
+    assert psp_res is not None
+    assert psp_res[0] == "psp-chd-zstd-redump-part2"
+
+    wii_res = _search_alternative_partitions(
+        "wii", "Wii-p1-EU-Arquivista", "xenoblade", mock_repo_root, console
+    )
+    assert wii_res is not None
+    assert wii_res[0] == "Wii-p3-US-Arquivista"
+
+    ps3_res = _search_alternative_partitions(
+        "ps3", "sony_playstation3_g_part1", "god of war", mock_repo_root, console
+    )
+    assert ps3_res is not None
+    assert ps3_res[0] == "sony_playstation3_g_part2"
+
+
+
 
 

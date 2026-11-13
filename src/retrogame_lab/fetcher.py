@@ -472,14 +472,14 @@ def get_archive_catalog(
 def search_catalog(
     catalog: list[ArchiveRomEntry],
     query: str = "",
-    limit: int = 50,
+    limit: int | None = 50,
 ) -> list[ArchiveRomEntry]:
     """Filtra títulos do catálogo a partir de termos de busca.
 
     Args:
         catalog: Lista de entradas do catálogo de ROMs.
         query: Termo ou termos de pesquisa (insensível a maiúsculas/minúsculas).
-        limit: Quantidade máxima de resultados a retornar.
+        limit: Quantidade máxima de resultados a retornar. Se None, retorna todos.
 
     Returns:
         Lista filtrada contendo até 'limit' entradas correspondentes.
@@ -488,11 +488,11 @@ def search_catalog(
         None.
     """
     if not query.strip():
-        return catalog[:limit]
+        return catalog if limit is None else catalog[:limit]
 
     tokens = [t.lower() for t in query.strip().split() if t.strip()]
     filtered = [item for item in catalog if all(token in item.title.lower() for token in tokens)]
-    return filtered[:limit]
+    return filtered if limit is None else filtered[:limit]
 
 
 def load_env_credentials(repo_root: Path | None = None) -> dict[str, str]:
@@ -1005,6 +1005,75 @@ def render_controls_panel(platform_code: str = "snes") -> Panel:
     )
 
 
+def _search_alternative_partitions(
+    platform_code: str,
+    active_identifier: str,
+    query: str,
+    repo_root: Path,
+    console: Console,
+) -> tuple[str, list[ArchiveRomEntry], list[ArchiveRomEntry]] | None:
+    """Busca o termo em partições alternativas de acervos particionados.
+
+    Args:
+        platform_code: Código da plataforma ativa.
+        active_identifier: Identificador da partição já consultada.
+        query: Termo de busca sem correspondências na partição atual.
+        repo_root: Raiz do repositório.
+        console: Instância de Console para mensagens de status.
+
+    Returns:
+        Tupla (novo_identificador, novo_catalogo, correspondencias) ou None.
+
+    Raises:
+        None.
+    """
+    candidate_ids: list[str] = []
+    if platform_code == "ps2":
+        found_part = find_ps2_partition_with_matches(
+            query=query, repo_root=repo_root, console=console
+        )
+        if found_part and found_part != active_identifier:
+            candidate_ids.append(found_part)
+    elif platform_code == "psp":
+        alt_part = (
+            "psp-chd-zstd-redump-part2"
+            if active_identifier == "psp-chd-zstd-redump-part1"
+            else "psp-chd-zstd-redump-part1"
+        )
+        candidate_ids.append(alt_part)
+    elif platform_code == "wii":
+        candidate_ids.extend(p for p in WII_PARTS.values() if p != active_identifier)
+    elif platform_code in ("ps3", "xbox360"):
+        prefix = "sony_playstation3_" if platform_code == "ps3" else "microsoft_xbox360_"
+        tokens = [t.lower() for t in query.strip().split() if t.strip()]
+        if tokens:
+            req_char = tokens[0][0]
+            char_key = "numberssymbols" if req_char.isdigit() else req_char
+            for part_num in range(1, 8):
+                cand = f"{prefix}{char_key}_part{part_num}"
+                if cand != active_identifier:
+                    candidate_ids.append(cand)
+
+    for cand_id in candidate_ids:
+        try:
+            alt_cat = get_archive_catalog(
+                identifier=cand_id,
+                platform_code=platform_code,
+                repo_root=repo_root,
+            )
+            alt_matches = search_catalog(alt_cat, query, limit=None)
+            if alt_matches:
+                console.print(
+                    f"\n[cyan]Títulos com '{query}' encontrados em "
+                    f"'{cand_id}'. Alternando acervo...[/cyan]"
+                )
+                return cand_id, alt_cat, alt_matches
+        except Exception:
+            continue
+
+    return None
+
+
 def run_interactive_fetcher(
     platform_code: str = "snes",
     query: str | None = None,
@@ -1061,119 +1130,17 @@ def run_interactive_fetcher(
 
         # Filtra os itens do catálogo
         if current_query.strip():
-            tokens = [t.lower() for t in current_query.strip().split() if t.strip()]
-            matched_items = [
-                item for item in catalog if all(tok in item.title.lower() for tok in tokens)
-            ]
-            # Se não encontrou jogos na partição ativa e for PS2, busca em outras partições
-            if not matched_items and active_plat == "ps2":
-                found_part = find_ps2_partition_with_matches(
-                    query=current_query, repo_root=root, console=c
+            matched_items = search_catalog(catalog, current_query, limit=None)
+            if not matched_items and active_plat in ("ps2", "psp", "wii", "ps3", "xbox360"):
+                alt_result = _search_alternative_partitions(
+                    platform_code=active_plat,
+                    active_identifier=active_identifier,
+                    query=current_query,
+                    repo_root=root,
+                    console=c,
                 )
-                if found_part and found_part != active_identifier:
-                    c.print(
-                        f"\n[cyan]Títulos com '{current_query}' encontrados na partição "
-                        f"'{found_part}'. Alternando acervo...[/cyan]"
-                    )
-                    active_identifier = found_part
-                    try:
-                        catalog = get_archive_catalog(
-                            identifier=active_identifier,
-                            platform_code=active_plat,
-                            repo_root=root,
-                        )
-                        matched_items = [
-                            item
-                            for item in catalog
-                            if all(tok in item.title.lower() for tok in tokens)
-                        ]
-                    except Exception:
-                        pass
-            # Se não encontrou jogos na parte ativa e for PSP, verifica a outra parte
-            elif not matched_items and active_plat == "psp":
-                alt_part = (
-                    "psp-chd-zstd-redump-part2"
-                    if active_identifier == "psp-chd-zstd-redump-part1"
-                    else "psp-chd-zstd-redump-part1"
-                )
-                try:
-                    alt_cat = get_archive_catalog(
-                        identifier=alt_part,
-                        platform_code=active_plat,
-                        repo_root=root,
-                    )
-                    alt_matches = [
-                        item for item in alt_cat if all(tok in item.title.lower() for tok in tokens)
-                    ]
-                    if alt_matches:
-                        active_identifier = alt_part
-                        catalog = alt_cat
-                        matched_items = alt_matches
-                        c.print(
-                            f"\n[cyan]Títulos com '{current_query}' encontrados em "
-                            f"'{active_identifier}'. Alternando acervo...[/cyan]"
-                        )
-                except Exception:
-                    pass
-            # Se não encontrou jogos na parte ativa e for Wii, verifica as demais partes
-            elif not matched_items and active_plat == "wii":
-                for part_key, part_id in WII_PARTS.items():
-                    if part_id == active_identifier:
-                        continue
-                    try:
-                        alt_cat = get_archive_catalog(
-                            identifier=part_id,
-                            platform_code=active_plat,
-                            repo_root=root,
-                        )
-                        alt_matches = [
-                            item
-                            for item in alt_cat
-                            if all(tok in item.title.lower() for tok in tokens)
-                        ]
-                        if alt_matches:
-                            active_identifier = part_id
-                            catalog = alt_cat
-                            matched_items = alt_matches
-                            c.print(
-                                f"\n[cyan]Títulos com '{current_query}' encontrados na Parte "
-                                f"{part_key} ({active_identifier}). Alternando acervo...[/cyan]"
-                            )
-                            break
-                    except Exception:
-                        pass
-            # Se não encontrou jogos na partição e for PS3/X360, verifica outras partes da letra
-            elif not matched_items and active_plat in ("ps3", "xbox360"):
-                prefix = "sony_playstation3_" if active_plat == "ps3" else "microsoft_xbox360_"
-                req_char = tokens[0][0]
-                char_key = "numberssymbols" if req_char.isdigit() else req_char
-                # Tenta outras partes da mesma letra (ex.: _part2, _part3)
-                for part_num in range(1, 8):
-                    candidate_id = f"{prefix}{char_key}_part{part_num}"
-                    if candidate_id == active_identifier:
-                        continue
-                    try:
-                        alt_cat = get_archive_catalog(
-                            identifier=candidate_id,
-                            platform_code=active_plat,
-                            repo_root=root,
-                        )
-                        alt_matches = [
-                            item
-                            for item in alt_cat
-                            if all(tok in item.title.lower() for tok in tokens)
-                        ]
-                        if alt_matches:
-                            active_identifier = candidate_id
-                            catalog = alt_cat
-                            matched_items = alt_matches
-                            c.print(
-                                f"\n[cyan]Títulos com '{current_query}' encontrados em "
-                                f"'{active_identifier}'. Alternando acervo...[/cyan]"
-                            )
-                            break
-                    except Exception:
-                        pass
+                if alt_result is not None:
+                    active_identifier, catalog, matched_items = alt_result
         else:
             matched_items = catalog
 
