@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param (
     [string]$DeviceId = "",
     [string]$TargetDevicePath = "/storage/emulated/0/RetroGames",
@@ -232,6 +232,23 @@ $NetherPackages = @("com.theemulatorapp.nethersx2", "xyz.nethersx2.android", "xy
 $NetherInstalled = Resolve-InstalledPackage -PackageCandidates $NetherPackages
 $NetherApk = Find-LocalApk -Pattern "*nether*.apk"
 
+if (-not $NetherApk -and -not $SkipDownload) {
+    Write-Host "Tentando baixar NetherSX2 Classic atualizado (Trixarian/NetherSX2-classic)..." -ForegroundColor Gray
+    try {
+        $Release = Invoke-RestMethod -Uri "https://api.github.com/repos/Trixarian/NetherSX2-classic/releases/latest" -Headers @{ "User-Agent" = "RetroGameLab-Bootstrap/1.0" }
+        $Asset = $Release.assets | Where-Object { $_.name -match "\.apk$" } | Select-Object -First 1
+        if ($Asset) {
+            $DefaultNetherFile = Join-Path $ApkCacheDir $Asset.name
+            Invoke-WebRequest -Uri $Asset.browser_download_url -OutFile $DefaultNetherFile -MaximumRedirection 10 -UserAgent "Mozilla/5.0"
+            if ((Test-Path $DefaultNetherFile) -and (Get-Item $DefaultNetherFile).Length -ge 1024) {
+                $NetherApk = $DefaultNetherFile
+            }
+        }
+    } catch {
+        Write-Warning "Download online de NetherSX2 Classic indisponível: $($_.Exception.Message)"
+    }
+}
+
 if ($NetherApk) {
     Write-Host "Instalando/Atualizando NetherSX2 do cache local ($([System.IO.Path]::GetFileName($NetherApk)))..." -ForegroundColor Green
     & adb @AdbArgs install -r -d -g $NetherApk
@@ -244,7 +261,7 @@ if ($NetherApk) {
     Write-Host "NetherSX2 já instalado no dispositivo Android ($NetherInstalled)." -ForegroundColor Green
 } else {
     Write-Host "[AVISO] NetherSX2.apk não encontrado em tools\android_apks\ nem instalado no dispositivo." -ForegroundColor Magenta
-    Write-Host "O NetherSX2 é um patch comunitário para o AetherSX2. Para instalar, copie o APK patcheado para tools\android_apks\" -ForegroundColor Gray
+    Write-Host "Execute '.\retrogame download-emulators -Emulators nethersx2' ou copie o APK para tools\android_apks\" -ForegroundColor Gray
 }
 
 foreach ($Pkg in $NetherPackages) {
@@ -273,53 +290,71 @@ if (Test-Path $AndroidTemplatesDir) {
         & adb @AdbArgs push $RetroArchCfg "/storage/emulated/0/RetroArch/retroarch.cfg" 2>$null | Out-Null
         & adb @AdbArgs push $RetroArchCfg "/storage/emulated/0/Android/data/com.retroarch.aarch64/files/retroarch.cfg" 2>$null | Out-Null
 
-        # Geração e Injeção Automática de Playlist de SNES (pré-vinculada ao Snes9x)
-        $LocalSnesRoms = @()
-        $LocalSnesDir = Join-Path $BaseDir "data\roms\snes"
-        if (Test-Path $LocalSnesDir) {
-            $LocalSnesRoms = @(Get-ChildItem -Path $LocalSnesDir -File | Where-Object { $_.Extension -in @(".sfc", ".smc", ".chd", ".zip") })
-        }
+        # Geração e Injeção Automática de Playlists (SNES e Nintendo 64)
+        $RetroArchPlaylists = @(
+            @{
+                Label      = "Super Nintendo"
+                RomSubdir  = "snes"
+                Extensions = @(".sfc", ".smc", ".chd", ".zip")
+                CorePath   = "/data/user/0/com.retroarch.aarch64/cores/snes9x_libretro_android.so"
+                CoreName   = "Nintendo - SNES / SFC (Snes9x)"
+                DbName     = "Nintendo - Super Nintendo Entertainment System.lpl"
+            },
+            @{
+                Label      = "Nintendo 64"
+                RomSubdir  = "n64"
+                Extensions = @(".z64", ".n64", ".v64", ".zip")
+                CorePath   = "/data/user/0/com.retroarch.aarch64/cores/mupen64plus_next_gles3_libretro_android.so"
+                CoreName   = "Nintendo - Nintendo 64 (Mupen64Plus-Next GLES3)"
+                DbName     = "Nintendo - Nintendo 64.lpl"
+            }
+        )
 
-        if ($LocalSnesRoms.Count -gt 0) {
-            Write-Host "Gerando playlist automática de Super Nintendo ($($LocalSnesRoms.Count) títulos)..." -ForegroundColor Gray
-            $PlaylistItems = @()
-            $TargetCorePath = "/data/user/0/com.retroarch.aarch64/cores/snes9x_libretro_android.so"
-            $TargetCoreName = "Nintendo - SNES / SFC (Snes9x)"
-            $DbName = "Nintendo - Super Nintendo Entertainment System.lpl"
+        foreach ($Pl in $RetroArchPlaylists) {
+            $LocalRomDir = Join-Path $BaseDir "data\roms\$($Pl.RomSubdir)"
+            $LocalRoms = @()
+            if (Test-Path $LocalRomDir) {
+                $LocalRoms = @(Get-ChildItem -Path $LocalRomDir -File | Where-Object { $_.Extension -in $Pl.Extensions })
+            }
 
-            foreach ($Rom in $LocalSnesRoms) {
-                $CleanLabel = $Rom.BaseName -replace "_", " "
-                $PlaylistItems += @{
-                    path      = "$TargetDevicePath/roms/snes/$($Rom.Name)"
-                    label     = $CleanLabel
-                    core_path = $TargetCorePath
-                    core_name = $TargetCoreName
-                    crc32     = "DETECT"
-                    db_name   = $DbName
+            if ($LocalRoms.Count -gt 0) {
+                Write-Host "Gerando playlist automática de $($Pl.Label) ($($LocalRoms.Count) títulos)..." -ForegroundColor Gray
+                $PlaylistItems = @()
+
+                foreach ($Rom in $LocalRoms) {
+                    $CleanLabel = $Rom.BaseName -replace "_", " "
+                    $PlaylistItems += @{
+                        path      = "$TargetDevicePath/roms/$($Pl.RomSubdir)/$($Rom.Name)"
+                        label     = $CleanLabel
+                        core_path = $Pl.CorePath
+                        core_name = $Pl.CoreName
+                        crc32     = "DETECT"
+                        db_name   = $Pl.DbName
+                    }
                 }
-            }
 
-            $PlaylistObj = @{
-                version            = "1.5"
-                default_core_path  = $TargetCorePath
-                default_core_name  = $TargetCoreName
-                label_display_mode = 0
-                right_thumbnail_mode = 0
-                left_thumbnail_mode  = 0
-                sort_mode          = 0
-                items              = $PlaylistItems
-            }
+                $PlaylistObj = @{
+                    version              = "1.5"
+                    default_core_path    = $Pl.CorePath
+                    default_core_name    = $Pl.CoreName
+                    label_display_mode   = 0
+                    right_thumbnail_mode = 0
+                    left_thumbnail_mode  = 0
+                    sort_mode            = 0
+                    items                = $PlaylistItems
+                }
 
-            $TempPlaylist = Join-Path $CoreCacheDir $DbName
-            $PlaylistObj | ConvertTo-Json -Depth 5 | Set-Content -Path $TempPlaylist -Encoding utf8
-            & adb @AdbArgs push $TempPlaylist "/storage/emulated/0/RetroArch/playlists/$DbName" 2>$null | Out-Null
-            & adb @AdbArgs push $TempPlaylist "/storage/emulated/0/Android/data/com.retroarch.aarch64/files/playlists/$DbName" 2>$null | Out-Null
+                $TempPlaylist = Join-Path $CoreCacheDir $Pl.DbName
+                $PlaylistObj | ConvertTo-Json -Depth 5 | Set-Content -Path $TempPlaylist -Encoding utf8
+                & adb @AdbArgs push $TempPlaylist "/storage/emulated/0/RetroArch/playlists/$($Pl.DbName)" 2>$null | Out-Null
+                & adb @AdbArgs push $TempPlaylist "/storage/emulated/0/Android/data/com.retroarch.aarch64/files/playlists/$($Pl.DbName)" 2>$null | Out-Null
+            }
         }
 
-        Write-Host ">>> [Aviso RetroArch / SNES] Segurança Android (Linker W^X sem Root):" -ForegroundColor Cyan
-        Write-Host "    A playlist de SNES foi gerada e vinculada ao Snes9x com sucesso." -ForegroundColor Gray
-        Write-Host "    Por restrição do Android, o binário (.so) deve residir no namespace interno do app." -ForegroundColor Gray
-        Write-Host "    Etapa única necessária no celular: Menu Principal -> Atualizador Online -> Baixar Núcleo -> Nintendo - SNES / SFC (Snes9x)." -ForegroundColor Yellow
+        Write-Host ">>> [Aviso RetroArch] Segurança Android (Linker W^X sem Root):" -ForegroundColor Cyan
+        Write-Host "    As playlists de SNES e N64 foram geradas e vinculadas aos respectivos núcleos." -ForegroundColor Gray
+        Write-Host "    Por restrição do Android, os binários (.so) devem residir no namespace interno do app." -ForegroundColor Gray
+        Write-Host "    Etapa única necessária no celular: Menu Principal -> Atualizador Online -> Baixar Núcleo -> Snes9x e Mupen64Plus-Next GLES3." -ForegroundColor Yellow
     }
 
     # 7.3 Injeção Direta - PPSSPP (PSP)
