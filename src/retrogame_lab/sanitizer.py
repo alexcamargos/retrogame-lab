@@ -7,6 +7,7 @@ e com caracteres totalmente convertidos para letras minúsculas.
 
 import os
 import re
+import warnings
 from pathlib import Path
 
 from retrogame_lab.config import INVALID_FILENAME_CHARS_PATTERN
@@ -110,28 +111,84 @@ def sanitize_directory(target_dir: Path, dry_run: bool = True) -> list[tuple[Pat
         raise NotADirectoryError(f"O caminho especificado não é um diretório: {target_dir}")
 
     changes: list[tuple[Path, Path]] = []
-    # Ordena com arquivos mais profundos primeiro; ignora arquivos ocultos (ex: .stignore)
+    # Saves nativos e metadados têm nomes definidos pelo jogo ou pelo Syncthing.
+    # Mídias com descritores são unidades compostas e não podem ser renomeadas isoladamente.
     all_files = sorted(
-        [f for f in target_dir.rglob("*") if f.is_file() and not f.name.startswith(".")],
+        [f for f in target_dir.rglob("*") if f.is_file()],
         key=lambda p: len(p.parts),
         reverse=True,
     )
 
     for file_path in all_files:
+        relative = file_path.relative_to(target_dir)
+        if any(part.startswith(".") for part in relative.parts):
+            continue
+        if "saves" in (part.lower() for part in file_path.parts):
+            continue
+        if file_path.suffix.lower() in {".cue", ".gdi", ".bin"}:
+            if file_path.name != sanitize_filename(file_path.name):
+                warnings.warn(
+                    f"Mídia composta preservada; converta antes de renomear: {file_path}",
+                    stacklevel=2,
+                )
+            continue
         sanitized_name = sanitize_filename(file_path.name)
         if file_path.name != sanitized_name:
             new_path = file_path.with_name(sanitized_name)
+            # Não desvincular um save que usa o nome original da ROM.
+            parts_lower = [part.lower() for part in file_path.parts]
+            if "roms" in parts_lower:
+                idx = parts_lower.index("roms")
+                if idx + 1 < len(file_path.parts):
+                    platform = file_path.parts[idx + 1].lower()
+                    saves = Path(*file_path.parts[:idx]) / "saves" / platform
+                    save_files = (
+                        (p for p in saves.rglob("*") if p.is_file()) if saves.is_dir() else ()
+                    )
+                    # Algumas plataformas usam IDs internos, não o nome da ROM.
+                    if any(
+                        platform not in {"snes", "n64"}
+                        or p.stem.casefold() == file_path.stem.casefold()
+                        for p in save_files
+                    ):
+                        warnings.warn(
+                            f"ROM preservada: existe save associado a {file_path.name}",
+                            stacklevel=2,
+                        )
+                        continue
             is_case_only = file_path.name.lower() == sanitized_name.lower()
             if new_path.exists() and not is_case_only:
+                warnings.warn(
+                    f"Colisão ao sanitizar {file_path}: {new_path} já existe", stacklevel=2
+                )
                 continue
             changes.append((file_path, new_path))
-            if not dry_run:
+    # Detecta também colisões entre dois arquivos ainda não renomeados.
+    destinations: dict[str, list[Path]] = {}
+    for old_path, new_path in changes:
+        destinations.setdefault(str(new_path).casefold(), []).append(old_path)
+    collisions = {key for key, sources in destinations.items() if len(sources) > 1}
+    if collisions:
+        for key in sorted(collisions):
+            warnings.warn(f"Colisão entre arquivos para o destino {key}", stacklevel=2)
+        changes = [(old, new) for old, new in changes if str(new).casefold() not in collisions]
+
+    if not dry_run:
+        for file_path, new_path in changes:
+            try:
+                file_path.rename(new_path)
+            except OSError:
+                if file_path.name.casefold() != new_path.name.casefold():
+                    raise
+                # Em filesystems que colidem no case-only, usa passo intermediário reversível.
+                temp_path = file_path.with_name(f"{file_path.name}.tmp_{os.getpid()}")
+                if temp_path.exists():
+                    raise FileExistsError(f"Arquivo temporário já existe: {temp_path}") from None
+                file_path.rename(temp_path)
                 try:
-                    file_path.rename(new_path)
-                except OSError:
-                    # Em filesystems que colidem no case-only (ex: FAT32), usa passo intermediário
-                    temp_path = file_path.with_name(f"{file_path.name}.tmp_{os.getpid()}")
-                    file_path.rename(temp_path)
                     temp_path.rename(new_path)
+                except OSError:
+                    temp_path.rename(file_path)
+                    raise
 
     return changes

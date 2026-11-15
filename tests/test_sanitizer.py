@@ -223,8 +223,44 @@ def test_sanitize_directory_skips_collision(tmp_path: Path) -> None:
     dirty = tmp_path / "mario world.sfc"
     dirty.write_text("dirty", encoding="utf-8")
 
-    changes = sanitize_directory(tmp_path, dry_run=False)
+    with pytest.warns(UserWarning, match="Colisão"):
+        changes = sanitize_directory(tmp_path, dry_run=False)
     assert changes == []
     assert clean.exists()
     assert dirty.exists()
+
+
+def test_preserves_native_saves_composite_media_and_associated_rom(tmp_path: Path) -> None:
+    """Preserva dados sensíveis e descritores sem alterar seus arquivos associados."""
+    data = tmp_path / "data"
+    names = [
+        "saves/psp/PSP/SAVEDATA/ULUS12345/PARAM.SFO",
+        "saves/.stversions/ps1/Old Save.mcd",
+        "saves/snes/Game Name.srm",
+        "roms/snes/Game Name.sfc",
+        "saves/ps1/Title_SLUS00000.mcd",
+        "roms/ps1/Another Game.chd",
+        "roms/ps1/Game Disc.cue",
+        "roms/ps1/Track 01.bin",
+    ]
+    for name in names:
+        path = data / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('FILE "Track 01.bin" BINARY', encoding="utf-8")
+    with pytest.warns(UserWarning):
+        assert sanitize_directory(data, dry_run=False) == []
+    assert all((data / name).is_file() for name in names)
+    assert '"Track 01.bin"' in (data / names[-2]).read_text(encoding="utf-8")
+
+
+def test_detects_collisions_between_planned_names_before_mutation(tmp_path: Path) -> None:
+    """Duas origens com o mesmo destino são ambas preservadas."""
+    first = tmp_path / "Game Name.sfc"
+    second = tmp_path / "Game  Name.sfc"
+    first.write_text("one", encoding="utf-8")
+    second.write_text("two", encoding="utf-8")
+    with pytest.warns(UserWarning, match="Colisão"):
+        assert sanitize_directory(tmp_path, dry_run=False) == []
+    assert first.read_text(encoding="utf-8") == "one"
+    assert second.read_text(encoding="utf-8") == "two"
 
