@@ -11,6 +11,7 @@ import os
 import secrets
 import shutil
 import subprocess
+import tempfile
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -39,8 +40,8 @@ STIGNORE_SAVE_RULES: list[str] = [
     "*.state*",
     "*.s[0-9][0-9]",
     "*.nvram.bak",
-    "*.ppst",
-    "*.p2s",
+    "*.ppst*",
+    "*.p2s*",
     "PPSSPP_STATE/",
     "",
     "// 2. Proibir Arquivos de Lock e Temporarios Ativos",
@@ -67,8 +68,8 @@ MANDATORY_IGNORE_PATTERNS: list[str] = [
     "*.state*",
     "*.s[0-9][0-9]",
     "*.nvram.bak",
-    "*.ppst",
-    "*.p2s",
+    "*.ppst*",
+    "*.p2s*",
     "PPSSPP_STATE/",
     "*.tmp*",
     "*.lock*",
@@ -534,6 +535,26 @@ def check_syncthing_rest_api(
     return None
 
 
+def _validate_ignore_text(content: str) -> tuple[bool, list[str]]:
+    """Valida regras e a precedência de exceções no conteúdo de .stignore."""
+    lines = [line.strip() for line in content.splitlines() if line.strip()]
+    rules = [line for line in lines if not line.startswith("//")]
+    missing = [pat for pat in MANDATORY_IGNORE_PATTERNS if pat not in rules]
+    if any(line.startswith("!") for line in rules):
+        first_exception = next(i for i, line in enumerate(rules) if line.startswith("!"))
+        if any(pat not in rules[:first_exception] for pat in MANDATORY_IGNORE_PATTERNS):
+            missing.append("exceção anterior às regras obrigatórias")
+    return not missing, missing
+
+
+def _merge_ignore_content(content: str) -> str:
+    """Precede as proteções obrigatórias, preservando todas as regras existentes."""
+    prefix = "\n".join(STIGNORE_SAVE_RULES) + "\n"
+    if content.startswith(prefix):
+        return content
+    return prefix + ("\n" + content if content else "")
+
+
 def validate_stignore_content(stignore_path: Path) -> tuple[bool, list[str]]:
     """Verifica se o arquivo .stignore contém todas as regras mandatórias anti-conflito.
 
@@ -554,13 +575,7 @@ def validate_stignore_content(stignore_path: Path) -> tuple[bool, list[str]]:
     except Exception:
         return False, list(MANDATORY_IGNORE_PATTERNS)
 
-    lines = [
-        line.strip()
-        for line in content.splitlines()
-        if line.strip() and not line.strip().startswith("//")
-    ]
-    missing = [pat for pat in MANDATORY_IGNORE_PATTERNS if pat not in lines]
-    return len(missing) == 0, missing
+    return _validate_ignore_text(content)
 
 
 def audit_windows_syncthing(repo_root: Path) -> tuple[list[ValidationItem], dict[str, Any]]:
@@ -1130,13 +1145,7 @@ def audit_android_syncthing(
     ret_cat, cat_out, _ = run_adb_command(["shell", "cat", saves_android_stignore], target_device)
 
     if ret_cat == 0:
-        lines = [
-            line.strip()
-            for line in cat_out.splitlines()
-            if line.strip() and not line.strip().startswith("//")
-        ]
-        missing = [pat for pat in MANDATORY_IGNORE_PATTERNS if pat not in lines]
-        meta["stignore_ok"] = len(missing) == 0
+        meta["stignore_ok"], missing = _validate_ignore_text(cat_out)
         if len(missing) == 0:
             items.append(
                 ValidationItem(
@@ -1254,6 +1263,10 @@ def apply_windows_syncthing_config(
     """
     actions: list[str] = []
 
+    # O daemon mantém a configuração em memória e pode sobrescrever edições em disco.
+    if is_windows_syncthing_running():
+        raise RuntimeError("Pare o Syncthing antes de alterar config.xml e reinicie-o depois.")
+
     # 1. Garantir diretórios locais e marcadores .stfolder
     saves_dir = get_saves_dir(repo_root)
     roms_dir = get_roms_dir(repo_root)
@@ -1268,8 +1281,8 @@ def apply_windows_syncthing_config(
 
     # 2. Gravar .stignore canônico em data/saves/.stignore
     stignore_path = saves_dir / ".stignore"
-    expected_content = "\n".join(STIGNORE_SAVE_RULES) + "\n"
     current_content = stignore_path.read_text(encoding="utf-8") if stignore_path.is_file() else ""
+    expected_content = _merge_ignore_content(current_content)
     if current_content != expected_content:
         stignore_path.write_text(expected_content, encoding="utf-8")
         actions.append("Atualizado data/saves/.stignore com regras anti-conflito completas")
@@ -1311,26 +1324,11 @@ def apply_windows_syncthing_config(
 
     # Backup de segurança antes de alterar
     backup_path = cfg_path.with_suffix(".xml.bak")
-    with contextlib.suppress(Exception):
-        shutil.copyfile(cfg_path, backup_path)
+    shutil.copyfile(cfg_path, backup_path)
 
     # 4. Modificação estruturada do XML
     tree = ET.parse(cfg_path)
     root = tree.getroot()
-
-    # Sanitização defensiva: expurga IDs inválidos no nível raiz e nas pastas
-    for d in list(root.findall("./device")):
-        dev_id = d.get("id", "").strip()
-        if not is_valid_syncthing_device_id(dev_id):
-            root.remove(d)
-            actions.append(f"Removido identificador inválido do config.xml ({dev_id})")
-
-    for f_elem in root.findall("./folder"):
-        for d in list(f_elem.findall("device")):
-            dev_id = d.get("id", "").strip()
-            if not is_valid_syncthing_device_id(dev_id):
-                f_elem.remove(d)
-                actions.append(f"Removido ID inválido ({dev_id}) da pasta {f_elem.get('label')}")
 
     # Detectar dispositivos válidos existentes no nível raiz
     existing_devices = [
@@ -1338,6 +1336,18 @@ def apply_windows_syncthing_config(
         for d in root.findall("./device")
         if is_valid_syncthing_device_id(d.get("id"))
     ]
+    local_device_id = None
+    syncthing_bin = find_windows_syncthing_binary()
+    if syncthing_bin:
+        with contextlib.suppress(OSError, subprocess.SubprocessError):
+            candidate = subprocess.check_output(
+                [str(syncthing_bin), "device-id"],
+                text=True,
+                stderr=subprocess.DEVNULL,
+                timeout=5,
+            ).strip()
+            if candidate in existing_devices:
+                local_device_id = candidate
 
     # Se informado um ID de Android e for um Syncthing Device ID válido
     if (
@@ -1423,7 +1433,13 @@ def apply_windows_syncthing_config(
             actions.append(f"Configurado versionamento '{v_type}' (5 cópias) para '{label}'")
 
         current_folder_devs = [d.get("id") for d in found_folder.findall("device") if d.get("id")]
-        for dev_id in existing_devices:
+        # Nunca associar todos os dispositivos preexistentes à biblioteca.
+        selected_devices = [
+            device
+            for device in (local_device_id, android_device_id)
+            if device and device in existing_devices
+        ]
+        for dev_id in selected_devices:
             if dev_id and dev_id not in current_folder_devs:
                 d_elem = ET.SubElement(found_folder, "device", {"id": dev_id, "introducedBy": ""})
                 ET.SubElement(d_elem, "encryptionPassword")
@@ -1432,7 +1448,9 @@ def apply_windows_syncthing_config(
     with contextlib.suppress(Exception):
         ET.indent(tree, space="    ")
 
-    tree.write(cfg_path, encoding="utf-8", xml_declaration=True)
+    tmp_cfg = cfg_path.with_suffix(".xml.retrogame.tmp")
+    tree.write(tmp_cfg, encoding="utf-8", xml_declaration=True)
+    tmp_cfg.replace(cfg_path)
     actions.append(f"Salvo arquivo de configuração atualizado: {cfg_path}")
 
     # Se o daemon estiver ativo e houver API key, solicita recarga
@@ -1559,6 +1577,8 @@ def apply_android_syncthing_setup(
     if not devices:
         raise RuntimeError("Nenhum dispositivo Android autorizado detectado via ADB.")
 
+    if device_id and device_id not in devices:
+        raise RuntimeError(f"Dispositivo ADB selecionado não está conectado: {device_id}")
     target_device = device_id if device_id in devices else devices[0]
 
     # 1. Criar estrutura de diretórios e marcadores .stfolder no Android
@@ -1573,15 +1593,27 @@ def apply_android_syncthing_setup(
             actions.append(f"Aviso: Falha ao criar pasta/marcador em {p}/ ({err_msg})")
 
     # 2. Injetar data/saves/.stignore no Android
-    saves_dir = get_saves_dir(repo_root)
-    local_stignore = saves_dir / ".stignore"
-    if not local_stignore.is_file():
-        local_stignore.write_text("\n".join(STIGNORE_SAVE_RULES) + "\n", encoding="utf-8")
-
     android_stignore_target = f"{SYNCTHING_MANAGED_FOLDERS['saves']['android_path']}/.stignore"
-    code, _, err = run_adb_command(
-        ["push", str(local_stignore), android_stignore_target], target_device
+    exists_code, _, exists_err = run_adb_command(
+        ["shell", "test", "-e", android_stignore_target], target_device
     )
+    if exists_code not in (0, 1) or (exists_code == 1 and exists_err.strip()):
+        raise RuntimeError(f"Não foi possível verificar o .stignore Android: {exists_err}")
+    remote_content = ""
+    if exists_code == 0:
+        read_code, remote_content, read_err = run_adb_command(
+            ["shell", "cat", android_stignore_target], target_device
+        )
+        if read_code != 0:
+            raise RuntimeError(f"Não foi possível ler o .stignore Android: {read_err}")
+    scratch = repo_root / "scratch"
+    scratch.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=scratch) as temporary:
+        merged = Path(temporary) / ".stignore"
+        merged.write_text(_merge_ignore_content(remote_content), encoding="utf-8")
+        code, _, err = run_adb_command(
+            ["push", str(merged), android_stignore_target], target_device
+        )
     if code == 0:
         actions.append(f"Enviado .stignore com regras anti-conflito para {android_stignore_target}")
     else:

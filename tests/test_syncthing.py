@@ -80,7 +80,7 @@ def test_validate_stignore_content_missing_rules(tmp_path: Path) -> None:
     is_valid, missing = validate_stignore_content(stignore)
     assert is_valid is False
     assert "*.s[0-9][0-9]" in missing
-    assert "*.ppst" in missing
+    assert "*.ppst*" in missing
     assert "PPSSPP_STATE/" in missing
     assert "ps3/" in missing
 
@@ -557,6 +557,8 @@ def test_apply_windows_syncthing_config(
         None.
     """
     monkeypatch.setenv("LOCALAPPDATA", str(mock_repo_root))
+    monkeypatch.setattr("retrogame_lab.syncthing.is_windows_syncthing_running", lambda: False)
+    monkeypatch.setattr("retrogame_lab.syncthing.find_windows_syncthing_binary", lambda: None)
     cfg_file = mock_repo_root / "Syncthing" / "config.xml"
 
     valid_android_id = "AFMVTPS-CB2OY5G-NQ55K45-6LCQIU2-YAMHTS2-C4PGASG-QJB3RIY-DEUAHAM"
@@ -585,11 +587,11 @@ def test_apply_windows_syncthing_config(
     assert len(actions) > 0
 
 
-def test_apply_windows_syncthing_config_sanitizes_invalid_id(
+def test_apply_windows_syncthing_config_preserves_unrelated_invalid_id(
     mock_repo_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Verifica o auto-expurgo de IDs de dispositivos inválidos (ex: serial ADB).
+    """Preserva dispositivos existentes mesmo quando seu ID é inválido.
 
     Args:
         mock_repo_root: Fixture de raiz mockada.
@@ -602,6 +604,8 @@ def test_apply_windows_syncthing_config_sanitizes_invalid_id(
         None.
     """
     monkeypatch.setenv("LOCALAPPDATA", str(mock_repo_root))
+    monkeypatch.setattr("retrogame_lab.syncthing.is_windows_syncthing_running", lambda: False)
+    monkeypatch.setattr("retrogame_lab.syncthing.find_windows_syncthing_binary", lambda: None)
     cfg_dir = mock_repo_root / "Syncthing"
     cfg_dir.mkdir(parents=True, exist_ok=True)
     cfg_file = cfg_dir / "config.xml"
@@ -618,9 +622,57 @@ def test_apply_windows_syncthing_config_sanitizes_invalid_id(
     actions = apply_windows_syncthing_config(mock_repo_root, android_device_id="0091208971")
 
     _, _, folders, devices = parse_windows_syncthing_config(cfg_file)
-    assert not any(d.id == "0091208971" for d in devices)
-    assert not any("0091208971" in f.devices for f in folders)
-    assert any("Removido identificador inválido" in a for a in actions)
+    assert any(d.id == "0091208971" for d in devices)
+    assert any("0091208971" in f.devices for f in folders)
+    assert not any("Removido identificador inválido" in a for a in actions)
+
+
+def test_apply_preserves_ignore_rules_and_shares_only_selected_device(
+    mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Proteções precedem exceções sem compartilhar com dispositivos não selecionados."""
+    monkeypatch.setenv("LOCALAPPDATA", str(mock_repo_root))
+    monkeypatch.setattr("retrogame_lab.syncthing.is_windows_syncthing_running", lambda: False)
+    monkeypatch.setattr("retrogame_lab.syncthing.find_windows_syncthing_binary", lambda: None)
+    selected = "AFMVTPS-CB2OY5G-NQ55K45-6LCQIU2-YAMHTS2-C4PGASG-QJB3RIY-DEUAHAM"
+    other = "ABCDEFG-ABCDEFG-ABCDEFG-ABCDEFG-ABCDEFG-ABCDEFG-ABCDEFG-ABCDEFG"
+    cfg = mock_repo_root / "Syncthing" / "config.xml"
+    cfg.parent.mkdir(parents=True, exist_ok=True)
+    cfg.write_text(
+        f'<configuration><device id="{other}" name="outro"/>'
+        '<gui><apikey>key</apikey></gui></configuration>', encoding="utf-8"
+    )
+    ignore = mock_repo_root / "data" / "saves" / ".stignore"
+    ignore.parent.mkdir(parents=True, exist_ok=True)
+    ignore.write_text("!*.state*\nprivate/\n", encoding="utf-8")
+    apply_windows_syncthing_config(mock_repo_root, android_device_id=selected)
+    content = ignore.read_text(encoding="utf-8")
+    assert content.index("*.state*") < content.index("!*.state*")
+    assert "private/" in content
+    assert "*.ppst*" in content and "*.p2s*" in content
+    assert validate_stignore_content(ignore)[0]
+    root = ET.parse(cfg).getroot()
+    for folder in root.findall("./folder"):
+        ids = [device.get("id") for device in folder.findall("device")]
+        assert selected in ids
+        assert other not in ids
+    apply_windows_syncthing_config(mock_repo_root, android_device_id=selected)
+    assert ignore.read_text(encoding="utf-8") == content
+
+
+def test_apply_refuses_to_edit_running_syncthing(
+    mock_repo_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Evita perder configuração mantida em memória pelo daemon."""
+    monkeypatch.setenv("LOCALAPPDATA", str(mock_repo_root))
+    monkeypatch.setattr("retrogame_lab.syncthing.is_windows_syncthing_running", lambda: True)
+    cfg = mock_repo_root / "Syncthing" / "config.xml"
+    cfg.parent.mkdir(parents=True, exist_ok=True)
+    original = "<configuration><gui><apikey>key</apikey></gui></configuration>"
+    cfg.write_text(original, encoding="utf-8")
+    with pytest.raises(RuntimeError, match="Pare o Syncthing"):
+        apply_windows_syncthing_config(mock_repo_root)
+    assert cfg.read_text(encoding="utf-8") == original
 
 
 def test_generate_android_syncthing_config() -> None:
@@ -688,6 +740,31 @@ def test_apply_android_syncthing_setup(mock_repo_root: Path, mocker: MockerFixtu
     assert any("push" in c and ".stignore" in c for c in call_strs)
     assert any("appops set com.github.catfriend1.syncthingandroid" in c for c in call_strs)
     assert any("dumpsys deviceidle whitelist" in c for c in call_strs)
+
+
+def test_android_apply_merges_remote_ignore_and_rejects_wrong_device(
+    mock_repo_root: Path, mocker: MockerFixture
+) -> None:
+    """Preserva regras remotas e nunca usa outro aparelho quando o serial é inválido."""
+    mocker.patch("retrogame_lab.syncthing.get_connected_adb_devices", return_value=["phone-001"])
+    pushed: list[str] = []
+
+    def mock_adb(args: list[str], dev: str = "") -> tuple[int, str, str]:
+        """Simula leitura e escrita do .stignore no aparelho selecionado."""
+        assert dev == "phone-001"
+        if args[:2] == ["shell", "cat"]:
+            return 0, "!*.state*\ncustom/\n", ""
+        if args[0] == "push" and args[-1].endswith("/.stignore"):
+            pushed.append(Path(args[1]).read_text(encoding="utf-8"))
+        return 0, "", ""
+
+    mocker.patch("retrogame_lab.syncthing.run_adb_command", side_effect=mock_adb)
+    with pytest.raises(RuntimeError, match="selecionado"):
+        apply_android_syncthing_setup(mock_repo_root, device_id="other")
+    apply_android_syncthing_setup(mock_repo_root, device_id="phone-001")
+    assert len(pushed) == 1
+    assert "custom/" in pushed[0]
+    assert pushed[0].index("*.state*") < pushed[0].index("!*.state*")
 
 
 def test_run_syncthing_validation(mock_repo_root: Path, mocker: MockerFixture) -> None:
