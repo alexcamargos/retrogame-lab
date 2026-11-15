@@ -55,6 +55,8 @@ $Candidates = Get-ChildItem -Path $SourceDirectory -Include *.cue, *.gdi, *.iso,
     return $true
 }
 
+$Conversions = @()
+$OutputPaths = @{}
 foreach ($File in $Candidates) {
     # Higieniza o nome do arquivo de saída (converte para minúsculas, substitui espaços por '_' e remove aspas e caracteres especiais)
     $BaseName = [System.IO.Path]::GetFileNameWithoutExtension($File.FullName).ToLower()
@@ -64,21 +66,41 @@ foreach ($File in $Candidates) {
     $SanitizedBase = $SanitizedBase.Trim("_")
 
     $OutFile = Join-Path $File.DirectoryName "$SanitizedBase.chd"
-    if (Test-Path $OutFile) {
-        Write-Host ">>> Arquivo já convertido, pulando: $(Split-Path $OutFile -Leaf)" -ForegroundColor Gray
-        continue
-    }
-
     $Ext = $File.Extension.ToLower()
-    $Command = "createcd"
-    if ($MediaType -eq "dvd" -or ($MediaType -eq "auto" -and $Ext -eq ".iso" -and ($File.DirectoryName -match "[\\/]ps2($|[\\/])" -or $SourceDirectory -match "[\\/]ps2($|[\\/])"))) {
-        $Command = "createdvd"
+    if ($MediaType -eq 'auto' -and $Ext -eq '.iso') {
+        throw "Tipo de mídia ambíguo para '$($File.FullName)'. Informe -MediaType cd ou dvd."
     }
+    if ($MediaType -eq 'dvd' -and $Ext -ne '.iso') {
+        throw "DVD exige ISO de dados, não '$($File.Name)'."
+    }
+    $Command = if ($MediaType -eq 'dvd') { 'createdvd' } else { 'createcd' }
+    $OutputKey = $OutFile.ToLowerInvariant()
+    if ($OutputPaths.ContainsKey($OutputKey)) {
+        throw "Colisão de saída entre '$($OutputPaths[$OutputKey])' e '$($File.FullName)': $OutFile"
+    }
+    $OutputPaths[$OutputKey] = $File.FullName
+    if (Test-Path -LiteralPath $OutFile) {
+        throw "Saída já existe e sua origem não pode ser verificada: $OutFile"
+    }
+    $Conversions += [PSCustomObject]@{ File = $File; OutFile = $OutFile; Command = $Command }
+}
 
+foreach ($Conversion in $Conversions) {
+    $File = $Conversion.File
+    $OutFile = $Conversion.OutFile
+    $Command = $Conversion.Command
+    $TempOut = "$OutFile.partial_$PID"
+    if (Test-Path -LiteralPath $TempOut) { throw "Arquivo temporário já existe: $TempOut" }
     Write-Host ">>> Comprimindo ($Command): $($File.Name) -> $(Split-Path $OutFile -Leaf)" -ForegroundColor Cyan
-    & $Chdman $Command -i $File.FullName -o $OutFile
-    if ($LASTEXITCODE -ne 0) {
-        if (Test-Path $OutFile) { Remove-Item $OutFile -Force }
-        Write-Error "Falha ao converter '$($File.Name)' para CHD via chdman (código de saída: $LASTEXITCODE)."
+    try {
+        & $Chdman $Command -i $File.FullName -o $TempOut
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $TempOut)) {
+            throw "Falha ao converter '$($File.Name)' (código: $LASTEXITCODE)."
+        }
+        & $Chdman verify -i $TempOut
+        if ($LASTEXITCODE -ne 0) { throw "Falha na verificação do CHD: $TempOut" }
+        Move-Item -LiteralPath $TempOut -Destination $OutFile
+    } finally {
+        if (Test-Path -LiteralPath $TempOut) { Remove-Item -LiteralPath $TempOut -Force }
     }
 }
