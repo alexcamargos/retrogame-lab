@@ -21,7 +21,7 @@ pwsh -NoProfile -File scripts/launch.ps1 -Platform <snes|ps1|ps2|psp|gc|dc|wii|n
 * **Comportamento Automático:**
   * **Trava Pré-Voo:** Inspeciona o nome da ROM física; caso contenha espaços ou caracteres especiais, executa auto-higienização física no disco antes de lançar o emulador.
   * Detecta automaticamente GPUs dedicadas (NVIDIA/Radeon/Arc) e injeta preferência de alto desempenho no registro do DirectX.
-  * Em CPUs híbridas (Intel 12ª Gen+, Core Ultra), vincula processos com alta demanda de IPC (PCSX2, Dolphin, RPCS3, Xenia, Ryujinx) aos **P-cores (0 a 7)**.
+  * Deixa a afinidade de CPU sob controle do escalonador do sistema quando a topologia não foi identificada com segurança.
   * Executa o processo com isolamento estrito do diretório de trabalho (*Push-Location / Pop-Location*).
 
 ---
@@ -85,7 +85,7 @@ pwsh -NoProfile -File scripts/convert_chd.ps1 -SourceDirectory <caminho_pasta> [
 
 * **Diferenciação Canônica:**
   * Discos baseados em CD: comando `createcd` (setor bruto de 2352 bytes).
-  * Discos baseados em DVD de PS2: comando `createdvd` (setor limpo de 2048 bytes).
+  * Discos baseados em DVD de PS2: comando `createdvd` (setor limpo de 2048 bytes). ISOs exigem `-MediaType cd` ou `-MediaType dvd` explícito.
   * Ignora automaticamente GameCube/Wii (que utilizam `.rvz` nativo).
 
 ---
