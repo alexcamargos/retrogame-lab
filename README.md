@@ -8,7 +8,7 @@ Inspirado na arquitetura e filosofia de isolamento do projeto [akitaonrails/dist
 
 ## Princípios de Arquitetura
 
-1. **Agnosticismo de Hardware com Perfilamento Dinâmico:** O ecossistema opera em qualquer computador com Windows 11 (adaptando-se a CPUs Intel/AMD com ou sem topologia híbrida e a gráficos integrados ou GPUs dedicadas) e em qualquer dispositivo móvel Android (Smartphones, Tablets ou Consoles Portáteis ARM64). A seleção de backend gráfico, resoluções internas e afinidade de núcleos ocorre dinamicamente no momento da execução do jogo.
+1. **Agnosticismo de Hardware:** O ecossistema atende computadores Windows 11 e dispositivos Android ARM64. O lançador detecta GPUs dedicadas; os perfis iniciais usam resoluções conservadoras e o escalonador do sistema gerencia a CPU.
 2. **Baselines de Referência para Homologação:** Dispositivos específicos (como notebook com Intel 12ª Gen + RTX 4050 e smartphone com Snapdragon) foram utilizados estritamente como *benchmarks empíricos de homologação* para atestar limites de estresse térmico e estabilidade, e não como requisitos rígidos de sistema.
 3. **Portabilidade Estática por Diretório (*Zero-Install*):** Toda a suíte de emulação opera com caminhos relativos em pastas isoladas, sem gravar no registro global do sistema ou no `%APPDATA%`.
 4. **Sincronização Híbrida Segura:** A sincronização Windows $\leftrightarrow$ Android via Syncthing é estritamente restrita a saves *in-game* (SRAM / Memory Card) e firmwares/ROMs, blindada contra conflitos de sobrescrita e incompatibilidades binárias de savestates (x86_64 vs ARM64).
@@ -29,7 +29,7 @@ A documentação detalhada de engenharia e decisões operacionais está estrutur
   * Boas práticas de retrogaming, anti-conflito de saves e regras de perfilamento dinâmico de hardware.
 * **[Especificação Técnica: Pipeline Windows 11](docs/specs-windows.md)**
   * Arquitetura de portabilidade estática por diretório (*Zero-Install*).
-  * Perfilamento dinâmico de CPU (P-cores) e GPU (dGPU vs iGPU).
+  * Detecção de GPU (dGPU vs iGPU) e escalonamento de CPU pelo sistema.
   * Automações: `launch.ps1`, `convert_chd.ps1`, `bootstrap.ps1` e integração opcional com o frontend visual **ES-DE Portable**.
 * **[Especificação Técnica: Sincronização e Pareamento Android](docs/specs-android.md)**
   * Topologia Syncthing: saves bidirecionais com versionamento simples, BIOS e ROMs *send-only*.
@@ -158,10 +158,10 @@ Permite buscar, escolher e baixar títulos para todas as plataformas homologadas
 
 ### 5. Lançamento Dinâmico de Jogos
 
-Inicia o emulador da plataforma selecionada aplicando perfilamento dinâmico de GPU (dGPU vs iGPU), isolamento de diretório de trabalho (*CWD*) e afinidade protegida de CPU para P-cores em processadores híbridos. Conta ainda com **trava de pré-voo ativa**: caso uma ROM contenha espaços ou caracteres proibidos, realiza a auto-higienização física no disco antes de abrir o emulador.
+Inicia o emulador com detecção de GPU e isolamento do diretório de trabalho (*CWD*). A trava pré-voo normaliza nomes quando é seguro; mídias compostas e ROMs com saves associados exigem tratamento manual.
 
 ```powershell
-# Lançamento com detecção automática de GPU e afinidade de P-cores
+# Lançamento com detecção automática de GPU
 .\retrogame launch -Platform ps1 -RomPath data\roms\ps1\meu_jogo.chd
 
 # Lançamento em modo janela (-Windowed)
@@ -178,6 +178,8 @@ Inicia o emulador da plataforma selecionada aplicando perfilamento dinâmico de 
 ### 6. Gerenciamento e Provisionamento do Syncthing
 
 Valida o status do serviço no Windows e no Android via ADB, audita a consistência das 3 pastas obrigatórias (`retrogames-saves`, `retrogames-bios`, `retrogames-roms`), confere regras de exclusão do `.stignore` (barrando savestates `.state*`, `.ppst`, `.p2s`) e aplica configurações automaticamente:
+
+Para aplicar a configuração do Windows, encerre o Syncthing antes. O comando preserva exclusões personalizadas e vincula somente o Android selecionado.
 
 ```powershell
 # Auditoria de conectividade e consistência do Syncthing (Windows + Android)
@@ -199,7 +201,7 @@ Valida o status do serviço no Windows e no Android via ADB, audita a consistên
 
 ### 7. Conversão Determinística de Mídias para CHD
 
-Compacta imagens de disco (`.cue`/`.bin`, `.iso`) para o formato `.chd`, diferenciando automaticamente faixas de áudio CD-DA de CD-ROM (`createcd`, setor de 2352 bytes) e trilhas de dados de DVD (`createdvd`, setor de 2048 bytes), higienizando o nome do arquivo final e limpando arquivos parciais em caso de falha.
+Compacta imagens de disco para `.chd` e verifica a saída. Descritores `.cue` e `.gdi` são tratados como CD; para ISO é obrigatório informar `-MediaType cd` ou `-MediaType dvd`. O comando recusa colisões e saídas preexistentes de origem não comprovada.
 
 ```powershell
 # Comprimir mídias de CD (PS1/DC) e DVD (PS2) na pasta indicada

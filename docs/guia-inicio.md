@@ -221,7 +221,7 @@ O script realiza automaticamente todas as configuracoes criticas de sistema:
 4. **Bypass de Scoped Storage:** Concede a permissao especial `MANAGE_EXTERNAL_STORAGE` para os pacotes dos emuladores via `appops`, permitindo leitura e gravacao direta em `/storage/emulated/0/RetroGames/`.
 5. **Whitelist de Bateria (Doze Mode):** Adiciona os pacotes do Syncthing a lista de isencao de economia de energia (`dumpsys deviceidle whitelist`), garantindo sincronizacao em segundo plano com a tela apagada.
 6. **Instalacao de Emuladores:** Baixa e instala as versoes oficiais ARM64 de RetroArch, PPSSPP, Dolphin, Flycast e NetherSX2 Classic (e instala DuckStation caso o APK esteja presente na pasta `tools/android_apks/`).
-7. **Injecao de Configuracoes Automaticas:** Injeta os templates otimizados (`retroarch.cfg`, `ppsspp.ini`, `Dolphin.ini`, `emu.cfg`, `duckstation_settings.ini`, `nethersx2_settings.ini`) diretamente nas pastas de dados dos emuladores e espelha copias de seguranca em `/storage/emulated/0/RetroGames/config/`.
+7. **Configuracoes:** Disponibiliza perfis em `/storage/emulated/0/RetroGames/config/`. Na primeira instalacao, inicia o Dolphin para que ele crie sua configuracao e aplica o perfil inicial ao arquivo criado; configuracoes existentes sao preservadas. Adicione as pastas de jogos no aplicativo.
 
 ---
 
@@ -275,7 +275,7 @@ Configure exatamente as tres pastas abaixo para manter o isolamento e evitar per
 ## 6. Etapa 5: Calibracao dos Emuladores no Android
 
 > [!NOTE]
-> **Injecao Automatica via ADB:** Se voce executou `.\retrogame android` (ou `setup_android_emulators.ps1`), a maioria dos emuladores (**RetroArch, PPSSPP, Dolphin e Flycast**) ja tera seus caminhos de BIOS, Saves e ROMs configurados automaticamente. Os passos abaixo servem para confirmacao ou para os emuladores que exigem concessao de leitura via interface visual (Storage Access Framework).
+> **Configuracao via ADB:** No primeiro provisionamento, o script tenta aplicar o perfil inicial do Dolphin apos o aplicativo criar seus arquivos. Configuracoes existentes sao preservadas, mesmo com `-ForceTemplates`. Selecione as pastas de jogos no Dolphin e conceda acesso pelo seletor do Android.
 
 Para que os emuladores leiam os mesmos arquivos sincronizados pelo Syncthing, confirme os seguintes caminhos no dispositivo Android:
 
@@ -335,8 +335,14 @@ Para alternar entre jogar no computador e no dispositivo movel de forma segura e
 
 1. **Salve sempre pelo menu do jogo:** Utilize os *save points* e opcoes nativas de gravacao de jogo ou cartao de memoria. **Nunca use savestates** para trocar de aparelho.
 2. **Encerre o emulador no aparelho de origem:** Emuladores mantem arquivos abertos em buffers de memoria RAM enquanto estao em execucao. Apenas ao fechar a aplicacao os dados sao descarregados fisicamente para o arquivo de disco.
-3. **Aguarde a sincronizacao na rede local:** Com ambos os aparelhos conectados ao mesmo Wi-Fi, o Syncthing detecta a alteracao no arquivo em aproximadamente 2 a 5 segundos.
+3. **Confirme a sincronizacao:** Com ambos os aparelhos conectados, aguarde o Syncthing indicar que as pastas estao atualizadas nos dois dispositivos. O tempo varia conforme a rede e o estado do aplicativo.
 4. **Abra o emulador no aparelho de destino:** Ao iniciar a sessao no outro aparelho, seu progresso estara perfeitamente atualizado.
+
+Antes de executar `syncthing --apply` no Windows, encerre o Syncthing. A configuracao e alterada com o daemon parado para evitar sobrescrever mudancas em memoria; reinicie-o depois, ou use `--apply --start` com o daemon parado. Apenas o Android selecionado e vinculado automaticamente.
+
+O comando `sanitize` preserva saves nativos, arquivos de historico e conjuntos CUE/GDI/BIN. Leia os avisos de colisao e de saves associados antes de alterar nomes. Para imagens ISO, `convert-chd` exige a opcao explicita `--media-type cd` ou `--media-type dvd`; o script PowerShell usa `-MediaType cd` ou `-MediaType dvd`.
+
+Depois de mover a pasta do projeto, execute `bootstrap -SkipWinget` para validar as juncoes de saves. Se uma junção antiga ainda apontar para um diretorio existente, o bootstrap interrompe a operacao para evitar ocultar saves que possam estar nesse local.
 
 ---
 
