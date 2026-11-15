@@ -8,6 +8,7 @@ import contextlib
 import json
 import subprocess
 import sys
+import warnings
 from pathlib import Path
 from typing import Annotated
 
@@ -308,12 +309,17 @@ def sanitize(
     )
     console.print(f"Diretório alvo: [white]{scan_dir}[/white]\n")
 
-    changes = sanitize_directory(scan_dir, dry_run=dry_run)
+    with warnings.catch_warnings(record=True) as notices:
+        warnings.simplefilter("always")
+        changes = sanitize_directory(scan_dir, dry_run=dry_run)
+    for notice in notices:
+        console.print(f"[yellow]Aviso:[/yellow] {notice.message}")
 
     if not changes:
-        console.print(
-            "[bold green]Todos os arquivos estão 100% em conformidade com o padrão![/bold green]\n"
-        )
+        if not notices:
+            console.print(
+                "[bold green]Nenhuma alteração necessária nos arquivos elegíveis.[/bold green]\n"
+            )
         return
 
     table = Table(show_header=True, header_style="bold magenta")
@@ -1063,13 +1069,14 @@ def syncthing_cmd(
     )
 
     needs_refresh = False
-    if start or (apply and not report.windows_running and windows):
+    if start and not apply:
         started = start_windows_syncthing_daemon()
         if started:
             needs_refresh = True
             if not json_output:
                 console.print("  [green]• [Windows][/green] Daemon iniciado em segundo plano.")
 
+    apply_failed = False
     if apply:
         if not json_output:
             console.print(
@@ -1086,6 +1093,7 @@ def syncthing_cmd(
                     for act in win_actions:
                         console.print(f"  [green]• [Windows][/green] {act}")
             except Exception as err:
+                apply_failed = True
                 if not json_output:
                     console.print(f"  [bold red]• [Windows] Falha ao aplicar:[/bold red] {err}")
 
@@ -1100,11 +1108,16 @@ def syncthing_cmd(
                     for act in and_actions:
                         console.print(f"  [green]• [Android][/green] {act}")
             except Exception as err:
+                apply_failed = True
                 if not json_output:
                     console.print(f"  [bold red]• [Android] Falha ao provisionar:[/bold red] {err}")
         elif android and not report.android_connected and not json_output:
             console.print("  [yellow]• [Android] Ignorado: Dispositivo ADB não conectado.[/yellow]")
 
+        if start and windows and not apply_failed and not start_windows_syncthing_daemon():
+            apply_failed = True
+            if not json_output:
+                console.print("  [red]• [Windows] Falha ao iniciar o Syncthing.[/red]")
         needs_refresh = True
 
     if needs_refresh:
@@ -1156,16 +1169,16 @@ def syncthing_cmd(
                 }
                 for item in report.items
             ],
-            "has_errors": report.has_errors,
+            "has_errors": report.has_errors or apply_failed,
             "has_warnings": report.has_warnings,
         }
         print(json.dumps(data, indent=2, ensure_ascii=False))
-        if report.has_errors:
+        if report.has_errors or apply_failed:
             raise typer.Exit(code=1)
         return
 
     render_syncthing_report(report, console=console)
-    if report.has_errors:
+    if report.has_errors or apply_failed:
         raise typer.Exit(code=1)
 
 
