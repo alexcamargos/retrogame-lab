@@ -36,6 +36,14 @@ $ResolvedRom = (Resolve-Path $RomPath).Path
 $RomItem = Get-Item $ResolvedRom
 $RomLeaf = $RomItem.Name
 if ($RomLeaf -match "[\s'""`~^!?\:;*<>|#]" -or $RomLeaf -cne $RomLeaf.ToLower()) {
+    if ($RomItem.Extension -in @('.cue', '.gdi', '.bin')) {
+        throw "Mídia composta não pode ser renomeada isoladamente: $ResolvedRom. Converta o conjunto antes de lançar."
+    }
+    $SaveDir = Join-Path $DataDir "saves\$Platform"
+    $PotentialSaves = if (Test-Path $SaveDir) { Get-ChildItem -LiteralPath $SaveDir -File -Recurse }
+    if ($PotentialSaves | Where-Object { $Platform -notin @('snes', 'n64') -or $_.BaseName -ieq $RomItem.BaseName }) {
+        throw "ROM possui save associado: preserve o nome ou migre ROM e save juntos após fazer backup."
+    }
     $Stem = [System.IO.Path]::GetFileNameWithoutExtension($RomLeaf).ToLower()
     $Ext = [System.IO.Path]::GetExtension($RomLeaf).ToLower()
 
@@ -265,25 +273,7 @@ try {
 
     $Process = Start-Process -FilePath $Emulator -ArgumentList $EscapedArgs -PassThru
 
-    # Aplicação segura de afinidade de P-cores se CPU híbrida for identificada
-    if ($Platform -in @("ps2", "gc", "wii", "ps3", "xbox360", "switch")) {
-        try {
-            Start-Sleep -Milliseconds 150
-            if (-not $Process.HasExited) {
-                $Cpu = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue
-                if ($Cpu.Name -match "12th|13th|14th|Core Ultra") {
-                    $CoreCount = [Environment]::ProcessorCount
-                    # Vincula aos P-cores (threads 0 a 7) se a topologia tiver threads suficientes
-                    if ($CoreCount -ge 8) {
-                        $Process.ProcessorAffinity = [IntPtr]0x00FF
-                        Write-Host ">>> Afinidade vinculada aos P-cores." -ForegroundColor Gray
-                    }
-                }
-            }
-        } catch {
-            # Não interrompe a execução caso o processo recuse ajuste de afinidade
-        }
-    }
+    # Sem identificação confiável da topologia, o escalonador controla a afinidade.
 
     $Process.WaitForExit()
     if ($Process.ExitCode -ne 0) {
