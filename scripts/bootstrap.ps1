@@ -71,6 +71,29 @@ if (-not (Test-Path $RyujinxPortable)) { New-Item -ItemType Directory -Path $Ryu
 $PpssppMemstick = Join-Path $BinDir "ppsspp\memstick"
 New-Item -ItemType Directory -Path $PpssppMemstick -Force | Out-Null
 
+# Confere junções após mover o projeto sem apagar diretórios ou saves existentes.
+function Ensure-SaveJunction {
+    param ([string]$LinkPath, [string]$TargetPath)
+    $Item = Get-Item -LiteralPath $LinkPath -Force -ErrorAction SilentlyContinue
+    if ($Item) {
+        if ($Item.LinkType -ne 'Junction') {
+            Write-Warning "Diretório de saves existente preservado em '$LinkPath'; migre seus dados manualmente."
+            return
+        }
+        $CurrentTarget = [string]$Item.Target
+        if ([System.IO.Path]::GetFullPath($CurrentTarget).TrimEnd('\') -ieq [System.IO.Path]::GetFullPath($TargetPath).TrimEnd('\')) { return }
+        if (Test-Path -LiteralPath $CurrentTarget) {
+            throw "Junção '$LinkPath' aponta para '$CurrentTarget', que ainda existe. Verifique os saves antes de migrar."
+        }
+        Remove-Item -LiteralPath $LinkPath -Force
+    }
+    New-Item -ItemType Junction -Path $LinkPath -Target $TargetPath -ErrorAction Stop | Out-Null
+    $Created = Get-Item -LiteralPath $LinkPath -Force
+    if ($Created.LinkType -ne 'Junction' -or -not (Test-Path -LiteralPath $LinkPath)) {
+        throw "Falha ao validar junção '$LinkPath' -> '$TargetPath'."
+    }
+}
+
 # Vincula a pasta SAVEDATA do PPSSPP ao diretório centralizado data\saves\psp\PSP\SAVEDATA via junção
 $PpssppPsp = Join-Path $PpssppMemstick "PSP"
 $PpssppSaveData = Join-Path $PpssppPsp "SAVEDATA"
@@ -85,15 +108,7 @@ if ((Test-Path $LegacyPspSave) -and -not (Test-Path $TargetPspSave)) {
 
 if (-not (Test-Path $TargetPspSave)) { New-Item -ItemType Directory -Path $TargetPspSave -Force | Out-Null }
 if (-not (Test-Path $PpssppPsp)) { New-Item -ItemType Directory -Path $PpssppPsp -Force | Out-Null }
-if (-not (Test-Path $PpssppSaveData)) {
-    $BinDrive = (Split-Path (Resolve-Path $PpssppPsp).Path -Qualifier)
-    $DataDrive = (Split-Path (Resolve-Path $TargetPspSave).Path -Qualifier)
-    if ($BinDrive -eq $DataDrive) {
-        cmd /c mklink /J "$PpssppSaveData" "$TargetPspSave" 2>$null | Out-Null
-    } else {
-        Write-Warning "Junções NTFS (/J) não podem atravessar volumes distintos ($BinDrive vs $DataDrive). Mantenha bin/ e data/ no mesmo volume ou ative links simbólicos."
-    }
-}
+Ensure-SaveJunction $PpssppSaveData $TargetPspSave
 
 # Vincula as pastas de saves do Dolphin (GC e Wii) aos diretórios centralizados via junção
 $DolphinUser = Join-Path $BinDir "dolphin\User"
@@ -108,21 +123,8 @@ if (-not (Test-Path $DolphinUser)) { New-Item -ItemType Directory -Path $Dolphin
 $DolphinWiiParent = Join-Path $DolphinUser "Wii"
 if (-not (Test-Path $DolphinWiiParent)) { New-Item -ItemType Directory -Path $DolphinWiiParent -Force | Out-Null }
 
-if (-not (Test-Path $DolphinGcSave)) {
-    $BinDrive = (Split-Path (Resolve-Path $DolphinUser).Path -Qualifier)
-    $DataDrive = (Split-Path (Resolve-Path $TargetGcSave).Path -Qualifier)
-    if ($BinDrive -eq $DataDrive) {
-        cmd /c mklink /J "$DolphinGcSave" "$TargetGcSave" 2>$null | Out-Null
-    }
-}
-
-if (-not (Test-Path $DolphinWiiSave)) {
-    $BinDrive = (Split-Path (Resolve-Path $DolphinWiiParent).Path -Qualifier)
-    $DataDrive = (Split-Path (Resolve-Path $TargetWiiSave).Path -Qualifier)
-    if ($BinDrive -eq $DataDrive) {
-        cmd /c mklink /J "$DolphinWiiSave" "$TargetWiiSave" 2>$null | Out-Null
-    }
-}
+Ensure-SaveJunction $DolphinGcSave $TargetGcSave
+Ensure-SaveJunction $DolphinWiiSave $TargetWiiSave
 
 # 4. Injeção de Templates de Configuração Inicial (Cold Start Protection)
 function Copy-TemplateIfNeeded {

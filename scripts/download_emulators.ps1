@@ -12,7 +12,7 @@ $BaseDir = Split-Path -Parent $PSScriptRoot
 $BinDir  = Join-Path $BaseDir "bin"
 $DataDir = Join-Path $BaseDir "data"
 $ApkCacheDir = Join-Path $BaseDir "tools\android_apks"
-$TempDir = Join-Path $BaseDir "tools\temp_downloads"
+$TempDir = Join-Path (Join-Path $BaseDir 'scratch') ("downloads_" + [guid]::NewGuid().ToString('N'))
 $VersionsFile = Join-Path $BinDir ".versions.json"
 
 if (-not (Test-Path $TempDir)) {
@@ -75,6 +75,51 @@ function Flatten-SingleDirectory {
             Move-Item -Path $_.FullName -Destination $DirectoryPath -Force
         }
         Remove-Item -Path $SubDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Install-StagedFiles {
+    param ([string]$Stage, [string]$Destination, [string]$Backup)
+    $Journal = [System.Collections.Generic.List[object]]::new()
+    try {
+        foreach ($File in (Get-ChildItem -LiteralPath $Stage -File -Recurse)) {
+            $Relative = [IO.Path]::GetRelativePath($Stage, $File.FullName)
+            $Target = Join-Path $Destination $Relative
+            # Configurações e dados existentes pertencem ao usuário.
+            if ((Test-Path -LiteralPath $Target) -and ($Relative -match '^(?i)(User|memstick|inis|portable)[\\/]' -or $Relative -match '^(?i)(settings\.ini|retroarch\.cfg|emu\.cfg)$')) { continue }
+            $Parent = Split-Path -Parent $Target
+            $Cursor = $Parent
+            while ($Cursor -and $Cursor.Length -ge $Destination.Length) {
+                $Existing = Get-Item -LiteralPath $Cursor -Force -ErrorAction SilentlyContinue
+                if ($Existing -and ($Existing.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+                    throw "Atualização recusada: caminho atravessa junção '$Cursor'."
+                }
+                if ($Cursor -ieq $Destination) { break }
+                $Cursor = Split-Path -Parent $Cursor
+            }
+            New-Item -ItemType Directory -Path $Parent -Force | Out-Null
+            $Old = Join-Path $Backup $Relative
+            $HadOld = Test-Path -LiteralPath $Target
+            if ($HadOld) {
+                New-Item -ItemType Directory -Path (Split-Path -Parent $Old) -Force | Out-Null
+                Copy-Item -LiteralPath $Target -Destination $Old -Force
+            }
+            $Journal.Add([PSCustomObject]@{ Target = $Target; Old = $Old; HadOld = $HadOld })
+            Copy-Item -LiteralPath $File.FullName -Destination $Target -Force
+        }
+    } catch {
+        $Failure = $_
+        for ($Index = $Journal.Count - 1; $Index -ge 0; $Index--) {
+            $Entry = $Journal[$Index]
+            try {
+                if ($Entry.HadOld) { Copy-Item -LiteralPath $Entry.Old -Destination $Entry.Target -Force }
+                elseif (Test-Path -LiteralPath $Entry.Target) { Remove-Item -LiteralPath $Entry.Target -Force }
+            } catch {
+                $script:PreserveTempOnFailure = $true
+                Write-Warning "Restauração falhou para '$($Entry.Target)'; backup preservado em '$Backup'."
+            }
+        }
+        throw $Failure
     }
 }
 
@@ -380,10 +425,8 @@ foreach ($Key in $RemoteCatalog.Keys) {
         $Status = "Não Instalado"
         $NeedsWork = $true
     } elseif ($Info.InstalledVersion -eq "instalado (versão não registrada)") {
-        # Registra a versão atual para manter o tracking ativo
-        Save-InstalledVersionEntry -EmuKey $Key -VersionString $Info.RemoteVersion
-        $Info.InstalledVersion = $Info.RemoteVersion
-        $Status = "Atualizado"
+        $Status = "Versão instalada desconhecida"
+        $NeedsWork = $true
     } elseif ($Info.InstalledVersion -ne $Info.RemoteVersion) {
         $Status = "Atualização Disponível"
         $NeedsWork = $true
@@ -417,6 +460,7 @@ if ($CheckOnly) {
 # 4. Execução de Download / Atualização
 Write-Host "`n>>> Processando instalação/atualização de emuladores..." -ForegroundColor Cyan
 $FailedEmulators = @()
+$PreserveTempOnFailure = $false
 
 foreach ($EmuName in $RemoteCatalog.Keys) {
     $Info = $RemoteCatalog[$EmuName]
@@ -454,9 +498,6 @@ foreach ($EmuName in $RemoteCatalog.Keys) {
             if (-not (Test-Path $ArchiveFile) -or (Get-Item $ArchiveFile).Length -lt 1024) {
                 throw "Download do APK '$($Info.Archive)' falhou ou resultou em arquivo inválido."
             }
-            Get-ChildItem -Path $ApkCacheDir -Filter "*nether*.apk" -ErrorAction SilentlyContinue |
-                Where-Object { $_.FullName -ne $TargetApk } |
-                Remove-Item -Force -ErrorAction SilentlyContinue
             Move-Item -Path $ArchiveFile -Destination $TargetApk -Force
         } else {
             Write-Host "Baixando $($Info.Name) ($($Info.RemoteVersion))..." -ForegroundColor Cyan
@@ -467,8 +508,21 @@ foreach ($EmuName in $RemoteCatalog.Keys) {
                 Remove-Item -Path $ArchiveFile -Force -ErrorAction SilentlyContinue
                 throw "O servidor retornou uma página HTML (possível verificação anti-bot) em vez do arquivo binário. Baixe manualmente pelo navegador em '$($Info.Url)' e extraia em '$TargetFolder'."
             }
-            Expand-ArchivePortable -ArchiveFile $ArchiveFile -DestinationPath $TargetFolder
-            Flatten-SingleDirectory -DirectoryPath $TargetFolder
+            $Stage = Join-Path $TempDir "stage_$EmuName"
+            $Backup = Join-Path $TempDir "backup_$EmuName"
+            if (Test-Path -LiteralPath $Stage) { throw "Área temporária já existe: $Stage" }
+            Expand-ArchivePortable -ArchiveFile $ArchiveFile -DestinationPath $Stage
+            Flatten-SingleDirectory -DirectoryPath $Stage
+            $ExpectedExe = switch ($EmuName) {
+                'retroarch' { 'retroarch*.exe' } 'duckstation' { 'duckstation*.exe' }
+                'pcsx2' { 'pcsx2*.exe' } 'ppsspp' { 'PPSSPP*.exe' }
+                'dolphin' { 'Dolphin*.exe' } 'flycast' { 'flycast*.exe' }
+                'rpcs3' { 'rpcs3*.exe' } 'xenia' { 'xenia*.exe' } 'ryujinx' { 'Ryujinx*.exe' }
+            }
+            if (-not (Get-ChildItem -LiteralPath $Stage -Filter $ExpectedExe -File -Recurse | Where-Object { $_.Name -notmatch 'updater|setup|unins' } | Select-Object -First 1)) {
+                throw "Executável esperado ausente no arquivo de $EmuName."
+            }
+            Install-StagedFiles -Stage $Stage -Destination $TargetFolder -Backup $Backup
 
             # Marcadores de portabilidade e ações específicas
             if ($EmuName -in @("duckstation", "pcsx2", "dolphin", "xenia", "rpcs3")) {
@@ -504,7 +558,7 @@ foreach ($EmuName in $RemoteCatalog.Keys) {
 }
 
 # 5. Limpeza de arquivos temporários de download
-if (Test-Path $TempDir) {
+if ((Test-Path $TempDir) -and -not $PreserveTempOnFailure) {
     Remove-Item -Path $TempDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
