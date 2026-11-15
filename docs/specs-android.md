@@ -111,7 +111,7 @@ Este script em PowerShell utiliza o **Android Debug Bridge (ADB)** para:
 4. Configurar whitelist de economia de bateria para o Syncthing (`dumpsys deviceidle`).
 5. Baixar e instalar automaticamente os APKs ARM64 compatíveis (com fallback para cache offline).
 6. Injetar o arquivo `.stignore` no diretório de saves do Android.
-7. Injetar arquivos de configuração otimizados (`retroarch.cfg`, `ppsspp.ini`, `Dolphin.ini`, `emu.cfg`, `duckstation_settings.ini`, `nethersx2_settings.ini`) e gerar dinamicamente a playlist oficial de Super Nintendo pré-vinculada ao Snes9x.
+7. Disponibilizar perfis e aplicar configurações compatíveis; na primeira execução, o Dolphin cria sua configuração antes da aplicação do perfil inicial. O usuário seleciona as pastas no aplicativo. Gerar dinamicamente a playlist oficial de Super Nintendo pré-vinculada ao Snes9x.
 
 Salvo em `scripts/setup_android_emulators.ps1`:
 
@@ -317,14 +317,9 @@ if (Test-Path $AndroidTemplatesDir) {
         & adb @AdbArgs push $PpssppIni "/storage/emulated/0/Android/data/org.ppsspp.ppsspp/files/PSP/SYSTEM/ppsspp.ini" 2>$null | Out-Null
     }
 
-    # 7.4 Injeção Direta - Dolphin (GameCube/Wii)
-    $DolphinIni = Join-Path $AndroidTemplatesDir "Dolphin.ini"
-    if (Test-Path $DolphinIni) {
-        Write-Host "Aplicando configuração: Dolphin..." -ForegroundColor Gray
-        & adb @AdbArgs shell "mkdir -p /storage/emulated/0/dolphin-emu/Config /storage/emulated/0/Android/data/org.dolphinemu.dolphinemu/files/Config" 2>$null | Out-Null
-        & adb @AdbArgs push $DolphinIni "/storage/emulated/0/dolphin-emu/Config/Dolphin.ini" 2>$null | Out-Null
-        & adb @AdbArgs push $DolphinIni "/storage/emulated/0/Android/data/org.dolphinemu.dolphinemu/files/Config/Dolphin.ini" 2>$null | Out-Null
-    }
+    # 7.4 Para o perfil inicial do Dolphin, consulte o script executável:
+    # ele inicia o app, aguarda a criação do arquivo e preserva configurações existentes.
+    # O usuário seleciona as pastas de jogos pelo seletor do Android.
 
     # 7.5 Injeção Direta - Flycast (Dreamcast)
     $FlycastCfg = Join-Path $AndroidTemplatesDir "emu.cfg"
@@ -420,7 +415,7 @@ if ($SyncthingInstalled) {
    * Graças à **injeção automática de configurações** executada na etapa 7 do script ADB:
      * **RetroArch:** Já inicializa com diretórios de BIOS (`RetroGames/bios/`), saves (`RetroGames/saves/snes/`) e ROMs (`RetroGames/roms/`) pré-configurados com backend Vulkan e playlist oficial de Super Nintendo gerada dinamicamente com os títulos da biblioteca vinculados ao Snes9x (ver nota de segurança abaixo).
      * **PPSSPP:** Já inicializa com MemoryStick e `SAVEDATA` apontando para `RetroGames/saves/psp/` e diretório de ROMs em `RetroGames/roms/psp/`.
-     * **Dolphin:** Já inicializa com caminhos de ISO em `RetroGames/roms/gc/` e backend gráfico Vulkan.
+     * **Dolphin:** Após aplicar o perfil inicial, abra o aplicativo e adicione `RetroGames/roms/gc/` e `RetroGames/roms/wii/` pelo seletor do Android, concedendo acesso. Ajuste o backend gráfico conforme o dispositivo, se necessário.
      * **Flycast:** Já inicializa com VMU em `RetroGames/saves/dc/`, BIOS em `RetroGames/bios/dc/` e ROMs em `RetroGames/roms/dc/`.
      * **DuckStation e NetherSX2:** O script disponibiliza os perfis padronizados em `/storage/emulated/0/RetroGames/config/`. Caso o Storage Access Framework (SAF) do Android exija permissão de escaneamento visual no primeiro boot, utilize a opção *Import Settings* apontando para o arquivo correspondente na pasta `config/` ou selecione os diretórios indicados.
 
@@ -440,5 +435,5 @@ if ($SyncthingInstalled) {
 
 1. **Sempre salve pelo menu in-game:** Use save points ou memory card do jogo; nunca confie em savestate para troca de aparelhos.
 2. **Feche o aplicativo antes de trocar:** Os emuladores gravam em cache de memória e só descarregam as alterações no arquivo físico no momento do encerramento da sessão.
-3. **Aguarde a sincronização (2 a 5 segundos):** Na mesma rede Wi-Fi local, o Syncthing sincroniza o delta do arquivo de save quase instantaneamente antes de você abrir o jogo na outra ponta.
+3. **Confirme a sincronização:** Aguarde o Syncthing indicar que as pastas estão atualizadas nos dois dispositivos antes de abrir o jogo na outra ponta.
 4. **Preserve a nomenclatura higienizada:** Arquivos sem espaços garantem que os parsers dos emuladores Android (baseados em Linux/POSIX) e o sistema de arquivos FAT32/exFAT não gerem erros de I/O ou arquivos temporários não sincronizáveis.
