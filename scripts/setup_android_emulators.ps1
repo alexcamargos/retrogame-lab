@@ -110,17 +110,17 @@ foreach ($Dir in $Directories) {
 }
 
 # 3. Injeção de Regras .stignore no Android
-$LocalStIgnore = Join-Path $BaseDir "data\saves\.stignore"
-if (Test-Path $LocalStIgnore) {
-    & adb @AdbArgs push $LocalStIgnore "$TargetDevicePath/saves/.stignore" | Out-Null
+$RemoteIgnoreExists = (& adb @AdbArgs shell "[ -f '$TargetDevicePath/saves/.stignore' ] && echo exists") | Out-String
+if ($RemoteIgnoreExists -match 'exists') {
+    Write-Warning "O .stignore Android existente foi preservado. Execute 'retrogame syncthing --apply --no-windows' para incorporar as regras obrigatórias."
 } else {
     $StIgnoreContent = @"
 // .stignore para retrogames-saves
 *.state*
 *.s[0-9][0-9]
 *.nvram.bak
-*.ppst
-*.p2s
+*.ppst*
+*.p2s*
 PPSSPP_STATE/
 *.tmp*
 *.lock*
@@ -387,14 +387,113 @@ if (Test-Path $AndroidTemplatesDir) {
         Push-AndroidConfigIfNeeded $PpssppIni "/storage/emulated/0/Android/data/org.ppsspp.ppsspp/files/PSP/SYSTEM/ppsspp.ini" -ForceOverwrite:$ForceTemplates
     }
 
-    # 7.4 Injeção Direta - Dolphin (GameCube/Wii)
+    # Na primeira execução o próprio Dolphin deve criar sua configuração.
+    # Preserva instalações existentes mesmo quando -ForceTemplates é solicitado.
     $DolphinIni = Join-Path $AndroidTemplatesDir "Dolphin.ini"
-    if (Test-Path $DolphinIni) {
-        Write-Host "Aplicando configuração: Dolphin..." -ForegroundColor Gray
-        & adb @AdbArgs shell "mkdir -p /storage/emulated/0/dolphin-emu/Config /storage/emulated/0/Android/data/org.dolphinemu.dolphinemu/files/Config" 2>$null | Out-Null
-        Push-AndroidConfigIfNeeded $DolphinIni "/storage/emulated/0/dolphin-emu/Config/Dolphin.ini" -ForceOverwrite:$ForceTemplates
-        Push-AndroidConfigIfNeeded $DolphinIni "/storage/emulated/0/Android/data/org.dolphinemu.dolphinemu/files/Config/Dolphin.ini" -ForceOverwrite:$ForceTemplates
+    $DolphinConfig = "/storage/emulated/0/Android/data/org.dolphinemu.dolphinemu/files/Config/Dolphin.ini"
+    if ((Test-Path $DolphinIni) -and ($InstalledPackages -contains "org.dolphinemu.dolphinemu")) {
+        $ConfigStatus = (& adb @AdbArgs shell "if [ -f '$DolphinConfig' ]; then echo present; else echo missing; fi") | Out-String
+        if ($LASTEXITCODE -ne 0 -or $ConfigStatus.Trim() -notin @("present", "missing")) {
+            Write-Warning "Não foi possível verificar a configuração do Dolphin; perfil inicial não aplicado."
+        } elseif ($ConfigStatus.Trim() -eq "present") {
+            Write-Host "Dolphin: configuração existente preservada." -ForegroundColor Gray
+        } else {
+            $Running = (& adb @AdbArgs shell "pidof org.dolphinemu.dolphinemu") | Out-String
+            if ($Running.Trim()) {
+                Write-Warning "Dolphin em execução sem configuração acessível; perfil inicial não aplicado."
+            } else {
+                & adb @AdbArgs shell "am start -n org.dolphinemu.dolphinemu/.ui.main.MainActivity" | Out-Null
+                $Created = $false
+                if ($LASTEXITCODE -eq 0) {
+                    for ($Attempt = 0; $Attempt -lt 15; $Attempt++) {
+                        Start-Sleep -Seconds 1
+                        $Check = (& adb @AdbArgs shell "if [ -f '$DolphinConfig' ]; then echo present; fi") | Out-String
+                        if ($LASTEXITCODE -eq 0 -and $Check.Trim() -eq "present") { $Created = $true; break }
+                    }
+                }
+                if (-not $Created) {
+                    Write-Warning "Dolphin não criou a configuração; conclua a inicialização no aparelho e configure o perfil manualmente."
+                } else {
+                    & adb @AdbArgs shell "am force-stop org.dolphinemu.dolphinemu" | Out-Null
+                    if ($LASTEXITCODE -ne 0) {
+                        Write-Warning "Não foi possível encerrar o Dolphin; perfil inicial não aplicado."
+                    } else {
+                        # Alterar o arquivo existente por redirecionamento conserva seu proprietário.
+                        $Original = (& adb @AdbArgs shell "cat '$DolphinConfig'") | Out-String
+                        if ($LASTEXITCODE -ne 0) {
+                            Write-Warning "Não foi possível ler a configuração criada pelo Dolphin."
+                        } else {
+                            $LocalProfile = [System.IO.Path]::GetTempFileName()
+                            $LocalBackup = [System.IO.Path]::GetTempFileName()
+                            $RemoteProfile = "/data/local/tmp/retrogame-dolphin-$([guid]::NewGuid().ToString('N')).ini"
+                            $RemoteBackup = "$RemoteProfile.bak"
+                            $WriteAttempted = $false
+                            try {
+                                [System.IO.File]::WriteAllText($LocalBackup, $Original, [System.Text.UTF8Encoding]::new($false))
+                                # Mesclar apenas chaves do perfil, preservando as demais preferências.
+                                $Merged = [System.Collections.Generic.List[string]]::new()
+                                $Merged.AddRange([string[]]($Original -split "`r?`n"))
+                                $Section = ""
+                                foreach ($Line in (Get-Content -LiteralPath $DolphinIni)) {
+                                    if ($Line -match '^\s*\[([^]]+)\]\s*$') { $Section = $Matches[1]; continue }
+                                    if (-not $Section -or $Line -notmatch '^\s*([^#;=]+?)\s*=') { continue }
+                                    $Key = $Matches[1].Trim()
+                                    $Start = -1
+                                    for ($i = 0; $i -lt $Merged.Count; $i++) {
+                                        if ($Merged[$i] -match ('^\s*\[' + [regex]::Escape($Section) + '\]\s*$')) { $Start = $i; break }
+                                    }
+                                    if ($Start -lt 0) {
+                                        $Merged.Add("[$Section]")
+                                        $Merged.Add($Line)
+                                        continue
+                                    }
+                                    $End = $Start + 1
+                                    $Found = $false
+                                    while ($End -lt $Merged.Count -and $Merged[$End] -notmatch '^\s*\[') {
+                                        if ($Merged[$End] -match ('^\s*' + [regex]::Escape($Key) + '\s*=')) {
+                                            $Merged[$End] = $Line
+                                            $Found = $true
+                                            break
+                                        }
+                                        $End++
+                                    }
+                                    if (-not $Found) { $Merged.Insert($End, $Line) }
+                                }
+                                [System.IO.File]::WriteAllText($LocalProfile, ($Merged -join "`n"), [System.Text.UTF8Encoding]::new($false))
+                                & adb @AdbArgs push $LocalBackup $RemoteBackup | Out-Null
+                                if ($LASTEXITCODE -ne 0) { throw "falha ao enviar backup temporário" }
+                                & adb @AdbArgs push $LocalProfile $RemoteProfile | Out-Null
+                                if ($LASTEXITCODE -ne 0) { throw "falha ao enviar perfil temporário" }
+                                $WriteAttempted = $true
+                                & adb @AdbArgs shell "cat '$RemoteProfile' > '$DolphinConfig'" | Out-Null
+                                if ($LASTEXITCODE -ne 0) { throw "falha ao aplicar perfil ao arquivo existente" }
+                                $Applied = (& adb @AdbArgs shell "cat '$DolphinConfig'") | Out-String
+                                if ($LASTEXITCODE -ne 0 -or $Applied -notmatch '(?m)^GFXBackend\s*=\s*Vulkan\s*$') {
+                                    throw "não foi possível confirmar o perfil aplicado"
+                                }
+                                Write-Host "Dolphin: perfil inicial aplicado à configuração criada pelo aplicativo." -ForegroundColor Green
+                            } catch {
+                                if ($WriteAttempted) {
+                                    & adb @AdbArgs shell "cat '$RemoteBackup' > '$DolphinConfig'" | Out-Null
+                                    if ($LASTEXITCODE -ne 0) {
+                                        Write-Warning "Não foi possível restaurar o arquivo original automaticamente."
+                                    }
+                                }
+                                Write-Warning "Perfil inicial do Dolphin não confirmado: $($_.Exception.Message). Backup local: $LocalBackup"
+                                $LocalBackup = $null
+                            } finally {
+                                & adb @AdbArgs shell "rm -f '$RemoteProfile'" | Out-Null
+                                & adb @AdbArgs shell "rm -f '$RemoteBackup'" | Out-Null
+                                Remove-Item -LiteralPath $LocalProfile -Force -ErrorAction SilentlyContinue
+                                if ($LocalBackup) { Remove-Item -LiteralPath $LocalBackup -Force -ErrorAction SilentlyContinue }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
+    Write-Host "Dolphin: adicione as pastas de jogos pelo seletor do Android." -ForegroundColor Yellow
 
     # 7.5 Injeção Direta - Flycast (Dreamcast)
     $FlycastCfg = Join-Path $AndroidTemplatesDir "emu.cfg"
